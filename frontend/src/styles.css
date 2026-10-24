@@ -6025,6 +6025,13 @@ textarea {
   }
 }
 
+/* Permanent QORE Graphite typography scale. */
+body, button, input, select, textarea { font-size: 13px; }
+.workbench-topbar, .sidebar-header, .settings-top-header, .settings-breadcrumb-bar { font-weight: 700 !important; }
+.topbar-brand, .qore-entry-hint, .clean-setting-title, .section-title, .panel-title { font-weight: 700 !important; }
+.tree-file-row, .tab-item, .menu-text-btn, .topbar-util-btn, .status-item { font-weight: 600 !important; }
+.vscode-sidebar, .panel, .editor-pane, .preview-pane, .terminal-panel { color: #f8fbff !important; }
+
 /* Component-level failure isolation keeps the workbench usable when a heavy
    renderer fails. */
 .component-fallback {

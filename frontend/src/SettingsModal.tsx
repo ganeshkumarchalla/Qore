@@ -4,7 +4,7 @@ import type { Settings, Theme } from './types';
 
 export const defaultSettings: Settings = {
   theme: 'obsidian-void',
-  accentColor: '#38bdf8',
+  accentColor: '#6ea8d8',
   glassmorphism: true,
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   fontSize: 13,
@@ -50,11 +50,8 @@ export const defaultSettings: Settings = {
 };
 
 function normalizeTheme(theme: string | undefined): Theme {
-  if (theme === 'antigravity') return 'hyperion-cyan';
-  if (theme === 'azure-quantum') return 'cobalt-singularity';
-  if (theme === 'nordic-frost') return 'boreal-cryo';
-  if (theme === 'dark-modern' || !theme) return 'obsidian-void';
-  return theme as Theme;
+  void theme;
+  return 'obsidian-void';
 }
 
 export function loadStoredSettings(): Settings {
@@ -227,21 +224,10 @@ export function SettingsModal({
   };
 
   const themeOptions: { id: Theme; name: string; desc: string; preview: string }[] = [
-    { id: 'obsidian-void', name: 'Obsidian Void', desc: 'Titanium dark slate', preview: '#090a0f' },
-    { id: 'hyperion-cyan', name: 'Hyperion Cyan', desc: 'Coherent cyan luminescence', preview: '#060911' },
-    { id: 'cobalt-singularity', name: 'Cobalt Singularity', desc: 'Deep cryogenic indigo', preview: '#070b19' },
-    { id: 'boreal-cryo', name: 'Zero-Kelvin Cryo', desc: 'Dilution refrigerator frost', preview: '#0a111a' },
-    { id: 'plasma-nebula', name: 'Plasma Nebula', desc: 'Ultraviolet ion cosmic violet', preview: '#0c0817' },
+    { id: 'obsidian-void', name: 'QORE Graphite', desc: 'Permanent platform theme', preview: '#19232e' },
   ];
 
-  const accentColors = [
-    { label: 'Cyan', color: '#38bdf8' },
-    { label: 'Violet', color: '#c084fc' },
-    { label: 'Emerald', color: '#34d399' },
-    { label: 'Amber', color: '#fbbf24' },
-    { label: 'Rose', color: '#f472b6' },
-    { label: 'Sapphire', color: '#3b82f6' },
-  ];
+  const accentColors = [{ label: 'QORE Blue', color: '#6ea8d8' }];
 
   const categoryMeta: Record<SettingCategory, { title: string; count: number; icon: IconName }> = {
     optics: { title: 'Workspace & Optics', count: 7, icon: 'code' },

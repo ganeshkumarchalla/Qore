@@ -185,8 +185,8 @@ export default function App() {
   }, [initialize]);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', settings.theme);
-    document.documentElement.style.setProperty('--vscode-accent', settings.accentColor);
+    document.documentElement.setAttribute('data-theme', 'obsidian-void');
+    document.documentElement.style.setProperty('--vscode-accent', '#6ea8d8');
     if (settings.glassmorphism) {
       document.documentElement.setAttribute('data-glass', 'true');
     } else {
