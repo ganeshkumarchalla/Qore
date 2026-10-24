@@ -6213,8 +6213,8 @@ input:focus, select:focus, textarea:focus {
   padding: 20px !important;
 }
 .bloch-svg-wrap {
-  width: min(100%, 560px) !important;
-  min-height: 520px !important;
+  width: min(100%, 980px) !important;
+  min-height: 360px !important;
   margin: 0 auto !important;
   display: grid !important;
   place-items: center !important;
@@ -6225,7 +6225,7 @@ input:focus, select:focus, textarea:focus {
   backdrop-filter: blur(20px) saturate(125%);
   -webkit-backdrop-filter: blur(20px) saturate(125%);
 }
-.bloch-svg { width: min(88%, 470px) !important; height: auto !important; cursor: grab; }
+.bloch-svg { width: min(54%, 420px) !important; height: auto !important; cursor: grab; }
 .bloch-svg:active { cursor: grabbing; }
 .bloch-metrics {
   width: 100% !important;
@@ -6240,7 +6240,7 @@ input:focus, select:focus, textarea:focus {
 }
 .bloch-kv-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
 @media (max-width: 900px) { .bloch-kv-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
-@media (max-width: 560px) { .bloch-svg-wrap { min-height: 390px !important; } .bloch-kv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+@media (max-width: 560px) { .bloch-svg-wrap { min-height: 310px !important; } .bloch-svg { width: min(82%, 360px) !important; } .bloch-kv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
 
 /* Component-level failure isolation keeps the workbench usable when a heavy
    renderer fails. */
