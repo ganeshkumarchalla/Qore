@@ -9,6 +9,18 @@ QORE is a focused quantum development environment for writing circuits, proving 
 
 <p align="center"><a href="https://github.com/ganeshkumarchalla/Qore/tree/main">Explore the source</a> · <a href="https://github.com/ganeshkumarchalla/Qore/issues">Report an issue</a> · <a href="docs/QUANTUM.md">Read the quantum model</a></p>
 
+## Product tour
+
+![QORE animated product tour](docs/qore-product-tour.svg)
+
+The visual tour maps the complete journey: author → compile → simulate → inspect → optimize → prove → archive. The animation is intentionally self-contained, with no remote image or tracking dependency.
+
+### Build surface
+
+![QORE technology stack](docs/qore-stack-marquee.svg)
+
+The stack marquee shows the tools and services used to build and ship QORE: ChatGPT, Antigravity, Canva, Figma, Supabase, GitHub, Vercel, PowerShell, and the Codex Security plugin. QORE’s runtime remains first-party and server-side; these tools are represented as the engineering workflow, not runtime dependencies.
+
 ---
 
 ## Quickstart & Running the Application
@@ -95,6 +107,7 @@ QORE/
 
 ```mermaid
 flowchart TD
+    %%{init: {'theme':'base','themeVariables': {'primaryColor':'#19232e','primaryTextColor':'#eef2f6','primaryBorderColor':'#6ea8d8','lineColor':'#6ea8d8','secondaryColor':'#202a36','tertiaryColor':'#111821'}}}%%
     User["Developer UI (Monaco + React)"]
     API["FastAPI Orchestrator (qore.main)"]
     AST["Constrained AST Compiler (qore.quantum)"]
