@@ -244,6 +244,10 @@ export default function App() {
       } finally {
         setBusy('');
       }
+    } else {
+      // Non-Python workspace files are still fully editable; they simply do
+      // not need a quantum parse pass before the editor becomes interactive.
+      setBusy('');
     }
   }
 
@@ -253,6 +257,7 @@ export default function App() {
     try {
       const project = await api<Project>(`/projects/${id}`);
       await loadSource(project.source, project.name, project.id);
+      setBusy('');
     } catch (err) {
       setError((err as Error).message);
       setBusy('');
