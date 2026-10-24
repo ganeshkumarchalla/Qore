@@ -1,0 +1,45 @@
+{
+  "security.workspace.trust.enabled": true,
+  "security.workspace.trust.startupPrompt": "always",
+  "telemetry.telemetryLevel": "off",
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000,
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/.venv": false,
+    "**/.env": false,
+    "**/*.pem": true,
+    "**/*.key": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.venv": true,
+    "**/.pytest_cache": true,
+    "**/.tmp": true,
+    "**/.env*": true,
+    "**/*.pem": true,
+    "**/*.key": true,
+    "**/*.pfx": true,
+    "**/*.sqlite3": true,
+    "**/data/*.sqlite3": true
+  },
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.venv/**": true,
+    "**/.tmp/**": true,
+    "**/.env*": true,
+    "**/data/**": true,
+    "**/*.pem": true,
+    "**/*.key": true
+  },
+  "git.confirmSync": true,
+  "git.autofetch": false
+}
