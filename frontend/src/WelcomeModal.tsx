@@ -34,7 +34,6 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
 
   const handleEnter = () => {
     setExiting(true);
-    localStorage.setItem('qore_welcome_v2_dismissed', 'true');
     setTimeout(() => {
       setExiting(false);
       onClose();

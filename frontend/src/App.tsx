@@ -93,7 +93,9 @@ export default function App() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHudOpen, setIsHudOpen] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [isWelcomeOpen, setIsWelcomeOpen] = useState(() => !localStorage.getItem('qore_welcome_v2_dismissed'));
+  // The entry screen is a page-load experience, not a permanent preference:
+  // every refresh starts with the QORE welcome surface again.
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(loadStoredUser);
   const [inspectorTab, setInspectorTab] = useState<'circuit' | 'bloch' | 'unitary' | 'qasm'>('circuit');
