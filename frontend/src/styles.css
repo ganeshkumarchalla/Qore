@@ -388,7 +388,7 @@ code, pre, .mono,
   z-index: 20;
   user-select: none;
   align-self: stretch;
-  transition: width 0.18s ease, min-width 0.18s ease, transform 0.18s ease;
+  transition: width 0.28s cubic-bezier(.22,.61,.36,1), min-width 0.28s cubic-bezier(.22,.61,.36,1), transform 0.28s cubic-bezier(.22,.61,.36,1), opacity .2s ease;
 }
 .vscode-sidebar.closed {
   width: 0;
@@ -587,6 +587,7 @@ code, pre, .mono,
   background: var(--vscode-bg);
   align-self: stretch;
   position: relative;
+  transition: flex-basis .28s ease, width .28s ease, opacity .22s ease;
 }
 
 /* Topbar / Command Center */
@@ -6173,7 +6174,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .lab-view-shell {
-  position: fixed;
+  position: absolute;
   inset: 74px 0 24px 0;
   z-index: 2;
   padding: 18px;
@@ -6181,6 +6182,13 @@ input:focus, select:focus, textarea:focus {
   background: radial-gradient(circle at 50% 18%, rgba(110,168,216,.12), transparent 42%), rgba(8,13,21,.42);
   animation: labSurfaceIn .45s ease both;
 }
+.vscode-main > .workspace-content,
+.vscode-main > .forge-view-shell,
+.vscode-main > .research-view-shell,
+.vscode-main > .intelligence-view-shell {
+  animation: workspaceViewIn .3s ease both;
+}
+@keyframes workspaceViewIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 .lab-view-shell .lab-grid { min-height: calc(100vh - 116px); }
 .lab-view-shell .lab-grid {
   grid-template-columns: minmax(0, 1fr) !important;
