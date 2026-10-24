@@ -1248,11 +1248,11 @@ export default function App() {
                     <span>Settings & Preferences</span>
                     <span className="dropdown-shortcut">Ctrl+,</span>
                   </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://docs.quantum.ibm.com/', '_blank', 'noopener,noreferrer'); }}>
+                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://github.com/ganeshkumarchalla/Qore_Documentation', '_blank', 'noopener,noreferrer'); }}>
                     <span>Quantum Lab Documentation ↗</span>
                   </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://learning.quantum.ibm.com/', '_blank', 'noopener,noreferrer'); }}>
-                    <span>Quantum Learning ↗</span>
+                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://github.com/ganeshkumarchalla/Qore_Documentation', '_blank', 'noopener,noreferrer'); }}>
+                    <span>Quantum Ledger Documentation ↗</span>
                   </button>
                   <div className="dropdown-divider" />
                   <button
