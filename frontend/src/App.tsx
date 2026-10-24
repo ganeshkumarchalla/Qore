@@ -1248,10 +1248,10 @@ export default function App() {
                     <span>Settings & Preferences</span>
                     <span className="dropdown-shortcut">Ctrl+,</span>
                   </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://github.com/ganeshkumarchalla/Qore_Documentation', '_blank', 'noopener,noreferrer'); }}>
+                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://qoredocs.vercel.app/#lab', '_blank', 'noopener,noreferrer'); }}>
                     <span>Quantum Lab Documentation ↗</span>
                   </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://github.com/ganeshkumarchalla/Qore_Documentation', '_blank', 'noopener,noreferrer'); }}>
+                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://qoredocs.vercel.app/#ledger', '_blank', 'noopener,noreferrer'); }}>
                     <span>Quantum Ledger Documentation ↗</span>
                   </button>
                   <div className="dropdown-divider" />
