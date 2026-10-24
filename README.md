@@ -5,6 +5,28 @@
 
 QORE is a focused quantum development environment for writing circuits, proving transformations, and inspecting results. It opens empty by design: users create their own files and projects, then run them through a bounded compiler, isolated simulator, visual laboratory, and immutable experiment ledger.
 
+## About QORE
+
+QORE is a research-grade quantum workspace designed to make experimental computing understandable, reproducible, and reviewable. It gives a developer one calm surface for authoring a circuit, compiling it into a typed intermediate representation, running controlled simulations, exploring quantum state evidence, optimizing transformations, and preserving the complete result as an immutable experiment.
+
+The project is built for quantum learners, algorithm engineers, research teams, and hackathon builders who need more than a code editor and more than a chart. QORE connects the source, execution settings, measurements, visual state, optimization proof, and historical record so that every result can be inspected and repeated.
+
+### What makes it different
+
+- **Evidence over guesswork:** simulation results include ideal probabilities, measured counts, state amplitudes, Bloch vectors, metrics, and total variation distance.
+- **Safe by construction:** circuit source is parsed through a constrained AST pipeline and executed in bounded worker processes; arbitrary Python execution is not permitted.
+- **Proof-aware optimization:** candidate circuits are accepted only when unitary behavior and terminal measurement mappings remain equivalent within tolerance.
+- **A clean starting point:** the IDE opens as an empty workspace, so user-created files and experiments remain the center of the product.
+- **Visual understanding:** the Lab combines classic scientific views with an interactive 3D State World that makes probability and measurement behavior tangible.
+
+### The QORE workflow
+
+```text
+Author → Compile → Simulate → Inspect → Optimize → Prove → Archive
+```
+
+QORE is intentionally local-first, transparent, and extensible. A local SQLite ledger provides dependable development and offline work, while the authenticated cloud boundary can add owner-scoped identity and persistence without exposing secrets to the browser.
+
 ![QORE workspace](docs/qore-workspace.svg)
 
 <p align="center"><a href="https://github.com/ganeshkumarchalla/Qore/tree/main">Explore the source</a> · <a href="https://github.com/ganeshkumarchalla/Qore/issues">Report an issue</a> · <a href="docs/QUANTUM.md">Read the quantum model</a></p>
