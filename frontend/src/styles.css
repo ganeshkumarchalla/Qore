@@ -6225,7 +6225,7 @@ input:focus, select:focus, textarea:focus {
   backdrop-filter: blur(20px) saturate(125%);
   -webkit-backdrop-filter: blur(20px) saturate(125%);
 }
-.bloch-svg { width: min(54%, 420px) !important; height: auto !important; cursor: grab; }
+.bloch-svg { width: min(82%, 620px) !important; height: auto !important; cursor: grab; }
 .bloch-svg:active { cursor: grabbing; }
 .bloch-metrics {
   width: 100% !important;
@@ -6241,6 +6241,28 @@ input:focus, select:focus, textarea:focus {
 .bloch-kv-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
 @media (max-width: 900px) { .bloch-kv-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
 @media (max-width: 560px) { .bloch-svg-wrap { min-height: 310px !important; } .bloch-svg { width: min(82%, 360px) !important; } .bloch-kv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+
+/* Let the sphere occupy the stage; in all-qubit mode each qubit gets an equal glass tile. */
+.bloch-viewer-card .bloch-grid-gallery {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  gap: 16px !important;
+  padding: 18px !important;
+}
+.bloch-viewer-card .bloch-grid-card {
+  min-height: 250px !important;
+  padding: 14px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(145deg, rgba(31,47,67,.78), rgba(28,28,50,.72)) !important;
+  border-color: rgba(130,188,232,.2) !important;
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+}
+.bloch-viewer-card .bloch-grid-svg-wrap { flex: 1; width: 100%; min-height: 190px; }
+.bloch-viewer-card .bloch-grid-svg { width: min(100%, 220px) !important; height: auto !important; }
+@media (max-width: 560px) {
+  .bloch-viewer-card .bloch-grid-gallery { grid-template-columns: 1fr !important; }
+  .bloch-viewer-card .bloch-grid-card { min-height: 230px !important; }
+}
 
 /* Component-level failure isolation keeps the workbench usable when a heavy
    renderer fails. */
