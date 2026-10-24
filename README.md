@@ -5,6 +5,10 @@
 
 QORE is a focused quantum development environment for writing circuits, proving transformations, and inspecting results. It opens empty by design: users create their own files and projects, then run them through a bounded compiler, isolated simulator, visual laboratory, and immutable experiment ledger.
 
+![QORE workspace](docs/qore-workspace.svg)
+
+<p align="center"><a href="https://github.com/ganeshkumarchalla/Qore/tree/main">Explore the source</a> · <a href="https://github.com/ganeshkumarchalla/Qore/issues">Report an issue</a> · <a href="docs/QUANTUM.md">Read the quantum model</a></p>
+
 ---
 
 ## Quickstart & Running the Application
@@ -196,12 +200,6 @@ When building upon or modifying QORE, ensure the following constraints are prese
 
 ---
 
-## Summary of All Changes Implemented (Changelog)
+## Release discipline
 
-- **Entry Screen**: QORE gradient welcome screen with auroras, orbital rings, and a single focused entry action.
-- **Left Sidebar Activity Bar**: Settings and Account icons are pinned exclusively to the bottom of the Activity Bar using `<Icon name="account" />` and `<Icon name="gear" />`. Removed redundant account and settings pills from the top bar.
-- **Viewport & Bottom Space Fix**: Fixed `html, body, #root, .vscode-root` and `.vscode-statusbar` with absolute pinning and flexbox alignment, completely eliminating extra dead space or double-scrollbars at the bottom of the window.
-- **Terminal Consistency**: Locked terminal dock dimensions to 240px across Studio, Lab, and Forge views. Replaced vendor branding with first-party QORE OS kernel terminology.
-- **Problems Diagnostics Tab**: Added live AST and syntax analyzer that detects compile errors and allows one-click jump-to-line navigation in Monaco.
-- **Non-Python File Handling**: Added file extension discrimination in `loadSource()` so `.md`, `.json`, and `.qasm` files load seamlessly without triggering Python circuit compile errors.
-- **Starter Projects**: Verified all 5 production quantum algorithms against the Aer simulation kernel with 100% test pass rate.
+- Changes are developed on `editing`, verified, promoted to `production`, and then fast-forwarded to `main` for deployment.
