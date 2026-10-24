@@ -30,6 +30,7 @@ In PowerShell from the repository root:
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn qore.main:app --host 127.0.0.1 --port 8000
 ```
+
 Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in any modern browser. FastAPI serves the compiled Vite frontend production bundle directly from `frontend/dist/`.
 
 ### 2. Frontend Development Mode (Hot Reload)
@@ -131,6 +132,8 @@ flowchart TD
     API --> DB
     API -->|JSON Evidence| User
 ```
+
+![Animated QORE architecture flow](docs/qore-architecture.svg)
 
 ### 1. Monaco Editor & Constrained AST Compiler
 - **Strict Bounded Python AST**: QORE does **NOT** execute arbitrary Python code via `eval()` or `exec()`. Instead, [`backend/qore/quantum.py`](file:///c:/Users/ganes/OneDrive/QORE/backend/qore/quantum.py) parses the code into Python's Abstract Syntax Tree (`ast.parse`) and inspects statements against a strict whitelist of quantum operations:
