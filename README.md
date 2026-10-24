@@ -19,7 +19,7 @@ The visual tour maps the complete journey: author → compile → simulate → i
 
 ![QORE technology stack](docs/qore-stack-marquee.svg)
 
-The stack marquee shows the tools and services used to build and ship QORE: ChatGPT, Antigravity, Canva, Figma, Supabase, GitHub, Vercel, PowerShell, and the Codex Security plugin. QORE’s runtime remains first-party and server-side; these tools are represented as the engineering workflow, not runtime dependencies.
+The stack marquee shows the tools and services used to build and ship QORE: ChatGPT, Antigravity, Canva, Figma, Supabase, GitHub, Vercel, PowerShell, and the Codex Security plugin. Each pill includes a visible tool mark. QORE’s runtime remains first-party and server-side; these tools are represented as the engineering workflow, not runtime dependencies.
 
 ---
 
