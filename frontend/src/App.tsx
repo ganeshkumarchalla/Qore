@@ -1248,16 +1248,6 @@ export default function App() {
                     <span>Settings & Preferences</span>
                     <span className="dropdown-shortcut">Ctrl+,</span>
                   </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsWelcomeOpen(true);
-                    }}
-                  >
-                    <span>Welcome to QORE (Show Splash Screen)</span>
-                  </button>
                   <div className="dropdown-divider" />
                   <button
                     type="button"
