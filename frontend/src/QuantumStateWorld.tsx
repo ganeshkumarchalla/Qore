@@ -204,7 +204,7 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
     <div className="quantum-world-card">
       <div className="quantum-world-head">
         <div>
-          <span className="eyebrow">SIMULATION STATE WORLD / LIVE EVIDENCE</span>
+          <span className="eyebrow">SIMULATION STATE WORLD</span>
           <h3>Navigate the outcome constellation</h3>
           <p>Node size follows ideal probability; glow responds to finite-shot measurements. Lines connect simultaneously probable outcomes.</p>
         </div>
@@ -233,16 +233,16 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
           onPointerCancel={() => { dragRef.current = null; }}
         />
         <div className="quantum-world-reticle" aria-hidden="true" />
-        <div className="quantum-world-readout">
-          <span>SELECTED BASIS STATE</span>
-          <strong>|{selectedNode?.state ?? '—'}⟩</strong>
-          <dl>
-            <div><dt>Ideal</dt><dd>{((selectedNode?.probability ?? 0) * 100).toFixed(3)}%</dd></div>
-            <div><dt>Measured</dt><dd>{((selectedNode?.measured ?? 0) * 100).toFixed(3)}%</dd></div>
-            <div><dt>Shots</dt><dd>{run.counts[selectedNode?.state ?? ''] ?? 0}</dd></div>
-          </dl>
-        </div>
         <div className="quantum-world-axis" aria-hidden="true"><span>X</span><span>Y</span><span>Z</span></div>
+      </div>
+      <div className="quantum-world-readout">
+        <span>SELECTED BASIS STATE</span>
+        <strong>|{selectedNode?.state ?? '—'}⟩</strong>
+        <dl>
+          <div><dt>Ideal</dt><dd>{((selectedNode?.probability ?? 0) * 100).toFixed(3)}%</dd></div>
+          <div><dt>Measured</dt><dd>{((selectedNode?.measured ?? 0) * 100).toFixed(3)}%</dd></div>
+          <div><dt>Shots</dt><dd>{run.counts[selectedNode?.state ?? ''] ?? 0}</dd></div>
+        </dl>
       </div>
       <div className="quantum-world-footer">
         <span><i className="world-dot ideal" />Ideal statevector probability</span>
