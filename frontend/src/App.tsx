@@ -347,7 +347,9 @@ export default function App() {
   }
 
   function editSource(next: string) {
-    if (next === source || busy || historical) return;
+    // Normal Explorer files and projects remain editable while background
+    // parsing runs. Only immutable historical snapshots are read-only.
+    if (next === source || historical) return;
     setSource(next);
     sourceRef.current = next;
     clearResults();
@@ -1726,7 +1728,7 @@ export default function App() {
                       smoothScrolling: true,
                       guides: { bracketPairs: true, indentation: true },
                       bracketPairColorization: { enabled: settings.bracketPairColorization },
-                      readOnly: !!busy || !!historical,
+                      readOnly: !!historical,
                       renderLineHighlight: 'all',
                       overviewRulerBorder: false,
                       folding: true,
