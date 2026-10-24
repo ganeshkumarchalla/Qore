@@ -6151,6 +6151,26 @@ input:focus, select:focus, textarea:focus {
   animation: labSurfaceIn .45s ease both;
 }
 .lab-view-shell .lab-grid { min-height: calc(100vh - 116px); }
+.lab-view-shell .lab-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 22px !important;
+  padding-left: clamp(18px, 3vw, 48px) !important;
+  padding-right: clamp(18px, 3vw, 48px) !important;
+}
+.lab-view-shell .lab-grid > .distribution {
+  width: 100% !important;
+  max-width: none !important;
+}
+.lab-view-shell .lab-grid > .lab-side {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr) !important;
+  gap: 16px !important;
+  align-items: start !important;
+}
+.lab-view-shell .lab-side .panel,
+.lab-view-shell .lab-side .warnings { width: 100% !important; box-sizing: border-box !important; }
+.lab-view-shell .lab-side .warnings { grid-column: 1 / -1; }
 .lab-view-shell .quantum-world-card { min-height: calc(100vh - 250px); }
 .lab-view-shell .quantum-world-card { width: min(100%, 1480px); margin-left: auto; margin-right: auto; }
 .lab-view-shell .quantum-world-stage { min-height: clamp(520px, 68vh, 820px); }
@@ -6171,6 +6191,8 @@ input:focus, select:focus, textarea:focus {
 }
 .lab-view-shell .quantum-world-readout dl { margin-left: auto !important; }
 @media (max-width: 700px) {
+  .lab-view-shell .lab-grid > .lab-side { grid-template-columns: 1fr !important; }
+  .lab-view-shell .lab-side .warnings { grid-column: auto; }
   .lab-view-shell .quantum-world-readout { grid-template-columns: 1fr !important; gap: 8px !important; }
   .lab-view-shell .quantum-world-readout dl { margin-left: 0 !important; }
 }
