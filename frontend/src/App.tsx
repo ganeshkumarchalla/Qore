@@ -11,7 +11,6 @@ import { Terminal } from './Terminal';
 import { ErrorBoundary } from './ErrorBoundary';
 import { WelcomeModal } from './WelcomeModal';
 import { AuthModal, type AuthUser, loadStoredUser } from './AuthModal';
-import { Documentation } from './Documentation';
 import {
   api,
   formatDate,
@@ -27,7 +26,7 @@ import {
   type Simulation,
 } from './types';
 
-type Tab = 'Studio' | 'Lab' | 'Forge' | 'Research' | 'Intelligence' | 'Docs';
+type Tab = 'Studio' | 'Lab' | 'Forge' | 'Research' | 'Intelligence';
 type Modal = { kind: 'new' | 'rename' | 'save' | 'experiment' | 'discard' | 'approve'; action?: () => void };
 
 const tabs: { name: Tab; icon: IconName; label: string; shortLabel: string }[] = [
@@ -36,7 +35,6 @@ const tabs: { name: Tab; icon: IconName; label: string; shortLabel: string }[] =
   { name: 'Forge', icon: 'forge', label: 'Optimization', shortLabel: 'Forge' },
   { name: 'Research', icon: 'research', label: 'History', shortLabel: 'Ledger' },
   { name: 'Intelligence', icon: 'spark', label: 'Assistant', shortLabel: 'Copilot' },
-  { name: 'Docs', icon: 'research', label: 'Documentation', shortLabel: 'Docs' },
 ];
 
 const blankSource = `# Quantum Circuit Program
@@ -103,7 +101,6 @@ export default function App() {
   const [inspectorTab, setInspectorTab] = useState<'circuit' | 'bloch' | 'unitary' | 'qasm'>('circuit');
   const [activeDropdown, setActiveDropdown] = useState<'File' | 'Edit' | 'Quantum' | 'View' | 'Terminal' | 'Help' | null>(null);
   const [isRunMenuOpen, setIsRunMenuOpen] = useState(false);
-  const [documentationTopic, setDocumentationTopic] = useState<'overview' | 'lab' | 'ledger'>('overview');
 
   const [shots, setShots] = useState('1024');
   const [seed, setSeed] = useState('42');
@@ -1251,11 +1248,11 @@ export default function App() {
                     <span>Settings & Preferences</span>
                     <span className="dropdown-shortcut">Ctrl+,</span>
                   </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); setDocumentationTopic('lab'); setTab('Docs'); }}>
-                    <span>Quantum Lab Documentation</span>
+                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://docs.quantum.ibm.com/', '_blank', 'noopener,noreferrer'); }}>
+                    <span>Quantum Lab Documentation ↗</span>
                   </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); setDocumentationTopic('ledger'); setTab('Docs'); }}>
-                    <span>Quantum Ledger Documentation</span>
+                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://learning.quantum.ibm.com/', '_blank', 'noopener,noreferrer'); }}>
+                    <span>Quantum Learning ↗</span>
                   </button>
                   <div className="dropdown-divider" />
                   <button
@@ -1267,9 +1264,6 @@ export default function App() {
                     }}
                   >
                     <span>About QORE Quantum Studio</span>
-                  </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); setDocumentationTopic('overview'); setTab('Docs'); }}>
-                    <span>About Quantum Studio</span>
                   </button>
                 </div>
               )}
@@ -1888,7 +1882,6 @@ export default function App() {
               health={health}
             />
           )}
-          {tab === 'Docs' && <Documentation initialTopic={documentationTopic} />}
         </div>
 
         {/* 4. Integrated Animated Quantum Terminal Dock */}
