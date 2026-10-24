@@ -6160,6 +6160,44 @@ input:focus, select:focus, textarea:focus {
 @keyframes labSurfaceIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .terminal-panel, .terminal-body, .terminal-header { transition: background .25s ease, border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
 
+/* Bloch laboratory: large interactive canvas with a glass telemetry rail below. */
+.bloch-body {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 18px !important;
+  padding: 20px !important;
+}
+.bloch-svg-wrap {
+  width: min(100%, 560px) !important;
+  min-height: 520px !important;
+  margin: 0 auto !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 1px solid rgba(130,188,232,.22) !important;
+  border-radius: 24px !important;
+  background: radial-gradient(circle at 50% 45%, rgba(110,168,216,.2), transparent 38%), linear-gradient(145deg, rgba(32,52,79,.72), rgba(31,28,56,.72)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 20px 48px rgba(1,7,16,.24) !important;
+  backdrop-filter: blur(20px) saturate(125%);
+  -webkit-backdrop-filter: blur(20px) saturate(125%);
+}
+.bloch-svg { width: min(88%, 470px) !important; height: auto !important; cursor: grab; }
+.bloch-svg:active { cursor: grabbing; }
+.bloch-metrics {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 18px !important;
+  border: 1px solid rgba(130,188,232,.2) !important;
+  border-radius: 20px !important;
+  background: linear-gradient(145deg, rgba(31,47,67,.78), rgba(28,28,50,.72)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 14px 30px rgba(1,7,16,.18) !important;
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+}
+.bloch-kv-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+@media (max-width: 900px) { .bloch-kv-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+@media (max-width: 560px) { .bloch-svg-wrap { min-height: 390px !important; } .bloch-kv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+
 /* Component-level failure isolation keeps the workbench usable when a heavy
    renderer fails. */
 .component-fallback {
