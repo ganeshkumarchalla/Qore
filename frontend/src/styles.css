@@ -5778,6 +5778,26 @@ textarea:focus,
   position: relative;
   min-height: 440px;
   isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(110, 168, 216, .2), transparent 24%),
+    radial-gradient(circle at 18% 28%, rgba(96, 88, 190, .2), transparent 38%),
+    radial-gradient(circle at 84% 76%, rgba(74, 163, 153, .16), transparent 34%),
+    linear-gradient(135deg, #101b2b 0%, #192944 48%, #241d3c 100%);
+}
+
+.quantum-world-stage::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  background: conic-gradient(from 120deg at 50% 50%, transparent, rgba(149, 188, 238, .13), transparent 25%, rgba(184, 137, 235, .12), transparent 55%);
+  filter: blur(24px);
+  animation: stateWorldAtmosphere 16s linear infinite;
+}
+
+@keyframes stateWorldAtmosphere {
+  to { transform: rotate(360deg); }
 }
 
 .quantum-world-canvas {
