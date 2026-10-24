@@ -11,6 +11,16 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
 
   useEffect(() => {
     if (!isOpen) return;
+    setExiting(false);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
         handleEnter();
@@ -82,6 +92,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
           <span>Enter</span>
           <span className="qore-btn-arrow">→</span>
         </button>
+        <p className="qore-entry-hint">Press Enter, Space, or click Enter to open your workspace</p>
       </div>
     </div>
   );

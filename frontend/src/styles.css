@@ -5925,14 +5925,32 @@ textarea:focus,
   --vscode-border: #344252;
   --vscode-border-subtle: #273340;
   --vscode-highlight: #2a3745;
-  --vscode-text: #eef2f6;
-  --vscode-text-muted: #a9b5c3;
-  --vscode-text-dim: #778596;
+  --vscode-text: #f8fbff;
+  --vscode-text-muted: #c5d0df;
+  --vscode-text-dim: #91a1b4;
   --vscode-accent: #6ea8d8;
   --vscode-accent-violet: #9aaed0;
   --vscode-green: #70b89a;
   --vscode-amber: #d2ad6f;
   --vscode-red: #d88383;
+}
+
+/* Contrast pass: brighter reading colors without sacrificing the graphite theme. */
+body, .vscode-root, .panel, .editor-pane, .preview-pane, .terminal-panel {
+  color: #f8fbff;
+}
+.muted, .text-muted, .status-item, .helper-text, .empty-state-copy {
+  color: #c5d0df !important;
+}
+.qore-entry-screen {
+  background: radial-gradient(circle at 18% 18%, rgba(67, 139, 190, .28), transparent 38%), radial-gradient(circle at 82% 72%, rgba(119, 89, 181, .3), transparent 42%), linear-gradient(135deg, #080d15 0%, #14243a 52%, #241b39 100%);
+}
+.qore-entry-hint {
+  margin: -12px 0 0;
+  color: rgba(248, 251, 255, .82);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
 }
 
 body,
