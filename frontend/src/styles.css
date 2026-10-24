@@ -6032,6 +6032,95 @@ body, button, input, select, textarea { font-size: 13px; }
 .tree-file-row, .tab-item, .menu-text-btn, .topbar-util-btn, .status-item { font-weight: 600 !important; }
 .vscode-sidebar, .panel, .editor-pane, .preview-pane, .terminal-panel { color: #f8fbff !important; }
 
+/* QORE Glass Graphite: restrained iOS-inspired depth system. */
+:root {
+  --qore-glass: rgba(25, 35, 46, .72);
+  --qore-glass-strong: rgba(31, 43, 57, .86);
+  --qore-glass-soft: rgba(255, 255, 255, .055);
+  --qore-glass-border: rgba(210, 229, 247, .16);
+  --qore-glass-shadow: 0 18px 42px rgba(2, 8, 18, .28), inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.vscode-root {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(110, 168, 216, .12), transparent 30%),
+    radial-gradient(circle at 92% 100%, rgba(154, 139, 210, .11), transparent 34%),
+    #0f141b !important;
+}
+
+.workbench-topbar,
+.vscode-sidebar,
+.activity-bar,
+.panel,
+.editor-pane,
+.preview-pane,
+.terminal-panel,
+.settings-card-window,
+.modal-card,
+.quantum-world-card,
+.metric-card,
+.inspector-card,
+.glass-panel {
+  background: linear-gradient(145deg, var(--qore-glass-strong), var(--qore-glass)) !important;
+  border-color: var(--qore-glass-border) !important;
+  box-shadow: var(--qore-glass-shadow) !important;
+  backdrop-filter: blur(22px) saturate(125%);
+  -webkit-backdrop-filter: blur(22px) saturate(125%);
+}
+
+.activity-bar {
+  background: rgba(12, 18, 27, .78) !important;
+  border-right-color: rgba(210, 229, 247, .12) !important;
+}
+
+.workbench-topbar {
+  background: rgba(20, 29, 40, .78) !important;
+  border-bottom-color: rgba(210, 229, 247, .14) !important;
+}
+
+.tab-item,
+.tree-file-row,
+.settings-nav-item,
+.clean-setting-row,
+.menu-dropdown-container .classic-dropdown-menu {
+  border-radius: 10px !important;
+}
+
+.tab-item.active,
+.settings-nav-item.active,
+.tree-file-row.active {
+  background: rgba(110, 168, 216, .16) !important;
+  border-color: rgba(110, 168, 216, .35) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 8px 22px rgba(46, 92, 130, .16) !important;
+}
+
+.run-main-btn,
+.primary-btn,
+.clean-button.primary,
+.qore-enter-studio-btn {
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #82bce8, #6f8fc8) !important;
+  color: #08111b !important;
+  box-shadow: 0 8px 22px rgba(79, 139, 190, .22), inset 0 1px 0 rgba(255,255,255,.45) !important;
+}
+
+input, select, textarea, .settings-search-box-wrap {
+  background: rgba(7, 13, 21, .42) !important;
+  border-color: rgba(210, 229, 247, .18) !important;
+  color: #f8fbff !important;
+  border-radius: 10px !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #82bce8 !important;
+  box-shadow: 0 0 0 3px rgba(110, 168, 216, .18) !important;
+  outline: none !important;
+}
+
+@media (max-width: 800px) {
+  .panel, .editor-pane, .preview-pane { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+}
+
 /* Component-level failure isolation keeps the workbench usable when a heavy
    renderer fails. */
 .component-fallback {
