@@ -8,6 +8,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import httpx
 from dotenv import load_dotenv
@@ -97,7 +98,16 @@ class RequestGuard:
         if scope["method"] in {"POST", "PUT", "DELETE", "PATCH"}:
             allowed = {"http://localhost:8000", "http://127.0.0.1:8000",
                        "http://localhost:5173", "http://127.0.0.1:5173"}
-            if origin and origin not in allowed:
+            # Production requests are served by this application, so allow an
+            # origin only when it exactly matches the already trusted Host.
+            # This retains CSRF protection without hard-coding a deployment URL.
+            host = headers.get(b"host", b"").decode("latin1").lower()
+            parsed_origin = urlsplit(origin)
+            same_origin = (
+                parsed_origin.scheme in {"http", "https"}
+                and parsed_origin.netloc.lower() == host
+            )
+            if origin and origin not in allowed and not same_origin:
                 return await JSONResponse({"error": {"code": "origin_denied", "message": "Cross-origin writes are not allowed."}}, 403)(scope, receive, send)
             if headers.get(b"sec-fetch-site", b"") == b"cross-site":
                 return await JSONResponse({"error": {"code": "origin_denied", "message": "Cross-site writes are not allowed."}}, 403)(scope, receive, send)
@@ -141,7 +151,13 @@ def create_app(db_path=None):
 
     application = FastAPI(title="QORE", version="0.1.0", lifespan=lifespan)
     application.add_middleware(RequestGuard)
-    application.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"])
+    # Deployments can add a custom domain through QORE_ALLOWED_HOSTS, while the
+    # platform hostname remains accepted by default.  Do not use a wildcard
+    # that accepts every host.
+    configured_hosts = os.environ.get("QORE_ALLOWED_HOSTS", "")
+    allowed_hosts = ["localhost", "127.0.0.1", "[::1]", "testserver", "*.onrender.com"]
+    allowed_hosts.extend(host.strip() for host in configured_hosts.split(",") if host.strip())
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     @application.exception_handler(JobError)
     async def job_error(request, error):

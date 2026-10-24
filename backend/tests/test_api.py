@@ -168,6 +168,17 @@ def test_loopback_origin_is_allowed_and_untrusted_host_is_rejected(client, bell_
     assert client.get("/api/health", headers={"Host": "untrusted.example"}).status_code == 400
 
 
+def test_render_host_and_same_origin_writes_are_allowed(client, bell_source):
+    host = "qore-bmh1.onrender.com"
+    assert client.get("/api/health", headers={"Host": host}).status_code == 200
+    response = client.post(
+        "/api/projects",
+        headers={"Host": host, "Origin": f"https://{host}"},
+        json={"name": "Hosted", "source": bell_source},
+    )
+    assert response.status_code == 201
+
+
 @pytest.mark.parametrize("chunked", [False, True])
 def test_request_size_limit_applies_without_trusting_content_length(client, chunked):
     oversized = b"x" * 100000
