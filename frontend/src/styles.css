@@ -6121,6 +6121,25 @@ input:focus, select:focus, textarea:focus {
   .panel, .editor-pane, .preview-pane { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 }
 
+.lab-view-shell {
+  position: fixed;
+  inset: 74px 0 24px 0;
+  z-index: 2;
+  padding: 18px;
+  overflow: auto;
+  background: radial-gradient(circle at 50% 18%, rgba(110,168,216,.12), transparent 42%), rgba(8,13,21,.42);
+  animation: labSurfaceIn .45s ease both;
+}
+.lab-view-shell .lab-grid { min-height: calc(100vh - 116px); }
+.lab-view-shell .quantum-world-card { min-height: calc(100vh - 250px); }
+.lab-explain-strip {
+  display: flex; align-items: center; gap: 9px; margin: 0 18px 14px; padding: 10px 13px;
+  border: 1px solid rgba(130,188,232,.2); border-radius: 12px; color: #d7e4f2;
+  background: rgba(110,168,216,.08); font-size: 12px; font-weight: 600;
+}
+@keyframes labSurfaceIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.terminal-panel, .terminal-body, .terminal-header { transition: background .25s ease, border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
+
 /* Component-level failure isolation keeps the workbench usable when a heavy
    renderer fails. */
 .component-fallback {

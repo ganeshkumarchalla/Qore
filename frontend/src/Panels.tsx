@@ -95,6 +95,10 @@ export function Lab({ run, historical }: { run: Simulation | null; historical: b
             </span>
           </div>
         </div>
+        <div className="lab-explain-strip">
+          <Icon name="info" size={13} />
+          <span>Live evidence surface: orbiting nodes show ideal probability, glow shows measured shots, and the readout identifies the selected basis state.</span>
+        </div>
 
         {/* Lab Sub-Tabs */}
         <div className="lab-subtabs-bar">

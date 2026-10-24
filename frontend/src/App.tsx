@@ -200,6 +200,10 @@ export default function App() {
     return () => clearTimeout(timeout);
   }, [notice]);
 
+  useEffect(() => {
+    if (error) setIsTerminalOpen(true);
+  }, [error]);
+
   function showModal(kind: Modal['kind'], nextName = name, action?: () => void) {
     setModal({ kind, action });
     setModalName(nextName);
@@ -1853,7 +1857,9 @@ export default function App() {
 
           {tab === 'Lab' && (
             <ErrorBoundary label="QORE Lab">
-              <Lab run={simulation} historical={!!historical} />
+              <div className="lab-view-shell">
+                <Lab run={simulation} historical={!!historical} />
+              </div>
             </ErrorBoundary>
           )}
           {tab === 'Forge' && (
