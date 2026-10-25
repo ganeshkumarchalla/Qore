@@ -122,7 +122,6 @@ export function AuthModal({
   const [recoveryPassword, setRecoveryPassword] = useState('');
   const [confirmRecoveryPassword, setConfirmRecoveryPassword] = useState('');
   const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
-  const [instantOtp, setInstantOtp] = useState<string | null>(null);
 
   // Change Password for Logged-In User state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -263,12 +262,9 @@ export function AuthModal({
     setNotice('');
     setPending('send_otp');
     try {
-      const res = await api<{ message: string; otp_code?: string }>('/auth/otp/send-recovery', { email: email.trim() });
+      const res = await api<{ message: string }>('/auth/otp/send-recovery', { email: email.trim() });
       setNotice(res.message || `Verification code (OTP) sent to ${email.trim()}.`);
-      if (res.otp_code) {
-        setInstantOtp(res.otp_code);
-        setOtpCode(res.otp_code);
-      }
+      setOtpCode('');
       setForgotStep('verify_otp');
     } catch (err) {
       setError(errorMessage(err));
@@ -1143,28 +1139,12 @@ export function AuthModal({
                 </form>
               ) : (
                 <form onSubmit={handleVerifyOtpAndReset} className="auth-form-body">
-                  {instantOtp ? (
-                    <div className="auth-instant-otp-box">
-                      <div className="auth-instant-otp-badge">
-                        <Icon name="check" size={14} />
-                        <span>QUANTUM VERIFICATION OTP READY (USE ON-SCREEN CODE)</span>
-                      </div>
-                      <div className="auth-instant-otp-code-display">{instantOtp}</div>
-                      <p className="auth-instant-otp-note" style={{ fontSize: '12px', lineHeight: '1.5' }}>
-                        <strong style={{ color: '#38bdf8' }}>Notice:</strong> Supabase email delivery is rate-limited on free projects. Your official 6-digit recovery code is generated above and was <strong>automatically filled into the box below</strong>.
-                      </p>
-                      <p className="auth-instant-otp-note" style={{ marginTop: '4px', color: '#a5f3fc' }}>
-                        Simply enter your new password below and click <strong>"Verify OTP &amp; Reset Password"</strong>!
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="auth-form-intro">
-                      <h4 className="auth-step-title">Enter Verification OTP & New Password</h4>
-                      <p className="auth-step-desc">
-                        Enter the 6-digit OTP code sent to <strong style={{ color: '#38bdf8' }}>{email}</strong> and set your new password.
-                      </p>
-                    </div>
-                  )}
+                  <div className="auth-form-intro">
+                    <h4 className="auth-step-title">Enter Verification OTP &amp; New Password</h4>
+                    <p className="auth-step-desc">
+                      Enter the 6-digit OTP code sent to <strong style={{ color: '#38bdf8' }}>{email}</strong> and set your new password.
+                    </p>
+                  </div>
 
                   <div className="auth-form-field">
                     <label htmlFor="qore-recovery-otp">6-Digit Verification OTP Code</label>

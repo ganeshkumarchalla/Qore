@@ -617,16 +617,8 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
         except Exception:
             pass
 
-        if smtp_sent:
-            msg = f"Verification OTP code sent to your email inbox {payload.email}!"
-        elif otp_code:
-            msg = f"Official verification OTP code generated for {payload.email}. Use the instant code on screen below."
-        else:
-            msg = f"If an account exists for {payload.email}, a verification OTP code has been sent."
-
-        body: dict[str, Any] = {"message": msg, "email": payload.email, "smtp_delivered": smtp_sent}
-        if otp_code:
-            body["otp_code"] = otp_code
+        msg = f"If an account exists for {payload.email}, a 6-digit verification code (OTP) has been dispatched. Please check your inbox and spam folder."
+        body: dict[str, Any] = {"message": msg, "email": payload.email}
         return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
     @router.post("/otp/verify-reset")
