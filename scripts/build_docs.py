@@ -50,6 +50,14 @@ def plain(value):
 
 def build(destination: Path):
     destination.mkdir(parents=True, exist_ok=True)
+    # Remove only generated public artifacts so deleted/renamed source pages do
+    # not remain live. Repository metadata and hand-authored build files stay.
+    for generated in destination.glob("*.html"):
+        generated.unlink()
+    for name in ("search-index.json", "sitemap.xml", "robots.txt"):
+        target = destination / name
+        if target.exists():
+            target.unlink()
     assets = destination / "assets"
     assets.mkdir(exist_ok=True)
     (assets / "site.css").write_text(CSS, encoding="utf-8")

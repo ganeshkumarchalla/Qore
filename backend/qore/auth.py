@@ -38,6 +38,7 @@ PUBLIC_PATHS = {
     "/api/health", "/api/examples", "/api/auth/config", "/api/auth/session",
     "/api/auth/signin", "/api/auth/signup", "/api/auth/signout", "/api/auth/resend",
     "/api/auth/otp/send-recovery", "/api/auth/otp/verify-reset",
+    "/api/quantum/onboarding-question",
 }
 
 

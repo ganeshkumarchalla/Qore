@@ -2,7 +2,7 @@
 
 QORE connects circuit authoring, numerical execution, visual inspection, compiler comparison, and historical evidence. This manual describes the product and its bounded runtime for learners, researchers, maintainers, and service operators. Each topic has a separate page so you can follow a task, study a concept, or find an exact interface without searching a single oversized document.
 
-Begin with a verified email account and an empty Explorer. Create a file, or explicitly choose Get Started to create one editable three-qubit starter. The browser provides editing; the account database is the authority for saved files. Research Ledger separately preserves immutable execution evidence.
+Begin with an empty Explorer—no account is required. Create a blank file, or explicitly choose Get Started to create one editable three-qubit starter. Browser storage retains editable source across refreshes; browser-scoped SQLite records preserve projects, runs, and Research Ledger evidence when the server has durable storage.
 
 ![QORE workflow](assets/animations/workflow.gif)
 
@@ -11,7 +11,7 @@ Begin with a verified email account and an empty Explorer. Create a file, or exp
 | Page | Purpose |
 | --- | --- |
 | [Getting started](guides/getting-started.md) | Navigate and complete a first session |
-| [Email accounts](guides/email-account.md) | Register, confirm, sign in, and protect your session |
+| [Workspace files](guides/workspace-files.md) | Create, organize, edit, delete, undo, and restore source |
 | [Local development](guides/local-development.md) | Install, build, and run the application |
 | [Files and recovery](guides/workspace-files.md) | Edit, organize, synchronize, delete, and restore |
 | [First experiment](guides/first-experiment.md) | Predict and inspect a GHZ circuit |

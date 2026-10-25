@@ -6,7 +6,7 @@
 
 QORE brings an editor, quantum simulator, visual laboratory, compiler workbench, and research ledger into one consistent glass interface. Write a circuit in the supported Qiskit Python subset or OpenQASM 2. Inspect actual simulator output, compare a compiler candidate, and preserve the source and evidence behind an experiment.
 
-The workspace starts empty. **Get Started** creates a three-qubit learning circuit only when requested. Sign in with email to keep files in your private database workspace. Saved files have no automatic expiry; deleted files and folders remain recoverable for **48 hours** through Undo and Trash.
+The workspace starts empty. **Get Started** creates a three-qubit learning circuit only when requested. No account is required: editable source is retained in the browser workspace, while server-side projects and evidence are isolated by an opaque HttpOnly workspace cookie. Saved files have no automatic expiry; deleted files and folders remain recoverable for **48 hours** through Undo and Trash.
 
 ![QORE workflow: author, compile, simulate, inspect, optimize, verify, preserve](docs/assets/animations/workflow.gif)
 
@@ -46,11 +46,11 @@ Keep immutable experiment snapshots containing source, source hash, circuit IR, 
 
 [Research Ledger](docs/features/research-ledger.md) · [Reproducibility](docs/quantum/reproducibility.md)
 
-### Assistant — ask beside the circuit
+### QI Assistant — intelligence across the workbench
 
 ![Animated secondary assistant sidebar illustration](docs/assets/animations/assistant.gif)
 
-QORE Intelligence has a dedicated secondary sidebar beside the active view. It receives the current circuit and source-matched results, explains available evidence, and proposes ideas for review. It cannot execute code, edit source, or approve candidates. Optional provider credentials remain on the server; Studio, Lab, Forge, and Research work independently of AI availability.
+QI Assistant has a simple stacked secondary sidebar beside every active view. It receives the active view, workspace summary, diagnostics, circuit, and source-matched evidence. It can navigate QORE and invoke explicit simulation or optimization actions; model responses cannot silently edit source or approve candidates. The Gemini credential remains server-side and never enters the browser bundle.
 
 [Assistant scope and privacy](docs/features/assistant.md)
 
@@ -58,11 +58,11 @@ QORE Intelligence has a dedicated secondary sidebar beside the active view. It r
 
 ![Animated persistent workspace and 48-hour Trash illustration](docs/assets/animations/workspace.gif)
 
-Verified email sessions identify the owner of every workspace request. Files and folders live in the database, with version checks protecting concurrent edits. Account-specific browser caches preserve pending local changes during interruptions. Undo restores the last deleted batch; Trash restores other eligible entries. Folder recovery restores the batch together, with conflict checks before any write.
+Files and folders are created, renamed, moved, edited, and deleted directly in Explorer. The browser workspace persists across refreshes. Undo restores the last deleted batch; Trash restores other eligible entries. Backend records use a browser-specific opaque cookie and SQLite version checks; a Render persistent disk is required for those server records to survive service replacement.
 
 The workspace allows **1,000 entries including Trash**, **16 MiB of aggregate source**, and **32 KiB per file**. Deleted content becomes unavailable at exactly 48 hours; scheduled cleanup removes expired source rows every five minutes. Database backups follow the operator's separate retention policy.
 
-[Email accounts](docs/guides/email-account.md) · [Workspace API](docs/reference/workspace-api.md)
+[Workspace files](docs/guides/workspace-files.md) · [Workspace API](docs/reference/workspace-api.md)
 
 ### Quality and operations — a reviewable release
 
@@ -84,8 +84,7 @@ The build surface identifies the design and engineering tools used around QORE: 
 | Interface | CSS, SVG, canvas and 3D views | Circuit diagrams, state inspection, glass surfaces |
 | API | Python 3.11–3.13, FastAPI, Pydantic, Uvicorn | Validated requests and orchestration |
 | Quantum runtime | Qiskit 2, Qiskit Aer | Construction, simulation, transpilation, operator analysis |
-| Hosted identity and data | Supabase Auth and Postgres | Email sessions, private files and research records |
-| Local data | SQLite | Development workspace and ledger persistence |
+| Workspace data | Browser storage and SQLite | Editable files, projects, runs, and research records |
 | Delivery | Docker, Render, GitHub Actions | Container hosting and review checks |
 | Optional assistant | Server-side model-provider API | Circuit and result explanations |
 
@@ -103,7 +102,7 @@ Set-Location ..
 & .\scripts\start.ps1
 ```
 
-Open `http://127.0.0.1:8000`. Local development can use SQLite; hosted email identity requires server configuration. For hot reload, run `scripts/start.ps1 -Dev` and `pnpm dev` in separate terminals. See [local development](docs/guides/local-development.md) and [production setup](docs/PRODUCTION.md) for Render, confirmation email, migrations, and configuration.
+Open `http://127.0.0.1:8000`. No account setup is required. For hot reload, run `scripts/start.ps1 -Dev` and `pnpm dev` in separate terminals. See [local development](docs/guides/local-development.md) and [production setup](docs/PRODUCTION.md) for Render, Docker, persistent disks, and configuration.
 
 ## Execution scope
 
@@ -136,11 +135,10 @@ Run `pnpm test:ui` in `frontend` for browser interaction checks. The complete ba
 ## Repository structure
 
 ```text
-backend/qore/          API, identity, bounded quantum engine, private stores
+backend/qore/          API, bounded quantum engine, workspace isolation and stores
 backend/tests/         Regression and data-boundary tests
 frontend/src/          Editor, Lab, Forge, Ledger, assistant
 frontend/public/       Application icons and public product information
-supabase/migrations/  Database and access-control migrations
 scripts/              Startup, audits, acceptance, documentation build
 docs/guides/          Task-oriented user guides
 docs/features/        Individual product manuals

@@ -89,21 +89,23 @@ export default function App() {
   const [workspaceStatus, setWorkspaceStatus] = useState(getWorkspaceStatus);
   const [workspaceAction, setWorkspaceAction] = useState(false);
   const restoredOwner = useRef<string | null>(null);
-  // First-time visitor tracking: Welcome screen and Getting Started appear only on first visit
-  const [hasStarted, setHasStarted] = useState(() => {
+  // First-time visitor tracking: Onboarding appears ONLY on the very first visit, NEVER on refreshing
+  const isFirstVisit = (() => {
     try {
-      return localStorage.getItem('qore_started') === 'true';
+      const alreadyVisited = localStorage.getItem('qore_has_visited') === 'true' || localStorage.getItem('qore_started') === 'true';
+      if (!alreadyVisited) {
+        // Mark immediately so that refreshing the browser NEVER triggers the welcome or questions
+        localStorage.setItem('qore_has_visited', 'true');
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
-  });
-  const [isWelcomeOpen, setIsWelcomeOpen] = useState(() => {
-    try {
-      return localStorage.getItem('qore_started') !== 'true';
-    } catch {
-      return false;
-    }
-  });
+  })();
+
+  const [hasStarted, setHasStarted] = useState(!isFirstVisit);
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(isFirstVisit);
   const [onboardingState, setOnboardingState] = useState<{ name: string } | null>(null);
   const identityEpoch = useRef(0);
   const initializationRequest = useRef(0);
@@ -2107,10 +2109,10 @@ export default function App() {
         isOpen={isWelcomeOpen}
         onClose={() => {
           setIsWelcomeOpen(false);
-          const completed = (() => {
-            try { return localStorage.getItem('qore_started') === 'true'; } catch { return false; }
-          })();
-          if (!completed) {
+          try {
+            localStorage.setItem('qore_has_visited', 'true');
+          } catch {}
+          if (!hasStarted) {
             setOnboardingState({ name: 'Quantum Explorer' });
           }
         }}
@@ -2122,6 +2124,11 @@ export default function App() {
           isOpen={true}
           userName={onboardingState.name}
           onComplete={() => {
+            try {
+              localStorage.setItem('qore_has_visited', 'true');
+              localStorage.setItem('qore_started', 'true');
+            } catch {}
+            setHasStarted(true);
             setOnboardingState(null);
           }}
         />

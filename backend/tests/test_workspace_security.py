@@ -155,46 +155,25 @@ def test_cloud_errors_are_sanitized_and_do_not_reflect_provider_tokens(failure):
     assert raised.value.details is None
 
 
-def test_full_api_verified_sessions_cannot_access_another_account_records(tmp_path, monkeypatch):
+def test_full_api_anonymous_browsers_cannot_access_each_others_records(tmp_path, monkeypatch):
     for name in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY", "QORE_REQUIRE_AUTH", "QORE_ENV", "RENDER", "RENDER_EXTERNAL_URL", "QORE_STORAGE"):
         monkeypatch.delenv(name, raising=False)
     from qore.main import create_app
 
-    def provider(request):
-        if request.url.path.endswith("/token"):
-            return httpx.Response(200, json={"access_token": ACCESS_A, "refresh_token": "fixture-refresh-owner-a", "expires_in": 3600})
-        if request.url.path.endswith("/user"):
-            owner = OWNER_B if request.headers.get("authorization") == f"Bearer {ACCESS_B}" else OWNER_A
-            return httpx.Response(200, json={"id": owner, "email": "member@example.test", "user_metadata": {"full_name": "Test member"}, "access_token": "must-not-be-public"})
-        return httpx.Response(404, json={})
-
     application = create_app(tmp_path / "api-private.sqlite3")
-    application.state.auth.settings = AuthSettings("https://identity.example.test", "publishable-fixture", "http://127.0.0.1:8000", True)
-    application.state.auth.transport = httpx.MockTransport(provider)
-    with TestClient(application) as client:
-        assert client.get("/api/projects").status_code == 401
-        signed_in = client.post("/api/auth/signin", json={"email": "member@example.test", "password": "fixture-password-only"})
-        assert signed_in.status_code == 200
-        assert ACCESS_A not in signed_in.text and "must-not-be-public" not in signed_in.text
-        assert not {"access_token", "refresh_token", "token"}.intersection(signed_in.json()["user"])
-        assert all("HttpOnly" in header for header in signed_in.headers.get_list("set-cookie"))
-        project = client.post("/api/projects", json={"name": "Owner A", "source": SOURCE}).json()
-        scoped = application.state.store.for_owner(OWNER_A)
-        run = scoped.add_run("simulation", SOURCE, project["id"], {"counts": {"0": 16}})
-        snapshot = scoped.add_experiment({"project_id": project["id"], "name": "Evidence A", "source": SOURCE, "source_hash": source_hash(SOURCE)})
-        client.cookies.clear()
-        client.cookies.set(ACCESS_COOKIE, ACCESS_B)
-        assert client.get("/api/projects").json() == []
-        assert client.get("/api/runs").json() == []
-        assert client.get("/api/experiments").json() == []
+    with TestClient(application) as first, TestClient(application) as second:
+        project = first.post("/api/projects", json={"name": "Browser A", "source": SOURCE}).json()
+        run = first.post("/api/simulate", json={"source": SOURCE, "shots": 16}).json()
+        snapshot = first.post("/api/experiments", json={"name": "Evidence A", "source": SOURCE, "simulation_id": run["id"]}).json()
+        assert second.get("/api/projects").json() == []
+        assert second.get("/api/runs").json() == []
+        assert second.get("/api/experiments").json() == []
         for path in (f"/api/projects/{project['id']}", f"/api/runs/{run['id']}", f"/api/experiments/{snapshot['id']}"):
-            assert client.get(path).status_code == 404
-        assert client.put(f"/api/projects/{project['id']}", json={"name": "Overwrite", "source": SOURCE}).status_code == 404
-        assert client.post("/api/simulate", json={"source": SOURCE, "project_id": project["id"]}).status_code == 404
-        assert client.post("/api/experiments", json={"name": "Cross-account reference", "source": SOURCE, "simulation_id": run["id"]}).status_code == 404
-        client.cookies.clear()
-        client.cookies.set(ACCESS_COOKIE, ACCESS_A)
-        assert client.get(f"/api/projects/{project['id']}").json() == project
-        assert client.get(f"/api/runs/{run['id']}").json() == run
-        assert client.get(f"/api/experiments/{snapshot['id']}").json() == snapshot
+            assert second.get(path).status_code == 404
+        assert second.put(f"/api/projects/{project['id']}", json={"name": "Overwrite", "source": SOURCE}).status_code == 404
+        assert second.post("/api/simulate", json={"source": SOURCE, "project_id": project["id"]}).status_code == 404
+        assert second.post("/api/experiments", json={"name": "Cross-browser reference", "source": SOURCE, "simulation_id": run["id"]}).status_code == 404
+        assert first.get(f"/api/projects/{project['id']}").json() == project
+        assert first.get(f"/api/runs/{run['id']}").json() == run
+        assert first.get(f"/api/experiments/{snapshot['id']}").json() == snapshot
         assert current_identity.get() is None

@@ -324,6 +324,92 @@ def create_app(db_path=None):
     async def examples():
         return EXAMPLES
 
+    @application.get("/api/quantum/onboarding-question")
+    async def onboarding_question():
+        key = os.environ.get("GEMINI_API_KEY")
+        model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+        fallback_pool = [
+            {
+                "question": "What is the primary effect of applying a Hadamard gate (H) to a qubit initialized in the ground state |0⟩?",
+                "options": [
+                    {"id": "A", "label": "A", "text": "It creates an equal superposition state (|0⟩ + |1⟩) / √2.", "correct": True, "explanation": "The Hadamard gate maps the computational basis state |0⟩ into the symmetric superposition state |+⟩."},
+                    {"id": "B", "label": "B", "text": "It flips the qubit directly into the |1⟩ state.", "correct": False, "explanation": "The Pauli-X gate flips |0⟩ to |1⟩, whereas Hadamard creates a superposition."},
+                    {"id": "C", "label": "C", "text": "It measures and collapses the qubit immediately.", "correct": False, "explanation": "Hadamard is a unitary quantum transformation, not an irreversible measurement."},
+                    {"id": "D", "label": "D", "text": "It permanently entangles the qubit with the environment.", "correct": False, "explanation": "Single-qubit unitary gates like H preserve coherence and do not induce decoherence."}
+                ]
+            },
+            {
+                "question": "In quantum computing, what fundamental principle allows a qubit to exist in a linear combination of |0⟩ and |1⟩ states simultaneously until measured?",
+                "options": [
+                    {"id": "A", "label": "A", "text": "Quantum Superposition", "correct": True, "explanation": "Superposition allows |ψ⟩ = α|0⟩ + β|1⟩ with |α|² + |β|² = 1."},
+                    {"id": "B", "label": "B", "text": "Quantum Teleportation", "correct": False, "explanation": "Teleportation transfers an unknown state using shared entanglement and classical channels."},
+                    {"id": "C", "label": "C", "text": "Thermal Decoherence", "correct": False, "explanation": "Decoherence destroys quantum coherence rather than enabling it."},
+                    {"id": "D", "label": "D", "text": "Classical Parallelism", "correct": False, "explanation": "Classical parallelism evaluates paths independently without quantum interference."}
+                ]
+            },
+            {
+                "question": "Which two-qubit gate is commonly used in combination with a Hadamard gate to generate maximally entangled Bell states?",
+                "options": [
+                    {"id": "A", "label": "A", "text": "CNOT (Controlled-NOT) Gate", "correct": True, "explanation": "Applying H to qubit 0 followed by CNOT(0, 1) transforms |00⟩ into the Bell state (|00⟩ + |11⟩) / √2."},
+                    {"id": "B", "label": "B", "text": "Pauli-Z Phase Gate", "correct": False, "explanation": "Pauli-Z is a single-qubit phase flip gate."},
+                    {"id": "C", "label": "C", "text": "Toffoli (CCX) Gate", "correct": False, "explanation": "Toffoli is a 3-qubit gate, not the canonical 2-qubit Bell pair generator."},
+                    {"id": "D", "label": "D", "text": "SWAP Gate", "correct": False, "explanation": "SWAP exchanges the states of two qubits without creating entanglement."}
+                ]
+            },
+            {
+                "question": "On the geometric Bloch sphere representation of a single qubit, which states are located at the North and South poles?",
+                "options": [
+                    {"id": "A", "label": "A", "text": "North pole is |0⟩ and South pole is |1⟩.", "correct": True, "explanation": "The computational basis states |0⟩ (Z=+1) and |1⟩ (Z=-1) lie on the vertical Z-axis."},
+                    {"id": "B", "label": "B", "text": "North pole is |+⟩ and South pole is |-⟩.", "correct": False, "explanation": "|+⟩ and |-⟩ lie on the equator along the X-axis."},
+                    {"id": "C", "label": "C", "text": "North pole is |+i⟩ and South pole is |-i⟩.", "correct": False, "explanation": "|+i⟩ and |-i⟩ lie on the equator along the Y-axis."},
+                    {"id": "D", "label": "D", "text": "Both poles represent maximally mixed entangled states.", "correct": False, "explanation": "The surface of the Bloch sphere represents pure single-qubit states."}
+                ]
+            },
+            {
+                "question": "What is the physical meaning of Born's Rule in quantum measurement?",
+                "options": [
+                    {"id": "A", "label": "A", "text": "The probability of measuring an outcome is the squared magnitude of its amplitude: P(x) = |⟨x|ψ⟩|².", "correct": True, "explanation": "Born's Rule establishes the mathematical link between complex quantum state vectors and classical observation probabilities."},
+                    {"id": "B", "label": "B", "text": "The sum of qubit energies must exceed thermal noise.", "correct": False, "explanation": "Born's Rule governs measurement probabilities, not thermodynamics."},
+                    {"id": "C", "label": "C", "text": "Quantum circuits must use an even number of gates.", "correct": False, "explanation": "Unitary circuits can have any number of operations."},
+                    {"id": "D", "label": "D", "text": "Qubits can only be entangled if their temperatures match.", "correct": False, "explanation": "Entanglement is a kinematic property independent of thermal equilibrium."}
+                ]
+            }
+        ]
+
+        if key:
+            prompt = (
+                "Generate an engaging, creative multiple-choice question testing fundamental quantum computing concepts "
+                "(such as superposition, entanglement, Hadamard / CNOT / Pauli gates, Bloch sphere, phase kickback, or measurement). "
+                "Return a JSON object with this exact structure: "
+                "{\"question\": \"...\", \"options\": ["
+                "{\"id\": \"A\", \"label\": \"A\", \"text\": \"...\", \"correct\": true/false, \"explanation\": \"...\"}, "
+                "{\"id\": \"B\", \"label\": \"B\", \"text\": \"...\", \"correct\": true/false, \"explanation\": \"...\"}, "
+                "{\"id\": \"C\", \"label\": \"C\", \"text\": \"...\", \"correct\": true/false, \"explanation\": \"...\"}, "
+                "{\"id\": \"D\", \"label\": \"D\", \"text\": \"...\", \"correct\": true/false, \"explanation\": \"...\"}"
+                "]} "
+                "Exactly one option must have correct: true."
+            )
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                        headers={"x-goog-api-key": key},
+                        json={
+                            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                            "generationConfig": {"temperature": 0.85, "responseMimeType": "application/json"}
+                        }
+                    )
+                    if resp.status_code == 200:
+                        text = resp.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        data = json.loads(text)
+                        if data.get("question") and len(data.get("options", [])) == 4:
+                            return data
+            except Exception:
+                pass
+
+        import random
+        return random.choice(fallback_pool)
+
     @application.get("/api/projects")
     async def projects():
         return await storage("projects")

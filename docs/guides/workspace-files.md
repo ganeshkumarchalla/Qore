@@ -1,6 +1,6 @@
 # Files, folders, saving, and recovery
 
-Explorer contains editable account files and folders. Saved entries live in the database, so refresh or a later sign-in can retrieve them. Each record has a stable UUID, relative path, source kind, version, and timestamps. A path rename changes the location without pretending that the file is a new record.
+Explorer contains editable files and folders. Browser storage preserves the visible workspace across refreshes. Server workspace records use a stable UUID, relative path, source kind, version, timestamps, and an opaque browser scope. A path rename changes the location without pretending that the file is a new record.
 
 ![Persistent files and recovery](../assets/animations/workspace.gif)
 
@@ -8,11 +8,11 @@ Explorer contains editable account files and folders. Saved entries live in the 
 
 Create a file or folder in Explorer. Select a file to open its source and visible path. Python and QASM circuit files can run through the supported quantum pipeline. JSON and Markdown are editable content, but they do not become quantum programs merely because they appear beside a circuit.
 
-Use meaningful relative paths such as `research/ghz.py`. Path validation prevents parent traversal and unsafe host-filesystem access. A workspace path names an account record; it does not grant access to arbitrary files on the server. The console refers to the active buffer and its path, not the container's general filesystem.
+Use meaningful relative paths such as `research/ghz.py`. Path validation prevents parent traversal and unsafe host-filesystem access. A workspace path names a QORE record; it does not grant access to arbitrary files on the server. The console refers to the active buffer and its path, not the container's general filesystem.
 
 ## Save status and interruption
 
-Wait for saved status before closing a tab. During an interruption, the account-specific outbox can retain pending writes. Pending means the server has not confirmed the latest text. Failed means the action needs attention; neither state should be mistaken for a completed database save.
+Wait for saved status before closing a tab. Browser storage retains the editor source immediately. Pending means a secondary server write has not completed; failed means that action needs attention. Neither message deletes the browser draft.
 
 On reconnection, version checks protect newer server content. If another tab modified the record, a stale update returns conflict. Preserve your current text, inspect the server state, and decide which version to keep. Repeatedly resending the old version is not conflict resolution.
 
@@ -34,7 +34,7 @@ Restore checks every path before changing a batch. If another record occupies a 
 
 | Constraint | Value |
 | --- | ---: |
-| Entries per account, including Trash | 1,000 |
+| Entries per browser workspace, including Trash | 1,000 |
 | Aggregate UTF-8 source, including retained Trash | 16 MiB |
 | Source per file | 32 KiB |
 | Deleted-content recovery | 48 hours |

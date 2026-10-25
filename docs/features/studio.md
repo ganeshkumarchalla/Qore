@@ -6,9 +6,9 @@ Studio is the authoring surface for QORE. It combines Explorer, Monaco editing, 
 
 ## A deliberate starting point
 
-A new account opens with an empty Explorer. The welcome logo animates and the welcome closes automatically; no click-to-enter action is required. Get Started creates a single three-qubit learning circuit only when selected. Create blank file gives you an empty buffer. These are different choices, so onboarding never silently populates an account with unrelated demonstrations.
+A new browser workspace opens with an empty Explorer. The welcome logo animates and the welcome closes automatically; no click-to-enter action is required. Get Started creates a single three-qubit learning circuit only when selected. Create blank file gives you an empty buffer. These are different choices, so onboarding never silently populates the workspace with unrelated demonstrations.
 
-Files created through Explorer become account workspace records when saved. They are distinct from older named projects and from immutable Ledger experiments. A workspace file is editable working material; a Ledger snapshot records an experiment at a particular time. Treating the two as separate makes it possible to keep improving source without rewriting past results.
+Files created through Explorer remain editable browser-workspace records when saved. They are distinct from named backend projects and immutable Ledger experiments. A workspace file is editable working material; a Ledger snapshot records an experiment at a particular time. Treating the two as separate makes it possible to keep improving source without rewriting past results.
 
 ## Explorer and paths
 
