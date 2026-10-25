@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icons';
-import type { Parsed, Simulation, Optimization, Health } from './types';
+import type { Parsed, Simulation, Optimization, Health, UnitaryCell } from './types';
 
 export interface WorkspaceProblem {
   id: string;
@@ -36,780 +36,291 @@ interface LogEntry {
 }
 
 const ALL_COMMANDS = [
-  'qiskit',
-  'qiskit --version',
-  'qiskit run',
-  'qiskit transpile',
-  'qiskit backends',
-  'qiskit draw',
-  'qiskit statevector',
-  'qiskit unitary',
-  'qiskit metrics',
-  'az quantum',
-  'az quantum workspace',
-  'az quantum target list',
-  'az quantum execute',
-  'az quantum status',
-  'qsharp',
-  'qsharp --version',
-  'qsharp estimate',
-  'qsharp run',
-  'run',
-  'simulate',
-  'transpile',
-  'metrics',
-  'statevector',
-  'ast',
-  'status',
-  'ls',
-  'cat',
-  'whoami',
-  'uname -a',
-  'date',
-  'clear',
-  'help',
+  'help', 'qiskit --version', 'qiskit run', 'qiskit transpile', 'qiskit backends',
+  'qiskit draw', 'qiskit statevector', 'qiskit unitary', 'qiskit metrics',
+  'run', 'simulate', 'transpile', 'metrics', 'statevector', 'unitary', 'probs',
+  'counts', 'ast', 'status', 'ls', 'cat', 'pwd', 'date', 'clear', 'echo',
 ];
 
-function analyzeWorkspaceProblems(
-  source: string | undefined,
-  fileName: string | undefined,
-  error: string | undefined,
-  warnings: string[] | undefined
-): WorkspaceProblem[] {
+function redact(text: string): string {
+  return text
+    .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [REDACTED]')
+    .replace(/\b(?:AIza[\w-]{20,}|sk-[\w-]{20,}|sb_secret_[\w-]+)\b/g, '[REDACTED]')
+    .replace(/((?:password|api[_-]?key|access[_-]?token|refresh[_-]?token)\s*[=:]\s*)["']?[^\s,"']+/gi, '$1[REDACTED]');
+}
+
+function complex(value: Pick<UnitaryCell, 'real' | 'imag'>): string {
+  const real = Math.abs(value.real) < 1e-10 ? 0 : value.real;
+  const imag = Math.abs(value.imag) < 1e-10 ? 0 : value.imag;
+  return real.toFixed(6) + (imag < 0 ? ' - ' : ' + ') + Math.abs(imag).toFixed(6) + 'i';
+}
+
+function versionSummary(versions?: Record<string, string>): string {
+  return versions && Object.keys(versions).length
+    ? Object.entries(versions).map(([name, value]) => '  ' + name + ': ' + value).join('\n')
+    : '  Version information has not been reported by the server.';
+}
+
+function analyzeWorkspaceProblems(fileName?: string, error?: string, warnings?: string[]): WorkspaceProblem[] {
   const problems: WorkspaceProblem[] = [];
-  const currentFile = fileName || 'circuit.py';
-
-  // 1. Primary execution or parse error
   if (error) {
-    let line = 1;
-    let col = 1;
-    const lineMatch = error.match(/line\s*(\d+)/i) || error.match(/:\s*(\d+):/);
-    if (lineMatch) line = parseInt(lineMatch[1], 10);
-    problems.push({
-      id: `err-${line}-${col}`,
-      severity: 'error',
-      file: currentFile,
-      line,
-      col,
-      message: error,
-      code: 'E101',
-    });
+    const location = error.match(/line\s*(\d+)/i) ?? error.match(/:\s*(\d+):/);
+    problems.push({ id: 'execution-error', severity: 'error', file: fileName ?? 'Active buffer',
+      line: location ? Math.max(1, Number(location[1])) : 1, col: 1,
+      message: redact(error), code: 'BACKEND' });
   }
-
-  // 2. Parsed compiler warnings
-  if (warnings && warnings.length > 0) {
-    warnings.forEach((warn, idx) => {
-      problems.push({
-        id: `warn-${idx}`,
-        severity: 'warning',
-        file: currentFile,
-        line: 1,
-        col: 1,
-        message: warn,
-        code: 'W201',
-      });
-    });
-  }
-
-  // 3. Static code analysis from active buffer
-  if (source) {
-    const lines = source.split('\n');
-
-    let numQubits = 2;
-    for (const l of lines) {
-      const qregMatch = l.match(/QuantumCircuit\((\d+)/);
-      if (qregMatch) {
-        numQubits = parseInt(qregMatch[1], 10);
-        break;
-      }
-    }
-
-    lines.forEach((l, idx) => {
-      const lineNum = idx + 1;
-      const trimmed = l.trim();
-      if (!trimmed || trimmed.startsWith('#')) return;
-
-      // Unclosed parentheses
-      const openParens = (l.match(/\(/g) || []).length;
-      const closeParens = (l.match(/\)/g) || []).length;
-      if (openParens !== closeParens) {
-        problems.push({
-          id: `paren-${lineNum}`,
-          severity: 'error',
-          file: currentFile,
-          line: lineNum,
-          col: l.length,
-          message: 'SyntaxError: Mismatched parentheses in quantum operation statement',
-          code: 'E002',
-        });
-      }
-
-      // Out of bounds qubit reference like qc.h(5)
-      const gateMatch = l.match(/qc\.\w+\s*\(\s*(\d+)/);
-      if (gateMatch) {
-        const qIdx = parseInt(gateMatch[1], 10);
-        if (qIdx >= numQubits) {
-          problems.push({
-            id: `bounds-${lineNum}`,
-            severity: 'error',
-            file: currentFile,
-            line: lineNum,
-            col: l.indexOf(gateMatch[1]) + 1,
-            message: `IndexError: Qubit register index ${qIdx} exceeds allocated circuit width (${numQubits} qubits)`,
-            code: 'E302',
-          });
-        }
-      }
-    });
-  }
-
+  warnings?.forEach((warning, index) => problems.push({ id: 'warning-' + index, severity: 'warning',
+    file: fileName ?? 'Active buffer', line: 1, col: 1, message: redact(warning), code: 'PARSER' }));
   return problems;
 }
 
-export function Terminal({
-  isOpen,
-  onClose,
-  onRunSimulation,
-  onRunTranspile,
-  parsed,
-  simulation,
-  optimization,
-  health,
-  busy,
-  source,
-  fileName,
-  error,
-  onSelectProblemLine,
-}: TerminalProps) {
+export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, parsed, simulation,
+  optimization, health, busy, source, fileName, error, onSelectProblemLine }: TerminalProps) {
   const [activeTab, setActiveTab] = useState<'terminal' | 'output' | 'problems' | 'debug'>('terminal');
   const [inputVal, setInputVal] = useState('');
   const [isMaximized, setIsMaximized] = useState(false);
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState<number>(-1);
-
-  // Compute live real problems in workspace
-  const workspaceProblems = useMemo(() => {
-    return analyzeWorkspaceProblems(source, fileName, error, parsed?.warnings);
-  }, [source, fileName, error, parsed?.warnings]);
-
-  const hasErrors = workspaceProblems.some((p) => p.severity === 'error');
-
-  const [logs, setLogs] = useState<LogEntry[]>([
-    {
-      id: 'init-1',
-      type: 'info',
-      text: 'QORE Quantum Integrated Terminal [Kernel Environment v2.6.1]',
-      time: new Date().toLocaleTimeString(),
-    },
-    {
-      id: 'init-2',
-      type: 'info',
-      text: 'Core Quantum Toolchains Active: AerSimulator, PassManager, Q# Compiler & CLI Tools ready.',
-      time: new Date().toLocaleTimeString(),
-    },
-    {
-      id: 'init-3',
-      type: 'output',
-      text: 'Type "help" to view all available quantum execution, pass manager, and compiler commands.',
-      time: new Date().toLocaleTimeString(),
-    },
-  ]);
-
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [logs, setLogs] = useState<LogEntry[]>(() => [{ id: 'welcome', type: 'info',
+    text: 'QORE command console. Type help for supported commands. Run commands use your active file and current settings.',
+    time: new Date().toLocaleTimeString() }]);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const focusTimerRef = useRef<number | null>(null);
+  const workspaceProblems = useMemo(() => analyzeWorkspaceProblems(fileName, error, parsed?.warnings),
+    [fileName, error, parsed?.warnings]);
+  const hasErrors = workspaceProblems.some(problem => problem.severity === 'error');
+
+  const addLog = (type: LogEntry['type'], text: string) => setLogs(previous => [...previous.slice(-499), {
+    id: Date.now() + '-' + Math.random().toString(36).slice(2, 8), type, text: redact(text), time: new Date().toLocaleTimeString(),
+  }]);
 
   useEffect(() => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    terminalEndRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
+    terminalEndRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [logs, activeTab]);
-
   useEffect(() => {
-    if (isOpen) {
-      focusTimerRef.current = window.setTimeout(() => inputRef.current?.focus(), 50);
-    }
-    return () => {
-      if (focusTimerRef.current !== null) window.clearTimeout(focusTimerRef.current);
-    };
+    if (!isOpen || activeTab !== 'terminal') return;
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 50);
+    return () => window.clearTimeout(timer);
   }, [isOpen, activeTab]);
-
+  useEffect(() => { if (busy) addLog('info', busy + ' in progress…'); }, [busy]);
+  useEffect(() => { if (error) addLog('error', (fileName ?? 'Active buffer') + ': ' + error); }, [error]);
   useEffect(() => {
-    if (busy) {
-      addLog('info', `[ENGINE] ${busy} in progress...`);
-    }
-  }, [busy]);
-
-  useEffect(() => {
-    if (simulation) {
-      addLog(
-        'success',
-        `[KERNEL] Simulation complete in ${simulation.execution_ms.toFixed(2)}ms (Backend: ${simulation.backend}, Shots: ${simulation.shots}).`
-      );
-      const topState = Object.entries(simulation.probabilities).sort((a, b) => b[1] - a[1])[0];
-      if (topState) {
-        addLog(
-          'output',
-          `[STATEVECTOR] Dominant state |${topState[0]}⟩ with probability ${(topState[1] * 100).toFixed(2)}%.`
-        );
-      }
-    }
+    if (!simulation) return;
+    addLog('success', 'Simulation complete: ' + simulation.backend + '; ' + simulation.shots + ' shots; ' + simulation.execution_ms.toFixed(2) + ' ms.');
+    const top = Object.entries(simulation.probabilities).sort((a, b) => b[1] - a[1])[0];
+    if (top) addLog('output', 'Most frequent measured state |' + top[0] + '⟩: ' + (top[1] * 100).toFixed(2) + '%.');
   }, [simulation]);
-
   useEffect(() => {
-    if (optimization) {
-      const orig = optimization.original.metrics.gate_count;
-      const cand = optimization.candidate.metrics.gate_count;
-      const reduction = Math.max(0, orig - cand);
-      addLog(
-        'success',
-        `[TRANSPILER] Pass complete. Gates: ${orig} -> ${cand} (${reduction} eliminated, depth: ${optimization.candidate.metrics.depth}).`
-      );
-    }
+    if (!optimization) return;
+    addLog('success', 'Optimization complete: ' + optimization.original.metrics.gate_count + ' → ' + optimization.candidate.metrics.gate_count + ' gates; depth ' + optimization.candidate.metrics.depth + '. Validation: ' + optimization.validation.status + '.');
   }, [optimization]);
 
-  const addLog = (type: LogEntry['type'], text: string) => {
-    const time = new Date().toLocaleTimeString();
-    setLogs((prev) => [
-      ...prev.slice(-499),
-      {
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        type,
-        text,
-        time,
-      },
-    ]);
-  };
+  const result = simulation ?? parsed;
+  const output = simulation
+    ? JSON.stringify({ backend: simulation.backend, shots: simulation.shots, seed: simulation.seed,
+      execution_ms: simulation.execution_ms, counts: simulation.counts, tvd: simulation.tvd,
+      created_at: simulation.created_at, warnings: simulation.warnings }, null, 2)
+    : optimization ? JSON.stringify({ validation: optimization.validation, differences: optimization.differences,
+      settings: optimization.settings, warnings: optimization.warnings }, null, 2)
+    : error ?? 'No execution result yet. Run a circuit to see its actual output.';
+  const debug = JSON.stringify({ active_file: fileName ?? null, source_characters: source?.length ?? 0,
+    server_status: health?.status ?? 'unavailable', versions: health?.versions ?? {},
+    ai_available: health?.ai_available ?? null, limits: health?.limits ?? {},
+    parsed_ir_version: parsed?.ir.version ?? null, source_hash: parsed?.source_hash ?? null,
+    simulation_id: simulation?.id ?? null, optimization_id: optimization?.id ?? null,
+    bit_ordering: simulation?.bit_ordering ?? null, simulation_method: simulation?.simulation_method ?? null,
+  }, null, 2);
 
   const handleCommandSubmit = (commandText: string) => {
     const raw = commandText.trim();
     if (!raw) return;
-
-    addLog('cmd', `user@qore:~/circuits$ ${raw}`);
-    setCmdHistory((prev) => [raw, ...prev]);
-    setHistoryIndex(-1);
-    setInputVal('');
-
+    addLog('cmd', 'qore › ' + raw);
+    // History is bounded and redacted just like visible output.
+    setCmdHistory(previous => [redact(raw), ...previous].slice(0, 100));
+    setHistoryIndex(-1); setInputVal('');
     const parts = raw.split(/\s+/);
-    const cmd = parts[0].toLowerCase();
-    const sub = parts[1]?.toLowerCase();
-
-    // 1. Quantum Kernel & PassManager Commands
-    if (cmd === 'qiskit') {
-      if (!sub || sub === '--version' || sub === '-v' || sub === 'version') {
-        addLog(
-          'output',
-          `quantum-kernel: 2.6.1\naer-simulator: 0.18.0\nquantum-nature: 0.7.2\npass-manager: v2 (SamplerV2, EstimatorV2)\npython-runtime: 3.12.14 [x86_64]`
-        );
-      } else if (sub === 'run' || sub === 'simulate') {
-        addLog('info', '[KERNEL] Dispatching active circuit to AerSimulator(backend="statevector")...');
-        onRunSimulation();
-      } else if (sub === 'transpile' || sub === 'opt' || sub === 'optimize') {
-        const lvl = parts[2] ?? '2';
-        addLog('info', `[COMPILER] Executing pass manager with optimization_level=${lvl} (SABRE routing)...`);
-        onRunTranspile();
-      } else if (sub === 'backends' || sub === 'targets') {
-        addLog(
-          'output',
-          `Configured Quantum Hardware Targets:
-  - aer_simulator (Statevector, 30 qubits max, Local Sim)
-  - qpu_heron (156 qubits, Heavy-Hexagon, T1=180us, T2=140us)
-  - qpu_eagle (127 qubits, Heavy-Hexagon, T1=120us, T2=95us)
-  - qpu_brisbane (127 qubits, Cross-Resonance, Online)
-  - qpu_kyoto (127 qubits, Cross-Resonance, Online)`
-        );
-      } else if (sub === 'draw' || sub === 'circuit') {
-        if (parsed) {
-          addLog(
-            'output',
-            `Circuit Wire Diagram:
-q_0: ──[H]────■────[M]─
-              │     │
-q_1: ─────────■────[M]─
-c: 2/══════════════════`
-          );
-        } else {
-          addLog('warn', '[KERNEL] No active parsed circuit found.');
-        }
-      } else if (sub === 'statevector') {
-        if (simulation?.probabilities) {
-          const lines = Object.entries(simulation.probabilities)
-            .map(([basis, prob]) => `  |${basis}⟩: ${(prob * 100).toFixed(2)}%`)
-            .join('\n');
-          addLog('output', `AerSimulator State Probabilities:\n${lines}`);
-        } else {
-          addLog('warn', '[KERNEL] Statevector empty. Run "qiskit run" first.');
-        }
-      } else if (sub === 'unitary') {
-        addLog(
-          'output',
-          `Unitary Operator Matrix (2x2 subsystem):
-[[ 0.70710678+0.j,  0.70710678+0.j],
- [ 0.70710678+0.j, -0.70710678+0.j]]`
-        );
-      } else if (sub === 'metrics') {
-        if (parsed?.metrics) {
-          addLog(
-            'output',
-            `Circuit Statistics:
-  Width (qubits): ${parsed.metrics.qubits}
-  Depth: ${parsed.metrics.depth}
-  Total Gates: ${parsed.metrics.gate_count}
-  2-Qubit CX: ${parsed.metrics.two_qubit_gate_count}
-  Measurements: ${parsed.metrics.measurement_count}`
-          );
-        } else {
-          addLog('warn', '[KERNEL] No parsed circuit metrics available.');
-        }
-      } else {
-        addLog('error', `[KERNEL] Unknown argument: "${sub}". Type "help" for options.`);
-      }
+    let command = parts[0].toLowerCase();
+    const args = parts.slice(1);
+    if (command === 'az' || command === 'qsharp') {
+      addLog('warn', (command === 'az' ? 'Azure Quantum CLI' : 'Q#') + ' is not connected to this command console. No cloud job or compiler command was executed.');
       return;
     }
-
-    // 2. Cloud Execution & Resource Estimator Commands
-    if (cmd === 'az' && sub === 'quantum') {
-      const azSub = parts[2]?.toLowerCase();
-      if (!azSub || azSub === '--help' || azSub === '-h') {
-        addLog(
-          'output',
-          `Quantum Cloud Commands:
-  az quantum workspace          Display active quantum workspace
-  az quantum target list        List target QPU and simulator clusters
-  az quantum execute            Execute circuit on target backend
-  az quantum status             Check job queue and runtime quota`
-        );
-      } else if (azSub === 'workspace') {
-        addLog(
-          'output',
-          `Active Workspace: qore-quantum-cluster-east
-Subscription: Quantum Developer Research
-Resource Group: rg-quantum-core
-Location: eastus
-Status: Connected & Ready`
-        );
-      } else if (azSub === 'target' && parts[3]?.toLowerCase() === 'list') {
-        addLog(
-          'output',
-          `Quantum Target Providers:
-  - ionq.simulator (29 qubits, Ideal all-to-all simulation)
-  - ionq.qpu.aria-1 (25 algorithmic qubits, Trapped-Ion)
-  - quantinuum.sim.h1-1sc (20 qubits, Quantum Phase Simulator)
-  - quantinuum.qpu.h1-1 (20 qubits, System Model H1, 2Q infidelity < 0.2%)
-  - rigetti.sim.aspen-m-3 (80 qubits, Planar transmon lattice)`
-        );
-      } else if (azSub === 'execute' || azSub === 'run') {
-        addLog('info', '[CLOUD] Submitting circuit job to ionq.simulator via REST API...');
-        onRunSimulation();
-      } else if (azSub === 'status' || azSub === 'jobs') {
-        addLog(
-          'output',
-          `Job ID: job-qc-8942-771
-Status: Succeeded
-Provider: ionq
-Target: ionq.simulator
-Created: ${new Date().toISOString()}
-Total Execution Time: 0.84s`
-        );
-      } else {
-        addLog('error', `[CLOUD] Unknown command: "az quantum ${azSub}".`);
-      }
+    if (command === 'qiskit') { command = (args.shift() ?? '--version').toLowerCase(); }
+    const aliases: Record<string, string> = { simulate: 'run', opt: 'transpile', optimize: 'transpile',
+      circuit: 'draw', targets: 'backends', version: '--version', '-v': '--version', dir: 'ls', cls: 'clear', '?': 'help' };
+    command = aliases[command] ?? command;
+    if (args.length && !['cat', 'echo'].includes(command)) {
+      addLog('warn', 'This command takes no arguments. Simulation and optimization use the settings selected in the workspace.');
       return;
     }
-
-    if (cmd === 'qsharp') {
-      if (!sub || sub === '--version' || sub === '-v') {
-        addLog('output', 'Q# Compiler v1.0.38 (Core Runtime net8.0)');
-      } else if (sub === 'estimate' || sub === 'resource-estimator') {
-        const qCount = parsed?.metrics?.qubits ?? 2;
-        const gCount = parsed?.metrics?.gate_count ?? 4;
-        addLog(
-          'output',
-          `Quantum Resource Estimator (Fault-Tolerant Target):
-Physical Qubits Required: ${qCount * 120 + 400}
-Logical Qubits: ${qCount}
-Total T-States: ${Math.max(12, gCount * 3)}
-Algorithm Runtime: 1.48 ms
-Code Distance: 7
-Error Budget: 0.001 (0.1%)
-Target Platform: Superconducting Transmon Lattice`
-        );
-      } else if (sub === 'run' || sub === 'compile') {
-        addLog('info', '[COMPILER] Compiling Q# circuit program into quantum target representation...');
-        onRunSimulation();
-      } else {
-        addLog('error', `[COMPILER] Unknown qsharp option: "${sub}". Try "qsharp estimate".`);
-      }
-      return;
-    }
-
-    // 3. Core Shell & Simulator Commands
-    switch (cmd) {
+    switch (command) {
       case 'help':
-      case '?':
-        addLog(
-          'output',
-          `QORE Quantum Integrated Terminal — Available Commands:
-
-Quantum Simulation & Pass Manager:
-  qiskit --version             Display Quantum Kernel, Aer, and Runtime version
-  qiskit run                   Execute circuit on local AerSimulator
-  qiskit transpile [-o 0-3]    Execute pass manager gate optimization
-  qiskit backends              List available QPUs and simulators
-  qiskit draw                  Render ASCII gate diagram of current circuit
-  qiskit statevector           Inspect calculated quantum state amplitudes
-  qiskit metrics               Inspect qubit width, depth, and gate counts
-
-Resource Estimation & Cloud Compilation:
-  az quantum workspace         Show connected quantum cloud workspace
-  az quantum target list       List target QPU and simulator clusters
-  az quantum execute           Execute job on remote quantum target
-  az quantum status            Inspect recent cloud job execution status
-  qsharp --version             Display Q# compiler version
-  qsharp estimate              Run Quantum Resource Estimator (FTQC)
-
-General Workspace Commands:
-  run, simulate                Run Aer simulation on active circuit
-  transpile, opt               Optimize active circuit with pass manager
-  metrics                      Display circuit metrics summary
-  statevector, probs           Display state probabilities
-  ast                          Inspect bounded AST audit status
-  status                       Check Python, Kernel, and IR health
-  ls, dir                      List files in workspace
-  cat <file>                   Print file contents
-  whoami                       Display current user
-  uname -a                     Display system environment
-  date                         Display current timestamp
-  clear, cls                   Clear terminal output`
-        );
+        addLog('output', [
+          'QORE command console',
+          '  run, qiskit run       Simulate the active circuit using current settings',
+          '  transpile            Optimize the active circuit using current settings',
+          '  qiskit --version     Show server-reported package versions',
+          '  qiskit backends      Show the last run backend and available engine limits',
+          '  qiskit draw          List actual parsed circuit operations',
+          '  metrics              Show parsed circuit metrics',
+          '  statevector          Show actual complex state amplitudes, when available',
+          '  unitary              Show the actual circuit operator, when available',
+          '  probs, counts        Show sampled probabilities or shot counts',
+          '  ast                  Show the parsed intermediate representation',
+          '  status               Show live server health and limits',
+          '  ls, pwd              Show the active file path (this console sees one buffer)',
+          '  cat [active file]    Show the active editor source',
+          '  date, echo, clear    Console utilities',
+          '',
+          'Commands with the qiskit prefix are QORE shortcuts. This console executes supported circuit actions through the backend; it does not provide an operating system shell.',
+        ].join('\n'));
         break;
-
       case 'run':
-      case 'simulate':
-        addLog('info', '[AER] Dispatching circuit simulation to Qiskit Aer...');
-        onRunSimulation();
-        break;
-
       case 'transpile':
-      case 'opt':
-      case 'optimize':
-        addLog('info', '[FORGE] Running pass manager optimization Level 2...');
-        onRunTranspile();
+        if (busy) { addLog('warn', 'An operation is already in progress. Wait for it to finish.'); break; }
+        if (!source?.trim()) { addLog('warn', 'Open or create a circuit file before running it.'); break; }
+        addLog('info', (command === 'run' ? 'Simulating ' : 'Optimizing ') + (fileName ?? 'the active buffer') + ' with current workspace settings…');
+        if (command === 'run') onRunSimulation(); else onRunTranspile();
         break;
-
+      case '--version':
+        addLog('output', 'Server-reported versions:\n' + versionSummary(health?.versions ?? simulation?.versions ?? optimization?.versions));
+        break;
+      case 'backends':
+        addLog('output', 'Last execution backend: ' + (simulation?.backend ?? 'No run yet') + '\nServer-reported limits:\n' + (health ? JSON.stringify(health.limits, null, 2) : 'Health information unavailable.') + '\nCloud hardware connection is not exposed by this console.');
+        break;
+      case 'draw':
+        if (!parsed) { addLog('warn', 'Parse or run the active circuit first.'); break; }
+        addLog('output', 'Parsed operations (' + parsed.ir.num_qubits + ' qubits):\n' + (parsed.ir.operations.length
+          ? parsed.ir.operations.map((operation, index) => (index + 1) + '. ' + operation.name + (operation.params.length ? '(' + operation.params.join(', ') + ')' : '') + ' ' + operation.qubits.map(qubit => 'q[' + qubit + ']').join(', ') + (operation.clbits.length ? ' → ' + operation.clbits.map(bit => 'c[' + bit + ']').join(', ') : '')).join('\n')
+          : 'The circuit contains no operations.'));
+        break;
       case 'metrics':
-        if (parsed?.metrics) {
-          addLog(
-            'output',
-            `Circuit Statistics:
-  Qubits: ${parsed.metrics.qubits}
-  Depth: ${parsed.metrics.depth}
-  Gate Count: ${parsed.metrics.gate_count}
-  2-Qubit Gates: ${parsed.metrics.two_qubit_gate_count}
-  Measurements: ${parsed.metrics.measurement_count}`
-          );
-        } else {
-          addLog('warn', '[TERMINAL] No parsed circuit metrics available.');
-        }
+        addLog(parsed ? 'output' : 'warn', parsed ? JSON.stringify(parsed.metrics, null, 2) : 'Parse or run the active circuit to see its metrics.');
         break;
-
-      case 'statevector':
+      case 'statevector': {
+        const amplitudes = result?.statevector_amplitudes;
+        addLog(amplitudes?.length ? 'output' : 'warn', amplitudes?.length
+          ? 'Complex state amplitudes:\n' + amplitudes.slice(0, 256).map(amplitude => '|' + amplitude.state + '⟩: ' + complex(amplitude) + '; probability ' + (amplitude.probability * 100).toFixed(4) + '%').join('\n') + (amplitudes.length > 256 ? '\nFirst 256 amplitudes shown. Open the Lab for the full result.' : '')
+          : 'No statevector amplitudes were returned. Run a supported statevector simulation or inspect measured probabilities with probs.');
+        break;
+      }
+      case 'unitary': {
+        const matrix = result?.unitary_matrix;
+        addLog(matrix?.length ? 'output' : 'warn', matrix?.length
+          ? 'Circuit unitary (' + matrix.length + ' × ' + (matrix[0]?.length ?? 0) + '):\n' + matrix.slice(0, 32).map(row => '[ ' + row.slice(0, 32).map(complex).join(', ') + (row.length > 32 ? ', …' : '') + ' ]').join('\n') + (matrix.length > 32 ? '\nFirst 32 rows and columns shown. Open the Lab for the full result.' : '')
+          : 'No unitary matrix was returned for this circuit. A non-unitary circuit or size limit may prevent matrix output.');
+        break;
+      }
       case 'probs':
-        if (simulation?.probabilities) {
-          const lines = Object.entries(simulation.probabilities)
-            .map(([st, prob]) => `  |${st}⟩: ${(prob * 100).toFixed(2)}%`)
-            .join('\n');
-          addLog('output', `Calculated State Probabilities:\n${lines}`);
-        } else {
-          addLog('warn', '[TERMINAL] No simulation data. Run "run" first.');
-        }
+      case 'counts':
+        addLog(simulation ? 'output' : 'warn', simulation
+          ? (command === 'counts' ? 'Measured shot counts' : 'Sampled measurement probabilities') + ' (' + simulation.shots + ' shots):\n' + JSON.stringify(command === 'counts' ? simulation.counts : simulation.probabilities, null, 2)
+          : 'No measured result yet. Run a simulation first.');
         break;
-
       case 'ast':
-        addLog(
-          'output',
-          `Bounded AST Audit:
-  Status: Passed
-  Validation: Bounded AST Sandbox
-  Prohibited Constructs: None detected
-  Execution Model: Direct IR compilation (No eval/exec)`
-        );
+        addLog(parsed ? 'output' : 'warn', parsed
+          ? 'Parsed circuit IR (this is not the Python AST):\n' + JSON.stringify(parsed.ir, null, 2)
+          : 'The backend has not returned a parsed circuit. No validation result is available.');
         break;
-
-      case 'status':
-        addLog(
-          'output',
-          `Environment Status:
-  Server: ${health?.status === 'ok' ? 'Online' : 'Connected'}
-  Backend: AerSimulator 0.18.0
-  Language: Python 3.12.14
-  IR Protocol: QORE-IR 1.0`
-        );
+      case 'status': {
+        const sanitizedHealth = health ? {
+          ...health,
+          storage: String((health as Record<string, unknown>).storage || '').includes('supabase') ? 'cloud' : (health as Record<string, unknown>).storage
+        } : null;
+        addLog(sanitizedHealth ? 'output' : 'warn', sanitizedHealth ? JSON.stringify(sanitizedHealth, null, 2) : 'Server health is unavailable. No backend status has been confirmed.');
         break;
-
+      }
       case 'ls':
-      case 'dir':
-        addLog(
-          'output',
-          `circuits/
-  circuit.py
-  ghz_state.py
-  teleportation.py
-  qft_3qubit.py
-  superdense.py
-  rotation_ordering.py
-openqasm/
-  bell_state.qasm
-  qaoa_cut.qasm
-projects/
-README.md`
-        );
+      case 'pwd':
+        addLog('output', fileName ? 'Active file: ' + fileName + '\nThis console can access the active editor buffer only.' : 'No file is open in the editor.');
         break;
-
-      case 'cat':
-        if (parts[1]) {
-          addLog('output', `# Source preview: ${parts[1]}\nfrom qiskit import QuantumCircuit\n\nqc = QuantumCircuit(2, 2)\nqc.h(0)\nqc.cx(0, 1)\nqc.measure([0, 1], [0, 1])`);
-        } else {
-          addLog('error', 'Usage: cat <filename>');
-        }
+      case 'cat': {
+        const requestedFile = args.join(' ').replace(/^['"]|['"]$/g, '');
+        if (requestedFile && requestedFile !== fileName) { addLog('warn', 'File is not the active buffer: ' + requestedFile + '. Open it in Explorer first.'); break; }
+        addLog(source !== undefined ? 'output' : 'warn', source !== undefined ? (fileName ?? 'Active buffer') + '\n' + (source || '(empty file)') : 'No file is open.');
         break;
-
-      case 'whoami':
-        addLog('output', 'qore-developer');
-        break;
-
-      case 'uname':
-        addLog('output', 'Linux qore-studio 6.5.0-quantum #1 SMP PREEMPT_DYNAMIC x86_64 GNU/Linux');
-        break;
-
-      case 'date':
-        addLog('output', new Date().toUTCString());
-        break;
-
-      case 'clear':
-      case 'cls':
-        setLogs([]);
-        break;
-
-      case 'echo':
-        addLog('output', parts.slice(1).join(' '));
-        break;
-
-      default:
-        addLog('error', `Command not found: "${cmd}". Type "help" for a list of valid commands.`);
+      }
+      case 'date': addLog('output', new Date().toISOString()); break;
+      case 'echo': addLog('output', args.join(' ')); break;
+      case 'clear': setLogs([]); break;
+      default: addLog('error', 'Unsupported command: ' + parts[0] + '. Type help for supported commands.');
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleCommandSubmit(inputVal);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (cmdHistory.length > 0) {
-        const nextIdx = Math.min(historyIndex + 1, cmdHistory.length - 1);
-        setHistoryIndex(nextIdx);
-        setInputVal(cmdHistory[nextIdx]);
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
+      event.preventDefault(); setLogs([]);
+    } else if (event.key === 'Enter') handleCommandSubmit(inputVal);
+    else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (cmdHistory.length) {
+        const next = Math.min(historyIndex + 1, cmdHistory.length - 1);
+        setHistoryIndex(next); setInputVal(cmdHistory[next]);
       }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyIndex > 0) {
-        const nextIdx = historyIndex - 1;
-        setHistoryIndex(nextIdx);
-        setInputVal(cmdHistory[nextIdx]);
-      } else if (historyIndex === 0) {
-        setHistoryIndex(-1);
-        setInputVal('');
-      }
-    } else if (e.key === 'Tab') {
-      e.preventDefault();
-      const match = ALL_COMMANDS.find((c) => c.startsWith(inputVal.trim()));
-      if (match) {
-        setInputVal(match);
-      }
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const next = historyIndex - 1;
+      setHistoryIndex(Math.max(-1, next)); setInputVal(next >= 0 ? cmdHistory[next] : '');
+    } else if (event.key === 'Tab') {
+      const match = ALL_COMMANDS.find(command => command.startsWith(inputVal.trim()));
+      if (inputVal.trim() && match) { event.preventDefault(); setInputVal(match); }
     }
   };
 
   if (!isOpen) return null;
-
-  return (
-    <div className={`vscode-terminal-dock ${isMaximized ? 'maximized' : ''}`}>
-      {/* 1. Terminal Panel Top Header Bar */}
-      <div className="terminal-header">
-        <div className="terminal-tabs">
-          <button
-            type="button"
-            className={`terminal-tab-btn ${activeTab === 'terminal' ? 'active' : ''}`}
-            onClick={() => setActiveTab('terminal')}
-          >
-            <span>TERMINAL</span>
-            <span className="tab-pill">bash</span>
-          </button>
-
-          <button
-            type="button"
-            className={`terminal-tab-btn ${activeTab === 'output' ? 'active' : ''}`}
-            onClick={() => setActiveTab('output')}
-          >
-            <span>OUTPUT</span>
-          </button>
-
-          <button
-            type="button"
-            className={`terminal-tab-btn ${activeTab === 'problems' ? 'active' : ''}`}
-            onClick={() => setActiveTab('problems')}
-          >
-            <span>PROBLEMS</span>
-            <span
-              className={`tab-pill-count ${workspaceProblems.length > 0 ? (hasErrors ? 'error' : 'warn') : 'zero'}`}
-            >
-              {workspaceProblems.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={`terminal-tab-btn ${activeTab === 'debug' ? 'active' : ''}`}
-            onClick={() => setActiveTab('debug')}
-          >
-            <span>DEBUG CONSOLE</span>
-          </button>
-        </div>
-
-        {/* Toolbar Controls */}
-        <div className="terminal-controls">
-          <button
-            type="button"
-            className="terminal-icon-btn"
-            title="Clear Terminal (Ctrl+L)"
-            onClick={() => setLogs([])}
-          >
-            <Icon name="trash" size={13} />
-          </button>
-
-          <button
-            type="button"
-            className="terminal-icon-btn"
-            title={isMaximized ? 'Restore Terminal Size' : 'Maximize Terminal Panel'}
-            onClick={() => setIsMaximized(!isMaximized)}
-          >
-            <Icon name={isMaximized ? 'collapse' : 'expand'} size={13} />
-          </button>
-
-          <button
-            type="button"
-            className="terminal-icon-btn close"
-            title="Close Terminal Panel (Ctrl+`)"
-            onClick={onClose}
-          >
-            <Icon name="close" size={13} />
-          </button>
-        </div>
+  return <div className={'vscode-terminal-dock ' + (isMaximized ? 'maximized' : '')}>
+    <div className="terminal-header">
+      <div className="terminal-tabs" role="tablist" aria-label="Console panels">
+        {(['terminal', 'output', 'problems', 'debug'] as const).map(tab => <button key={tab} type="button" role="tab"
+          aria-selected={activeTab === tab} aria-controls={'qore-console-' + tab} id={'qore-console-tab-' + tab}
+          className={'terminal-tab-btn ' + (activeTab === tab ? 'active' : '')} onClick={() => setActiveTab(tab)}>
+          <span>{tab === 'debug' ? 'DEBUG CONSOLE' : tab.toUpperCase()}</span>
+          {tab === 'terminal' && <span className="tab-pill">QORE</span>}
+          {tab === 'problems' && <span className={'tab-pill-count ' + (workspaceProblems.length ? hasErrors ? 'error' : 'warn' : 'zero')}>{workspaceProblems.length}</span>}
+        </button>)}
       </div>
-
-      {/* 2. Terminal Main Body */}
-      <div className="terminal-body" onClick={() => inputRef.current?.focus()}>
-        {activeTab === 'terminal' && (
-          <div className="terminal-log-scroll">
-            {logs.map((log) => (
-              <div key={log.id} className={`terminal-line ${log.type} line-fade-in`}>
-                <span className="terminal-time">{log.time}</span>
-                <div className="terminal-content">
-                  {log.type === 'cmd' ? (
-                    <span className="term-cmd-text">{log.text}</span>
-                  ) : (
-                    <pre className="term-pre">{log.text}</pre>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {/* Interactive Prompt Line */}
-            <div className="terminal-prompt-row">
-              <span className="prompt-label">user@qore:~/circuits$</span>
-              <input
-                ref={inputRef}
-                type="text"
-                className="terminal-input"
-                value={inputVal}
-                onChange={(e) => setInputVal(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type 'help', 'qiskit run', 'az quantum target list', or 'qsharp estimate'..."
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </div>
-            <div ref={terminalEndRef} />
-          </div>
-        )}
-
-        {activeTab === 'output' && (
-          <div className="terminal-output-pane">
-            <pre className="term-output-pre">
-              {`[QORE KERNEL LOG ${new Date().toLocaleDateString()}]
-AerSimulator initialized: statevector backend
-Bounded AST parser verified: OK (AST Sandbox Enforced)
-Matrix Product State engine: Standby
-OpenQASM compiler passes: OK
-Quantum Intelligence agent: Ready`}
-            </pre>
-          </div>
-        )}
-
-        {/* Real Live Problems Tab */}
-        {activeTab === 'problems' && (
-          <div className="terminal-problems-pane">
-            {workspaceProblems.length === 0 ? (
-              <div className="no-problems-msg">
-                <Icon name="check" size={14} />
-                <span>No problems have been detected in the workspace.</span>
-              </div>
-            ) : (
-              <div className="problems-tree-list">
-                <div className="problems-file-group">
-                  <div className="problems-file-header">
-                    <Icon name="chevron" size={11} />
-                    <Icon name="python" size={13} />
-                    <span className="file-name">{fileName || 'circuit.py'}</span>
-                    <span className="problems-count-badge">{workspaceProblems.length}</span>
-                  </div>
-
-                  <div className="problems-items-column">
-                    {workspaceProblems.map((prob) => (
-                      <div
-                        key={prob.id}
-                        className={`problem-item ${prob.severity}`}
-                        onClick={() => onSelectProblemLine?.(prob.line)}
-                        title={`Click to jump to line ${prob.line}`}
-                      >
-                        <div className={`problem-icon-wrap ${prob.severity}`}>
-                          <Icon name={prob.severity === 'error' ? 'close' : 'info'} size={12} />
-                        </div>
-                        <span className="problem-msg">{prob.message}</span>
-                        <span className="problem-code mono">{prob.code}</span>
-                        <span className="problem-pos mono">
-                          [{prob.line}, {prob.col}]
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'debug' && (
-          <div className="terminal-output-pane">
-            <pre className="term-output-pre">
-              {`[DEBUG] QORE IR v1.0 active
-[DEBUG] RNG Seed: 42
-[DEBUG] Classical Endianness: Little-Endian
-[DEBUG] Target Basis: Universal [u, cx]
-[DEBUG] Memory Allocation: 0.12 MB
-[DEBUG] Health: ${health?.status ?? 'connected'}`}
-            </pre>
-          </div>
-        )}
+      <div className="terminal-controls">
+        <button type="button" className="terminal-icon-btn" aria-label="Clear terminal" title="Clear terminal (Ctrl+L)" onClick={() => setLogs([])}><Icon name="trash" size={13} /></button>
+        <button type="button" className="terminal-icon-btn" aria-label={isMaximized ? 'Restore terminal size' : 'Maximize terminal'} onClick={() => setIsMaximized(value => !value)}><Icon name={isMaximized ? 'collapse' : 'expand'} size={13} /></button>
+        <button type="button" className="terminal-icon-btn close" aria-label="Close terminal" onClick={onClose}><Icon name="close" size={13} /></button>
       </div>
     </div>
-  );
+    <div className="terminal-body" id={'qore-console-' + activeTab} role="tabpanel" aria-labelledby={'qore-console-tab-' + activeTab}>
+      {activeTab === 'terminal' && <div className="terminal-log-scroll">
+        <div role="log" aria-label="Command output" aria-live="polite" aria-relevant="additions">
+          {logs.map(log => <div key={log.id} className={'terminal-line ' + log.type + ' line-fade-in'}>
+            <span className="terminal-time">{log.time}</span><div className="terminal-content">
+              {log.type === 'cmd' ? <span className="term-cmd-text">{log.text}</span> : <pre className="term-pre">{log.text}</pre>}
+            </div>
+          </div>)}
+        </div>
+        <div className="terminal-prompt-row">
+          <span className="prompt-label">qore ›</span>
+          <input ref={inputRef} type="text" className="terminal-input" aria-label="QORE console command"
+            value={inputVal} maxLength={4096} onChange={event => setInputVal(event.target.value)} onKeyDown={handleKeyDown}
+            placeholder="Type help, run, metrics, or unitary…" spellCheck={false} autoComplete="off" />
+        </div>
+        <div ref={terminalEndRef} />
+      </div>}
+      {activeTab === 'output' && <div className="terminal-output-pane"><pre className="term-output-pre">{redact(output)}</pre></div>}
+      {activeTab === 'problems' && <div className="terminal-problems-pane">
+        {!workspaceProblems.length ? <div className="no-problems-msg"><Icon name="check" size={14} />
+          <span>{parsed ? 'The latest parse reported no problems.' : 'No backend diagnostics yet. Parse or run the file to check it.'}</span></div>
+          : <div className="problems-tree-list"><div className="problems-file-group">
+            <div className="problems-file-header"><Icon name="chevron" size={11} /><Icon name="file" size={13} />
+              <span className="file-name">{fileName ?? 'Active buffer'}</span><span className="problems-count-badge">{workspaceProblems.length}</span></div>
+            <div className="problems-items-column">{workspaceProblems.map(problem => <div key={problem.id}
+              className={'problem-item ' + problem.severity} role="button" tabIndex={0}
+              onClick={() => onSelectProblemLine?.(problem.line)} onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectProblemLine?.(problem.line); }
+              }} title={'Jump to line ' + problem.line}>
+              <div className={'problem-icon-wrap ' + problem.severity}><Icon name={problem.severity === 'error' ? 'close' : 'info'} size={12} /></div>
+              <span className="problem-msg">{problem.message}</span><span className="problem-code mono">{problem.code}</span>
+              <span className="problem-pos mono">[{problem.line}, {problem.col}]</span>
+            </div>)}</div>
+          </div></div>}
+      </div>}
+      {activeTab === 'debug' && <div className="terminal-output-pane"><pre className="term-output-pre">{redact(debug)}</pre></div>}
+    </div>
+  </div>;
 }

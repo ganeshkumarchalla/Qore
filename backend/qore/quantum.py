@@ -645,12 +645,14 @@ def compute_circuit_bloch_and_unitary(circuit: QuantumCircuit, ir: dict[str, Any
                 r = float(np.sqrt(x * x + y * y + z * z))
                 theta = float(np.arccos(np.clip(z / r, -1.0, 1.0))) if r > 1e-7 else 0.0
                 phi = float(np.arctan2(y, x))
+                purity = float(np.real(np.trace(rho.data @ rho.data)))
                 bloch_vectors.append({
                     "qubit": q,
                     "x": round(x, 4),
                     "y": round(y, 4),
                     "z": round(z, 4),
-                    "purity": round(r, 4),
+                    "r": round(r, 4),
+                    "purity": round(purity, 4),
                     "theta": round(theta, 4),
                     "phi": round(phi, 4),
                 })

@@ -5,6 +5,8 @@ import json
 import os
 import re
 import sys
+import time
+from collections import OrderedDict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -21,6 +23,8 @@ from starlette.exceptions import HTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .examples import EXAMPLES
+from .auth import current_identity, register_auth
+from .cloud_store import CloudStore
 from .runtime import JobError, run_worker
 from .store import Store, source_hash
 
@@ -102,11 +106,19 @@ class RequestGuard:
             # origin only when it exactly matches the already trusted Host.
             # This retains CSRF protection without hard-coding a deployment URL.
             host = headers.get(b"host", b"").decode("latin1").lower()
-            parsed_origin = urlsplit(origin)
-            same_origin = (
-                parsed_origin.scheme in {"http", "https"}
-                and parsed_origin.netloc.lower() == host
-            )
+            try:
+                parsed_origin = urlsplit(origin)
+                _ = parsed_origin.port
+                same_origin = (
+                    parsed_origin.scheme in {"http", "https"}
+                    and parsed_origin.netloc.lower() == host
+                    and not parsed_origin.username and not parsed_origin.password
+                    and not parsed_origin.path and not parsed_origin.query and not parsed_origin.fragment
+                )
+            except ValueError:
+                same_origin = False
+            if os.environ.get("QORE_ENV", "").lower() == "production" or os.environ.get("RENDER"):
+                allowed = set()
             if origin and origin not in allowed and not same_origin:
                 return await JSONResponse({"error": {"code": "origin_denied", "message": "Cross-origin writes are not allowed."}}, 403)(scope, receive, send)
             if headers.get(b"sec-fetch-site", b"") == b"cross-site":
@@ -145,11 +157,18 @@ class RequestGuard:
 def create_app(db_path=None):
     @asynccontextmanager
     async def lifespan(application):
-        application.state.store = Store(db_path or os.environ.get("QORE_DB_PATH", ROOT / "data" / "qore.sqlite3"))
+        application.state.store = (Store(db_path or os.environ.get("QORE_DB_PATH", ROOT / "data" / "qore.sqlite3"))
+                                   if application.state.storage_mode == "sqlite" else None)
         application.state.job_slots = asyncio.Semaphore(2)
+        application.state.job_attempts = OrderedDict()
         yield
 
     application = FastAPI(title="QORE", version="0.1.0", lifespan=lifespan)
+    auth_service = register_auth(application)
+    application.state.storage_mode = ("sqlite" if db_path is not None else
+        os.environ.get("QORE_STORAGE", "supabase" if auth_service.settings.configured else "sqlite").lower())
+    if application.state.storage_mode not in {"sqlite", "supabase"}:
+        raise ValueError("QORE_STORAGE must be sqlite or supabase")
     application.add_middleware(RequestGuard)
     # Deployments can add a custom domain through QORE_ALLOWED_HOSTS, while the
     # platform hostname remains accepted by default.  Do not use a wildcard
@@ -177,13 +196,38 @@ def create_app(db_path=None):
         return JSONResponse({"error": {"code": "internal_error", "message": "The request failed. Existing saved records were not modified."}}, status_code=500)
 
     def store():
-        return application.state.store
+        identity = current_identity.get() or {}
+        if application.state.storage_mode == "supabase":
+            if not auth_service.settings.configured:
+                raise JobError("storage_unavailable", "Private workspace storage is not configured.", status=503)
+            return CloudStore(auth_service.settings.supabase_url, auth_service.settings.publishable_key,
+                              identity.get("owner_id"), identity.get("access_token"))
+        return application.state.store.for_owner(identity.get("owner_id") or "local")
 
-    def check_project(ident):
-        if ident and not store().project(ident):
+    async def storage(method, *args):
+        scoped = store()
+        return await asyncio.to_thread(getattr(scoped, method), *args)
+
+    async def check_project(ident):
+        if ident and not await storage("project", ident):
             raise JobError("project_not_found", "Project not found.", status=404)
 
     async def execute(operation, args):
+        # Bounded, per-account budgets complement the shared worker semaphore.
+        # Parse has a separate allowance so editing does not consume run quota.
+        owner = (current_identity.get() or {}).get("owner_id", "local")
+        bucket = (owner, "parse" if operation == "parse" else "run")
+        attempts = application.state.job_attempts
+        ticks = attempts.setdefault(bucket, deque())
+        attempts.move_to_end(bucket)
+        clock = time.monotonic()
+        while ticks and ticks[0] < clock - 60:
+            ticks.popleft()
+        if len(ticks) >= (120 if operation == "parse" else 30):
+            raise JobError("rate_limited", "Your quantum job allowance is busy. Retry in a minute.", status=429)
+        ticks.append(clock)
+        while len(attempts) > 10000:
+            attempts.popitem(last=False)
         slots = application.state.job_slots
         try:
             await asyncio.wait_for(slots.acquire(), timeout=2)
@@ -194,10 +238,10 @@ def create_app(db_path=None):
         finally:
             slots.release()
 
-    def referenced_run(ident, kind, source):
+    async def referenced_run(ident, kind, source):
         if not ident:
             return None
-        run = store().run(ident)
+        run = await storage("run", ident)
         if run is None:
             raise JobError("run_not_found", "Referenced run not found.", status=404)
         if run["kind"] != kind or run.get("error"):
@@ -209,7 +253,9 @@ def create_app(db_path=None):
     @application.get("/api/health")
     async def health():
         from .quantum import versions
-        return {"status": "ok", "versions": versions(), "ai_available": bool(os.environ.get("GEMINI_API_KEY")), "limits": LIMITS}
+        return {"status": "ok", "versions": versions(), "ai_available": bool(os.environ.get("GEMINI_API_KEY")),
+                "auth_configured": auth_service.settings.configured, "auth_required": auth_service.settings.require_auth,
+                "storage": "cloud" if application.state.storage_mode == "supabase" else application.state.storage_mode, "limits": LIMITS}
 
     @application.get("/api/examples")
     async def examples():
@@ -217,38 +263,38 @@ def create_app(db_path=None):
 
     @application.get("/api/projects")
     async def projects():
-        return store().projects()
+        return await storage("projects")
 
     @application.post("/api/projects", status_code=201)
     async def new_project(body: ProjectInput):
-        return store().save_project(body.name, body.source)
+        return await storage("save_project", body.name, body.source)
 
     @application.get("/api/projects/{ident}")
     async def get_project(ident: str):
-        check_project(ident)
-        return store().project(ident)
+        await check_project(ident)
+        return await storage("project", ident)
 
     @application.put("/api/projects/{ident}")
     async def update_project(ident: str, body: ProjectInput):
-        check_project(ident)
-        return store().save_project(body.name, body.source, ident)
+        await check_project(ident)
+        return await storage("save_project", body.name, body.source, ident)
 
     @application.post("/api/parse")
     async def parse(body: SourceInput):
         return await execute("parse", body.model_dump())
 
     async def run_and_record(kind, operation, body):
-        check_project(body.project_id)
+        await check_project(body.project_id)
         args = {k: v for k, v in body.model_dump(exclude={"project_id"}).items() if v is not None}
         try:
             result = await execute(operation, args)
         except JobError as error:
-            record = store().add_run(kind, body.source, body.project_id, {
+            record = await storage("add_run", kind, body.source, body.project_id, {
                 "configuration": {k: v for k, v in args.items() if k != "source"},
                 "error": {"code": error.code, "message": error.message, "details": error.details}})
             error.details = {"run_id": record["id"], "cause": error.details}
             raise
-        return store().add_run(kind, body.source, body.project_id, result)
+        return await storage("add_run", kind, body.source, body.project_id, result)
 
     @application.post("/api/simulate")
     async def simulate(body: SimulationInput):
@@ -260,23 +306,23 @@ def create_app(db_path=None):
 
     @application.get("/api/runs")
     async def runs():
-        return store().runs()
+        return await storage("runs")
 
     @application.get("/api/runs/{ident}")
     async def get_run(ident: str):
-        result = store().run(ident)
+        result = await storage("run", ident)
         if result is None:
             raise JobError("run_not_found", "Run not found.", status=404)
         return result
 
     @application.post("/api/experiments", status_code=201)
     async def new_experiment(body: ExperimentInput):
-        check_project(body.project_id)
-        simulation = referenced_run(body.simulation_id, "simulation", body.source)
-        optimization = referenced_run(body.optimization_id, "optimization", body.source)
+        await check_project(body.project_id)
+        simulation = await referenced_run(body.simulation_id, "simulation", body.source)
+        optimization = await referenced_run(body.optimization_id, "optimization", body.source)
         parsed = await execute("parse", {"source": body.source})
         from .quantum import versions
-        return store().add_experiment({
+        return await storage("add_experiment", {
             "name": body.name, "project_id": body.project_id, "source": body.source,
             "source_hash": source_hash(body.source), "ir_version": "1.0", "versions": versions(),
             "ir": parsed["ir"], "metrics": parsed["metrics"], "warnings": parsed["warnings"],
@@ -286,11 +332,11 @@ def create_app(db_path=None):
 
     @application.get("/api/experiments")
     async def experiments():
-        return store().experiments()
+        return await storage("experiments")
 
     @application.get("/api/experiments/{ident}")
     async def get_experiment(ident: str):
-        result = store().experiment(ident)
+        result = await storage("experiment", ident)
         if result is None:
             raise JobError("experiment_not_found", "Experiment not found.", status=404)
         return result
@@ -303,8 +349,8 @@ def create_app(db_path=None):
         if not key:
             return {"available": False, "answer": "QORE Intelligence is unavailable. Configure GEMINI_API_KEY on the local server to enable optional AI assistance. Studio, Lab, Forge, and Research work independently."}
         context = {"source": body.source,
-                   "simulation": referenced_run(body.simulation_id, "simulation", body.source),
-                   "optimization": referenced_run(body.optimization_id, "optimization", body.source)}
+                   "simulation": await referenced_run(body.simulation_id, "simulation", body.source),
+                   "optimization": await referenced_run(body.optimization_id, "optimization", body.source)}
         model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
         if not re.fullmatch(r"[a-zA-Z0-9_.-]{1,100}", model):
             return {"available": False, "answer": "The configured AI model is invalid. Check the server configuration."}

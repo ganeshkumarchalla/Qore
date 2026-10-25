@@ -5,6 +5,8 @@
 
 QORE is a focused quantum development environment for writing circuits, proving transformations, and inspecting results. It opens empty by design: users create their own files and projects, then run them through a bounded compiler, isolated simulator, visual laboratory, and immutable experiment ledger.
 
+The welcome now opens automatically. **Get Started** creates a single editable three-qubit circuit on request. Hosted accounts use verified email/Google sessions and owner-scoped cloud records. See the [production setup guide](docs/PRODUCTION.md) for provider activation, Render environment settings, security boundaries, and the acceptance checks required before release.
+
 ## About QORE
 
 QORE is a research-grade quantum workspace designed to make experimental computing understandable, reproducible, and reviewable. It gives a developer one calm surface for authoring a circuit, compiling it into a typed intermediate representation, running controlled simulations, exploring quantum state evidence, optimizing transformations, and preserving the complete result as an immutable experiment.
@@ -41,7 +43,7 @@ The visual tour maps the complete journey: author → compile → simulate → i
 
 ![QORE technology stack](docs/qore-stack-icons.svg)
 
-The stack marquee shows the tools and services used to build and ship QORE: ChatGPT, Antigravity, Canva, Figma, Supabase, GitHub, Vercel, PowerShell, and the Codex Security plugin. Each pill includes a visible tool mark. QORE’s runtime remains first-party and server-side; these tools are represented as the engineering workflow, not runtime dependencies.
+The stack marquee shows the tools and services used to build and ship QORE: ChatGPT, Antigravity, Canva, Figma, Supabase, GitHub, Render, PowerShell, and the Codex Security plugin. Each pill includes a visible tool mark. QORE’s runtime remains first-party and server-side; these tools are represented as the engineering workflow, not runtime dependencies.
 
 ---
 

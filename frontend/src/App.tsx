@@ -10,12 +10,14 @@ import { Explorer, type WorkspaceFile } from './Explorer';
 import { Terminal } from './Terminal';
 import { ErrorBoundary } from './ErrorBoundary';
 import { WelcomeModal } from './WelcomeModal';
+import { GettingStarted } from './GettingStarted';
+import { addBlankFile, addStarterFile, loadWorkspaceFiles, saveWorkspaceFiles, setWorkspaceOwner } from './workspace';
 import { AuthModal, type AuthUser, loadStoredUser } from './AuthModal';
 import {
   api,
+  invalidateApiRequests,
   formatDate,
   readable,
-  type Example,
   type Experiment,
   type ExperimentSummary,
   type Health,
@@ -37,19 +39,7 @@ const tabs: { name: Tab; icon: IconName; label: string; shortLabel: string }[] =
   { name: 'Intelligence', icon: 'spark', label: 'Assistant', shortLabel: 'Copilot' },
 ];
 
-const blankSource = `# Quantum Circuit Program
-from qiskit import QuantumCircuit
-
-qc = QuantumCircuit(2, 2)
-
-# Apply quantum gates
-qc.h(0)
-qc.cx(0, 1)
-
-# Terminal measurements
-qc.measure(0, 0)
-qc.measure(1, 1)
-`;
+const blankSource = '# Write your quantum circuit here.\n';
 
 const THEME_NAMES: Record<string, string> = {
   'obsidian-void': 'Obsidian Void',
@@ -75,10 +65,9 @@ export default function App() {
   const [baseline, setBaseline] = useState('');
   const [baselineName, setBaselineName] = useState('Untitled project');
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [activeFileId, setActiveFileId] = useState<string>('circuits/circuit.py');
+  const [activeFileId, setActiveFileId] = useState<string>('');
 
   const [projects, setProjects] = useState<Project[]>([]);
-  const [examples, setExamples] = useState<Example[]>([]);
   const [experiments, setExperiments] = useState<ExperimentSummary[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
 
@@ -98,6 +87,9 @@ export default function App() {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(loadStoredUser);
+  const [authRequired, setAuthRequired] = useState(true);
+  const ownerRef = useRef<string | null>(null);
+  const identityEpoch = useRef(0);
   const [inspectorTab, setInspectorTab] = useState<'circuit' | 'bloch' | 'unitary' | 'qasm'>('circuit');
   const [activeDropdown, setActiveDropdown] = useState<'File' | 'Edit' | 'Quantum' | 'View' | 'Terminal' | 'Help' | null>(null);
   const [isRunMenuOpen, setIsRunMenuOpen] = useState(false);
@@ -157,32 +149,87 @@ export default function App() {
     };
   }, []);
 
+  const applyIdentity = useCallback((user: AuthUser | null) => {
+    const owner = user?.id ?? null;
+    if (ownerRef.current !== owner) {
+      identityEpoch.current += 1;
+      invalidateApiRequests();
+      ownerRef.current = owner;
+      setWorkspaceOwner(owner);
+      setSource('');
+      sourceRef.current = '';
+      setActiveFileId('');
+      setName('Untitled project');
+      setBaseline('');
+      setBaselineName('Untitled project');
+      setProjectId(null);
+      setProjects([]);
+      setExperiments([]);
+      setHistorical(null);
+      setSelectedExperiment(null);
+      setModal(null);
+      setParsed(null);
+      setSimulation(null);
+      setOptimization(null);
+      setTab('Studio');
+    }
+    setCurrentUser(user);
+  }, []);
+
   const initialize = useCallback(async () => {
     setBusy('Connecting');
     setError('');
     try {
-      const [nextHealth, nextExamples, nextProjects, nextExperiments] = await Promise.all([
+      const [nextHealth, session] = await Promise.all([
         api<Health>('/health'),
-        api<Example[]>('/examples'),
-        api<Project[]>('/projects'),
-        api<ExperimentSummary[]>('/experiments'),
+        api<{ user: AuthUser | null; required: boolean }>('/auth/session'),
       ]);
       setHealth(nextHealth);
-      setExamples(nextExamples);
-      setProjects(nextProjects);
-      setExperiments(nextExperiments);
-      // Start with a genuinely empty workspace. Examples remain available from the
-      // explicit File > Load example menu, never as hidden seeded editor content.
+      setAuthRequired(session.required);
+      applyIdentity(session.user);
+      const epoch = identityEpoch.current;
+      if (session.user || !session.required) {
+        const [nextProjects, nextExperiments] = await Promise.all([
+          api<Project[]>('/projects'), api<ExperimentSummary[]>('/experiments'),
+        ]);
+        if (epoch === identityEpoch.current) {
+          setProjects(nextProjects);
+          setExperiments(nextExperiments);
+        }
+      } else {
+        setProjects([]);
+        setExperiments([]);
+      }
+      // Files are created only through an explicit user action. Existing local
+      // files and signed-in projects remain available in Explorer.
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy('');
     }
-  }, []);
+  }, [applyIdentity]);
 
   useEffect(() => {
     void initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    const expired = () => {
+      applyIdentity(null);
+      setIsAuthOpen(true);
+      setError('Your session has expired. Sign in again to continue.');
+    };
+    window.addEventListener('qore:session-expired', expired);
+    const query = new URLSearchParams(window.location.search);
+    if (query.has('auth_error')) {
+      setIsAuthOpen(true);
+      setNotice('Sign-in was not completed. Please try again.');
+      query.delete('auth_error');
+      const remaining = query.toString();
+      window.history.replaceState(null, '', window.location.pathname + (remaining ? `?${remaining}` : '') + window.location.hash);
+    }
+    return () => window.removeEventListener('qore:session-expired', expired);
+  }, [applyIdentity]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'obsidian-void');
@@ -223,6 +270,31 @@ export default function App() {
     });
   }
 
+  function startWorkspace(kind: 'guided' | 'blank') {
+    safeSwitch(() => {
+      try {
+        const file = kind === 'guided' ? addStarterFile() : addBlankFile();
+        void loadSource(file.source, file.name, null, file.id);
+        if (kind === 'guided') setNotice('Your three-qubit circuit is ready. Run Kernel to explore the 000 and 111 outcomes.');
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Your workspace could not be saved. Check browser storage.');
+      }
+    });
+  }
+
+  function closeWorkspaceFile(id: string) {
+    if (id !== activeFileId) return;
+    setActiveFileId('');
+    setSource('');
+    sourceRef.current = '';
+    setName('Untitled project');
+    setBaseline('');
+    setBaselineName('Untitled project');
+    setProjectId(null);
+    setHistorical(null);
+    clearResults();
+  }
+
   async function loadSource(nextSource: string, nextName: string, id: string | null, customFileId?: string) {
     const fileId = customFileId || (id ? id : nextName.includes('.') ? `circuits/${nextName}` : `circuits/${nextName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.py`);
     setActiveFileId(fileId);
@@ -239,7 +311,7 @@ export default function App() {
     setError('');
 
     // Only invoke quantum compiler parser on Python quantum circuit code
-    if (!fileId.endsWith('.md') && !fileId.endsWith('.json') && !fileId.endsWith('.txt')) {
+    if ((!authRequired || currentUser) && (nextSource.includes('QuantumCircuit') || nextSource.trimStart().startsWith('OPENQASM')) && !fileId.endsWith('.md') && !fileId.endsWith('.json') && !fileId.endsWith('.txt')) {
       setBusy('Parsing');
       try {
         setParsed(await api<Parsed>('/parse', { source: nextSource }));
@@ -396,6 +468,11 @@ export default function App() {
 
   async function execute(action: 'parse' | 'simulate' | 'optimize') {
     if (busy || !source.trim()) return;
+    if (authRequired && !currentUser) {
+      setIsAuthOpen(true);
+      setNotice('Sign in to run circuits and keep your results in your private workspace.');
+      return;
+    }
     setError('');
     const submittedSource = source;
     try {
@@ -453,7 +530,50 @@ export default function App() {
   }
 
   async function saveCurrent() {
+    if (!projectId && !historical) {
+      const files = loadWorkspaceFiles();
+      if (files.some((file) => file.id === activeFileId)) {
+        try {
+          saveWorkspaceFiles(files.map((file) => file.id === activeFileId ? { ...file, source } : file));
+          setBaseline(source);
+          setBaselineName(name);
+          setNotice('File saved in this browser workspace.');
+        } catch (error) {
+          setError(error instanceof Error ? error.message : 'The file could not be saved. Your editor contents are unchanged.');
+        }
+        return;
+      }
+    }
     if (!projectId) {
+      if (!currentUser) {
+        try {
+          const rawName = name.trim() || 'untitled';
+          const isQasm = source.trim().startsWith('OPENQASM') || source.includes('qreg ') || rawName.endsWith('.qasm');
+          const fileName = rawName.includes('.') ? rawName : (isQasm ? `${rawName}.qasm` : `${rawName}.py`);
+          const path = activeFileId || `circuits/${fileName}`;
+          const isJson = fileName.endsWith('.json');
+          const isMd = fileName.endsWith('.md');
+          const newFile: WorkspaceFile = {
+            id: path,
+            name: fileName,
+            path,
+            type: 'file',
+            kind: isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python',
+            source,
+          };
+          const nextFiles = [newFile, ...loadWorkspaceFiles().filter((f) => f.id !== path)];
+          saveWorkspaceFiles(nextFiles);
+          setActiveFileId(path);
+          setName(fileName);
+          setBaseline(source);
+          setBaselineName(fileName);
+          setNotice('File saved in your browser workspace.');
+          return;
+        } catch (error) {
+          setError(error instanceof Error ? error.message : 'The file could not be saved.');
+          return;
+        }
+      }
       showModal('save');
       return;
     }
@@ -520,13 +640,39 @@ export default function App() {
         });
         setExperiments((items) => [item, ...items]);
         setSelectedExperiment(item);
-        setNotice('Experiment saved to SQLite ledger.');
+        setNotice('Experiment saved to your private ledger.');
       } else if (modal.kind === 'new') {
         const project = await api<Project>('/projects', { name: modalName.trim(), source: blankSource });
         setProjects((items) => [project, ...items]);
         await loadSource(project.source, project.name, project.id);
         setNotice('Project created.');
       } else {
+        if (!currentUser && modal.kind === 'save') {
+          const rawName = modalName.trim();
+          const isQasm = source.trim().startsWith('OPENQASM') || source.includes('qreg ') || rawName.endsWith('.qasm');
+          const fileName = rawName.includes('.') ? rawName : (isQasm ? `${rawName}.qasm` : `${rawName}.py`);
+          const path = `circuits/${fileName}`;
+          const isJson = fileName.endsWith('.json');
+          const isMd = fileName.endsWith('.md');
+          const newFile: WorkspaceFile = {
+            id: path,
+            name: fileName,
+            path,
+            type: 'file',
+            kind: isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python',
+            source,
+          };
+          const nextFiles = [newFile, ...loadWorkspaceFiles().filter((f) => f.id !== path)];
+          saveWorkspaceFiles(nextFiles);
+          setActiveFileId(path);
+          setName(fileName);
+          setBaseline(source);
+          setBaselineName(fileName);
+          setHistorical(null);
+          setModal(null);
+          setNotice('File saved in your browser workspace.');
+          return;
+        }
         const target = modal.kind === 'rename' ? projectId : null;
         const project = await api<Project>(target ? `/projects/${target}` : '/projects', { name: modalName.trim(), source }, target ? 'PUT' : 'POST');
         setProjects((items) => [project, ...items.filter((item) => item.id !== project.id)]);
@@ -733,13 +879,6 @@ export default function App() {
       icon: 'plus',
       action: () => insertSnippet('qc.measure(0, 0)\n'),
     },
-    ...examples.map((ex) => ({
-      id: `ex-${ex.id}`,
-      title: `Starter Circuit: ${ex.name}`,
-      category: 'Examples',
-      icon: 'circuit' as const,
-      action: () => safeSwitch(() => void loadSource(ex.source, ex.name, null)),
-    })),
   ];
 
   return (
@@ -901,20 +1040,6 @@ export default function App() {
                   >
                     <span>Clear Editor Buffer</span>
                   </button>
-                  <div className="dropdown-divider" />
-                  {examples.slice(0, 4).map((ex) => (
-                    <button
-                      key={ex.id}
-                      type="button"
-                      className="dropdown-item"
-                      onClick={() => {
-                        setActiveDropdown(null);
-                        safeSwitch(() => void loadSource(ex.source, ex.name, null));
-                      }}
-                    >
-                      <span>Load: {ex.name}</span>
-                    </button>
-                  ))}
                 </div>
               )}
             </div>
@@ -1232,7 +1357,7 @@ export default function App() {
                     className="dropdown-item"
                     onClick={() => {
                       setActiveDropdown(null);
-                      setNotice('Qiskit Aer 0.18.0 & Python 3.12 operational on local kernel');
+                      setNotice(health ? Object.entries(health.versions).map(([key, value]) => `${key}: ${value}`).join(' · ') : 'The backend has not connected yet. Refresh the connection to load diagnostics.');
                     }}
                   >
                     <span>Qiskit Aer Diagnostics</span>
@@ -1248,10 +1373,10 @@ export default function App() {
                     <span>Settings & Preferences</span>
                     <span className="dropdown-shortcut">Ctrl+,</span>
                   </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://qoredocs.vercel.app/#lab', '_blank', 'noopener,noreferrer'); }}>
+                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('/intro-video.html', '_blank', 'noopener,noreferrer'); }}>
                     <span>Quantum Lab Documentation ↗</span>
                   </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('https://qoredocs.vercel.app/#ledger', '_blank', 'noopener,noreferrer'); }}>
+                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('/intro-video.html', '_blank', 'noopener,noreferrer'); }}>
                     <span>Quantum Ledger Documentation ↗</span>
                   </button>
                   <div className="dropdown-divider" />
@@ -1260,7 +1385,7 @@ export default function App() {
                     className="dropdown-item"
                     onClick={() => {
                       setActiveDropdown(null);
-                      setNotice('QORE Studio v2.0 — Enterprise Quantum Computing IDE');
+                      setNotice('QORE Studio — circuit editing, bounded local simulation, validated optimization, and private experiment records.');
                     }}
                   >
                     <span>About QORE Quantum Studio</span>
@@ -1278,7 +1403,7 @@ export default function App() {
           title="Open Command Palette (Ctrl+K or Ctrl+Shift+P)"
         >
           <Icon name="search" size={13} />
-          <span className="command-center-title">{name.includes('.') ? name : `${name}.py`}</span>
+          <span className="command-center-title">{!activeFileId && !source ? 'Your workspace' : name.includes('.') ? name : `${name}.py`}</span>
           <kbd className="command-kbd">Ctrl+K</kbd>
         </div>
 
@@ -1287,7 +1412,7 @@ export default function App() {
           {/* Clean Telemetry Readout */}
           <div className="topbar-telemetry">
             <span className="telemetry-item highlight" title="Active Quantum Register Width">
-              {parsed?.metrics?.qubits ?? (source.includes('qreg') ? 2 : 2)} Qubits
+              {parsed ? `${parsed.metrics.qubits} Qubits` : 'No active circuit'}
             </span>
             <span className="telemetry-dot">·</span>
             <span className="telemetry-item" title="Circuit Depth">
@@ -1300,9 +1425,9 @@ export default function App() {
             <span className="telemetry-dot">·</span>
             <span
               className={`telemetry-item ${(parsed?.metrics?.two_qubit_gate_count ?? 0) > 0 ? 'entangled-text' : ''}`}
-              title={(parsed?.metrics?.two_qubit_gate_count ?? 0) > 0 ? 'Entangled Multi-Qubit State (Bell/EPR)' : 'Separable Product State'}
+              title="Two-qubit gate count describes circuit structure; it does not prove entanglement."
             >
-              {(parsed?.metrics?.two_qubit_gate_count ?? 0) > 0 ? 'Entangled' : 'Separable'}
+              {parsed ? `${parsed.metrics.two_qubit_gate_count} two-qubit gates` : 'Ready to create'}
             </span>
           </div>
 
@@ -1439,7 +1564,7 @@ export default function App() {
           <div className="activity-bottom">
             <button
               className="activity-item"
-              title={currentUser ? `Account: ${currentUser.name} (${currentUser.role})` : 'Sign In / Account (VS Code & Antigravity Cloud)'}
+              title={currentUser ? `Account: ${currentUser.name} (${currentUser.role})` : 'Sign in to your QORE account'}
               aria-label="Account"
               onClick={() => setIsAuthOpen(true)}
             >
@@ -1471,9 +1596,17 @@ export default function App() {
 
         {/* 2. Advanced VS Code Workspace File Explorer */}
         <Explorer
+          key={currentUser?.id ?? 'local'}
           sidebarOpen={sidebar}
           activeFileId={activeFileId}
           onOpenFile={handleOpenFile}
+          onFileDeleted={closeWorkspaceFile}
+          onFileRenamed={(previousId, file) => {
+            if (previousId !== activeFileId) return;
+            setActiveFileId(file.id);
+            setName(file.name);
+            setBaselineName(file.name);
+          }}
           dirty={dirty}
           projects={projects}
           experiments={experiments}
@@ -1536,7 +1669,10 @@ export default function App() {
 
         {/* Active View Container */}
         <div className="workbench-body">
-          {tab === 'Studio' && (
+          {tab === 'Studio' && !activeFileId && !source && !historical && (
+            <GettingStarted busy={!!busy} onGetStarted={() => startWorkspace('guided')} onCreateBlank={() => startWorkspace('blank')} />
+          )}
+          {tab === 'Studio' && (activeFileId || source || historical) && (
             <div className="studio-split-view">
               {/* Left Pane: Code Editor with Gate Palette */}
               <section className="editor-pane">
@@ -1546,7 +1682,7 @@ export default function App() {
                       {name.includes('.') ? name : (source.trim().startsWith('OPENQASM') || source.includes('qreg ') ? `${name}.qasm` : `${name}.py`)}
                     </span>
                     <span className="pane-meta">
-                      {source.trim().startsWith('OPENQASM') || source.includes('qreg ') ? 'OpenQASM 2.0 / 3.0' : 'Python · Bounded AST'}
+                      {source.trim().startsWith('OPENQASM') || source.includes('qreg ') ? 'OpenQASM 2.0' : 'Python · Bounded AST'}
                     </span>
                     {(source.trim().startsWith('OPENQASM') || source.includes('qreg ')) && (
                       <span className="mini-tag" style={{ marginLeft: 6 }}>Direct QASM</span>
@@ -1648,48 +1784,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="archetype-chips">
-                        <span style={{ fontSize: 10, color: 'var(--vscode-text-dim)' }}>Archetypes:</span>
-                        <button
-                          type="button"
-                          className="archetype-chip"
-                          onClick={() => {
-                            void loadSource(
-                              'from qiskit import QuantumCircuit\n\nqc = QuantumCircuit(2, 2)\nqc.h(0)\nqc.cx(0, 1)\nqc.measure([0, 1], [0, 1])\n',
-                              'Bell State |Φ+⟩',
-                              null
-                            );
-                          }}
-                        >
-                          + Bell |Φ+⟩
-                        </button>
-                        <button
-                          type="button"
-                          className="archetype-chip"
-                          onClick={() => {
-                            void loadSource(
-                              'from qiskit import QuantumCircuit\n\nqc = QuantumCircuit(3, 3)\nqc.h(0)\nqc.cx(0, 1)\nqc.cx(1, 2)\nqc.measure([0, 1, 2], [0, 1, 2])\n',
-                              'GHZ Triplet |GHZ⟩',
-                              null
-                            );
-                          }}
-                        >
-                          + GHZ |000⟩+|111⟩
-                        </button>
-                        <button
-                          type="button"
-                          className="archetype-chip"
-                          onClick={() => {
-                            void loadSource(
-                              'import numpy as np\nfrom qiskit import QuantumCircuit\n\nqc = QuantumCircuit(3, 3)\nqc.h(0)\nqc.cp(np.pi / 2, 1, 0)\nqc.cp(np.pi / 4, 2, 0)\nqc.h(1)\nqc.cp(np.pi / 2, 2, 1)\nqc.h(2)\nqc.swap(0, 2)\nqc.measure([0, 1, 2], [0, 1, 2])\n',
-                              'QFT 3-Qubit Circuit',
-                              null
-                            );
-                          }}
-                        >
-                          + QFT 3-Qubit
-                        </button>
-                      </div>
                     </div>
                   </div>
                 )}
@@ -1887,6 +1981,7 @@ export default function App() {
         {/* 4. Integrated Animated Quantum Terminal Dock */}
         <ErrorBoundary label="Quantum terminal">
           <Terminal
+        key={currentUser?.id ?? 'local'}
           isOpen={isTerminalOpen}
           onClose={() => setIsTerminalOpen(false)}
           onRunSimulation={() => void execute('simulate')}
@@ -1933,35 +2028,38 @@ export default function App() {
 
       <div className="status-right">
         <span className="status-item" title="Circuit Telemetry">
-          {parsed ? `${parsed.metrics.qubits}Q · ${parsed.metrics.gate_count} Ops` : '2Q · 2 Ops'}
+          {parsed ? `${parsed.metrics.qubits}Q · ${parsed.metrics.gate_count} Ops` : 'No circuit'}
         </span>
         <span className="status-item">UTF-8</span>
-        <span className="status-item">Python 3.12 · Qiskit 2.6.1</span>
+        <span className="status-item">{health ? `Qiskit ${health.versions.qiskit ?? 'connected'} · Aer ${health.versions.qiskit_aer ?? 'connected'}` : 'Connecting to quantum runtime'}</span>
       </div>
     </footer>
 
       {/* Welcome to QORE Animated Splash Modal */}
       <WelcomeModal
         isOpen={isWelcomeOpen}
-        onClose={() => setIsWelcomeOpen(false)}
-        onSelectCircuit={(src, n) => {
-          safeSwitch(() => void loadSource(src, n, null));
-          void execute('simulate');
+        onClose={() => {
+          setIsWelcomeOpen(false);
+          if (!currentUser) {
+            setIsAuthOpen(true);
+          }
         }}
       />
 
-      {/* Sign In & Sign Up Auth Modal (VS Code & Antigravity Cloud Accounts) */}
+      {/* Account credentials are handled by the server and identity provider. */}
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         currentUser={currentUser}
         onLoginSuccess={(user) => {
-          setCurrentUser(user);
-          setNotice(`Authenticated as ${user.name} (${user.role}).`);
+          applyIdentity(user);
+          void initialize();
+          setNotice(`Welcome, ${user.name}. Your private workspace is ready.`);
         }}
         onLogout={() => {
-          setCurrentUser(null);
+          applyIdentity(null);
           setNotice('Signed out of QORE.');
+          void initialize();
         }}
       />
 

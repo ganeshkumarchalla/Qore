@@ -1,97 +1,52 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface WelcomeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectCircuit?: (source: string, name: string) => void;
 }
 
 export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
   const [exiting, setExiting] = useState(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
     setExiting(false);
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const exitTimer = window.setTimeout(() => setExiting(true), reducedMotion ? 180 : 1600);
+    const closeTimer = window.setTimeout(() => onCloseRef.current(), reducedMotion ? 260 : 2100);
     return () => {
+      window.clearTimeout(exitTimer);
+      window.clearTimeout(closeTimer);
       document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
-        handleEnter();
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
-  const handleEnter = () => {
-    setExiting(true);
-    setTimeout(() => {
-      setExiting(false);
-      onClose();
-    }, 450);
-  };
-
   return (
-    <div
-      className={`qore-entry-screen ${exiting ? 'entry-fade-out' : 'entry-fade-in'}`}
-      onClick={handleEnter}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Welcome to Qore"
-    >
-      {/* Dynamic Cosmic Gradient Auroras */}
-      <div className="qore-aurora-blob aura-cyan" />
-      <div className="qore-aurora-blob aura-purple" />
-      <div className="qore-aurora-blob aura-magenta" />
-
-      {/* Central Interactive Animation Box */}
-      <div className="qore-entry-content" onClick={(e) => e.stopPropagation()}>
-        {/* Quantum Orbital Energy Core */}
-        <div className="qore-orbital-core">
-          <div className="qore-orbit-ring ring-1" />
-          <div className="qore-orbit-ring ring-2" />
-          <div className="qore-orbit-ring ring-3" />
-          <div className="qore-core-nucleus">
-            <svg viewBox="0 0 64 64" width="76" height="76" fill="none" className="qore-core-svg">
-              <defs>
-                <linearGradient id="qoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#00f0ff" />
-                  <stop offset="50%" stopColor="#8b5cf6" />
-                  <stop offset="100%" stopColor="#ec4899" />
-                </linearGradient>
-              </defs>
-              <circle cx="32" cy="32" r="18" stroke="url(#qoreGrad)" strokeWidth="3" opacity="0.9" />
-              <ellipse cx="32" cy="32" rx="9" ry="27" transform="rotate(40 32 32)" stroke="url(#qoreGrad)" strokeWidth="2" />
-              <ellipse cx="32" cy="32" rx="9" ry="27" transform="rotate(-40 32 32)" stroke="#38bdf8" strokeWidth="2" opacity="0.8" />
-              <circle cx="32" cy="32" r="5" fill="#00f0ff" className="qore-pulse-photon" />
-            </svg>
-          </div>
+    <div className={`qore-entry-screen classical-entry ${exiting ? 'entry-fade-out' : 'entry-fade-in'}`} role="status" aria-live="polite" aria-label="Welcome to qubit">
+      <div className="classical-entry-light" aria-hidden="true" />
+      <div className="qore-entry-content">
+        <div className="classical-entry-logo" aria-hidden="true">
+          <span className="classical-orbit orbit-one" />
+          <span className="classical-orbit orbit-two" />
+          <span className="classical-orbit orbit-three" />
+          <span className="classical-entry-symbol"><svg viewBox="0 0 80 80" width="80" height="80" fill="none">
+            <circle cx="40" cy="40" r="19" stroke="#d6e9f8" strokeWidth="1.7" />
+            <ellipse cx="40" cy="40" rx="12" ry="29" transform="rotate(45 40 40)" stroke="#8bb7dc" strokeWidth="1.6" />
+            <ellipse cx="40" cy="40" rx="12" ry="29" transform="rotate(-45 40 40)" stroke="#9dabc9" strokeWidth="1.6" />
+            <circle cx="40" cy="40" r="4" fill="#f4f9ff" />
+          </svg></span>
         </div>
-
-        {/* ONLY FEATURING: "Welcome to Qore" */}
-        <h1 className="qore-hero-gradient-text">Welcome to Qore</h1>
-
-        {/* Minimal Classic Entry Pill */}
-        <button
-          type="button"
-          className="qore-enter-studio-btn"
-          onClick={handleEnter}
-          autoFocus
-          title="Press Enter or Click to Enter QORE"
-        >
-          <span>Enter</span>
-          <span className="qore-btn-arrow">→</span>
-        </button>
-        <p className="qore-entry-hint">Press Enter, Space, or click Enter to open your workspace</p>
+        <span className="classical-entry-brand">QORE</span>
+        <h1>Welcome to qubit</h1>
+        <p>A clear start for your quantum ideas.</p>
+        <div className="classical-entry-progress" aria-hidden="true"><span /></div>
+        <span className="classical-entry-status">Opening your workspace</span>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icons';
 import { formatDate, type ExperimentSummary, type Project } from './types';
+import { getWorkspaceStorageKey, loadWorkspaceFiles, saveWorkspaceFiles, WORKSPACE_CHANGED_EVENT } from './workspace';
 
 export interface WorkspaceFile {
   id: string;
@@ -19,6 +20,8 @@ interface ExplorerProps {
   sidebarOpen: boolean;
   activeFileId: string;
   onOpenFile: (file: WorkspaceFile) => void;
+  onFileDeleted?: (id: string) => void;
+  onFileRenamed?: (previousId: string, file: WorkspaceFile) => void;
   dirty: boolean;
   projects: Project[];
   experiments: ExperimentSummary[];
@@ -35,215 +38,13 @@ interface ExplorerProps {
   onSetOptLevel?: (level: string) => void;
 }
 
-const DEFAULT_CIRCUITS: WorkspaceFile[] = [
-  {
-    id: 'circuits/circuit.py',
-    name: 'circuit.py',
-    path: 'circuits/circuit.py',
-    type: 'file',
-    kind: 'python',
-    qubits: 2,
-    source: `# 2-Qubit Bell State (Native Qiskit)
-from qiskit import QuantumCircuit
-
-qc = QuantumCircuit(2, 2)
-qc.h(0)
-qc.cx(0, 1)
-qc.measure([0, 1], [0, 1])
-`,
-  },
-  {
-    id: 'circuits/ghz_state.py',
-    name: 'ghz_state.py',
-    path: 'circuits/ghz_state.py',
-    type: 'file',
-    kind: 'python',
-    qubits: 3,
-    source: `# 3-Qubit Greenberger-Horne-Zeilinger (GHZ) Entangled State
-from qiskit import QuantumCircuit
-
-qc = QuantumCircuit(3, 3)
-qc.h(0)
-qc.cx(0, 1)
-qc.cx(1, 2)
-qc.measure([0, 1, 2], [0, 1, 2])
-`,
-  },
-  {
-    id: 'circuits/teleportation.py',
-    name: 'teleportation.py',
-    path: 'circuits/teleportation.py',
-    type: 'file',
-    kind: 'python',
-    qubits: 3,
-    source: `# Quantum Teleportation Protocol
-from qiskit import QuantumCircuit
-
-qc = QuantumCircuit(3, 3)
-# State preparation on qubit 0
-qc.ry(1.2, 0)
-
-# Entangled Bell pair between Alice (q1) and Bob (q2)
-qc.h(1)
-qc.cx(1, 2)
-
-# Alice's Bell-basis measurement preparation
-qc.cx(0, 1)
-qc.h(0)
-
-# Deferred measurement principle: controlled operations
-qc.cx(1, 2)
-qc.cz(0, 2)
-
-# Terminal measurements
-qc.measure([0, 1, 2], [0, 1, 2])
-`,
-  },
-  {
-    id: 'circuits/qft_3qubit.py',
-    name: 'qft_3qubit.py',
-    path: 'circuits/qft_3qubit.py',
-    type: 'file',
-    kind: 'python',
-    qubits: 3,
-    source: `# 3-Qubit Quantum Fourier Transform (QFT)
-from qiskit import QuantumCircuit
-from math import pi
-
-qc = QuantumCircuit(3, 3)
-qc.x(0)
-qc.x(2)
-qc.h(0)
-qc.cp(pi / 2, 1, 0)
-qc.cp(pi / 4, 2, 0)
-qc.h(1)
-qc.cp(pi / 2, 2, 1)
-qc.h(2)
-qc.swap(0, 2)
-qc.measure(0, 0)
-qc.measure(1, 1)
-qc.measure(2, 2)
-`,
-  },
-  {
-    id: 'circuits/superdense.py',
-    name: 'superdense.py',
-    path: 'circuits/superdense.py',
-    type: 'file',
-    kind: 'python',
-    qubits: 2,
-    source: `# Superdense Coding Protocol
-from qiskit import QuantumCircuit
-
-qc = QuantumCircuit(2, 2)
-qc.h(0)
-qc.cx(0, 1)
-qc.z(0)
-qc.x(0)
-qc.cx(0, 1)
-qc.h(0)
-qc.measure(0, 0)
-qc.measure(1, 1)
-`,
-  },
-  {
-    id: 'circuits/rotation_ordering.py',
-    name: 'rotation_ordering.py',
-    path: 'circuits/rotation_ordering.py',
-    type: 'file',
-    kind: 'python',
-    qubits: 2,
-    source: `# Parametric Rotation with custom classical mapping
-from qiskit import QuantumCircuit
-from math import pi
-
-qc = QuantumCircuit(2, 2)
-qc.ry(pi / 3, 0)
-qc.x(1)
-qc.measure(0, 1)
-qc.measure(1, 0)
-`,
-  },
-];
-
-const DEFAULT_QASM: WorkspaceFile[] = [
-  {
-    id: 'openqasm/bell_state.qasm',
-    name: 'bell_state.qasm',
-    path: 'openqasm/bell_state.qasm',
-    type: 'file',
-    kind: 'qasm',
-    qubits: 2,
-    source: `OPENQASM 2.0;
-include "qelib1.inc";
-
-qreg q[2];
-creg c[2];
-
-h q[0];
-cx q[0], q[1];
-measure q[0] -> c[0];
-measure q[1] -> c[1];
-`,
-  },
-  {
-    id: 'openqasm/qaoa_cut.qasm',
-    name: 'qaoa_cut.qasm',
-    path: 'openqasm/qaoa_cut.qasm',
-    type: 'file',
-    kind: 'qasm',
-    qubits: 4,
-    source: `OPENQASM 2.0;
-include "qelib1.inc";
-
-qreg q[4];
-creg c[4];
-
-h q[0];
-h q[1];
-h q[2];
-h q[3];
-
-cx q[0], q[1];
-rz(0.45) q[1];
-cx q[0], q[1];
-
-cx q[1], q[2];
-rz(0.45) q[2];
-cx q[1], q[2];
-
-rx(0.62) q[0];
-rx(0.62) q[1];
-rx(0.62) q[2];
-rx(0.62) q[3];
-
-measure q -> c;
-`,
-  },
-];
-
-const README_FILE: WorkspaceFile = {
-  id: 'README.md',
-  name: 'README.md',
-  path: 'README.md',
-  type: 'file',
-  kind: 'markdown',
-  source: `# QORE Quantum Studio Workspace
-
-Advanced desktop-grade quantum development environment powered by Qiskit Aer, Bounded AST verification, and Gemini Quantum Copilot.
-
-## Project Structure
-- \`circuits/\`: Native Qiskit Python circuits running via local AerSimulator.
-- \`openqasm/\`: OpenQASM 2.0 & 3.0 circuit programs with real-time wire visualization.
-- \`experiments/\`: Immutable SQLite reproducibility ledger snapshots.
-- \`projects/\`: Persisted multi-experiment projects.
-`,
-};
 
 export function Explorer({
   sidebarOpen,
   activeFileId,
   onOpenFile,
+  onFileDeleted,
+  onFileRenamed,
   dirty,
   projects,
   experiments,
@@ -276,14 +77,19 @@ export function Explorer({
   });
 
   // Custom user files in localStorage
-  const [customFiles, setCustomFiles] = useState<WorkspaceFile[]>(() => {
-    try {
-      const stored = localStorage.getItem('qore_workspace_files');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [customFiles, setCustomFiles] = useState<WorkspaceFile[]>(loadWorkspaceFiles);
+  const [fileError, setFileError] = useState('');
+
+  useEffect(() => {
+    const sync = () => setCustomFiles(loadWorkspaceFiles());
+    const storage = (event: StorageEvent) => { if (event.key === null || event.key === getWorkspaceStorageKey()) sync(); };
+    window.addEventListener(WORKSPACE_CHANGED_EVENT, sync);
+    window.addEventListener('storage', storage);
+    return () => {
+      window.removeEventListener(WORKSPACE_CHANGED_EVENT, sync);
+      window.removeEventListener('storage', storage);
+    };
+  }, []);
 
   // Inline creation states
   const [isCreatingFile, setIsCreatingFile] = useState(false);
@@ -303,19 +109,23 @@ export function Explorer({
 
   const createInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const createCommitted = useRef(false);
 
   useEffect(() => {
     if (isCreatingFile) {
-      setTimeout(() => createInputRef.current?.focus(), 50);
+      createCommitted.current = false;
+      const timer = setTimeout(() => createInputRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
     }
   }, [isCreatingFile]);
 
   useEffect(() => {
     if (renamingId) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         renameInputRef.current?.focus();
         renameInputRef.current?.select();
       }, 50);
+      return () => clearTimeout(timer);
     }
   }, [renamingId]);
 
@@ -326,11 +136,14 @@ export function Explorer({
   }, []);
 
   const saveCustomFiles = (files: WorkspaceFile[]) => {
-    setCustomFiles(files);
     try {
-      localStorage.setItem('qore_workspace_files', JSON.stringify(files));
+      saveWorkspaceFiles(files);
+      setCustomFiles(files);
+      setFileError('');
+      return true;
     } catch {
-      // ignore
+      setFileError('Your workspace could not be saved. Check browser storage before trying again. Existing files were not changed.');
+      return false;
     }
   };
 
@@ -351,6 +164,7 @@ export function Explorer({
   };
 
   const handleCreateCommit = () => {
+    if (createCommitted.current) return;
     const raw = createName.trim();
     if (!raw) {
       setIsCreatingFile(false);
@@ -358,14 +172,19 @@ export function Explorer({
     }
 
     const fileName = raw.includes('.') ? raw : `${raw}.py`;
+    if (fileName.length > 100 || /[\\/:*?"<>|]/.test(fileName) || fileName.startsWith('.')) {
+      setFileError('Use a file name of 1–100 characters, without path separators or reserved characters.');
+      return;
+    }
     const isQasm = fileName.endsWith('.qasm');
     const isJson = fileName.endsWith('.json');
     const isMd = fileName.endsWith('.md');
     const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
     const path = `${targetFolder}/${fileName}`;
-    const defaultCode = isQasm
-      ? `OPENQASM 2.0;\ninclude "qelib1.inc";\n\nqreg q[2];\ncreg c[2];\n\nh q[0];\ncx q[0], q[1];\nmeasure q -> c;\n`
-      : `# ${fileName}\nfrom qiskit import QuantumCircuit\n\nqc = QuantumCircuit(2, 2)\nqc.h(0)\nqc.cx(0, 1)\nqc.measure(0, 0)\nqc.measure(1, 1)\n`;
+    if (customFiles.some((file) => file.path === path)) {
+      setFileError('A file with that name already exists. Choose another name.');
+      return;
+    }
 
     const newFile: WorkspaceFile = {
       id: path,
@@ -373,12 +192,12 @@ export function Explorer({
       path,
       type: 'file',
       kind,
-      qubits: 2,
-      source: defaultCode,
+      source: '',
     };
 
     const nextFiles = [newFile, ...customFiles];
-    saveCustomFiles(nextFiles);
+    if (!saveCustomFiles(nextFiles)) return;
+    createCommitted.current = true;
     onOpenFile(newFile);
 
     setIsCreatingFile(false);
@@ -391,31 +210,50 @@ export function Explorer({
       return;
     }
     const newName = renameValue.trim();
+    if (newName.length > 100 || /[\\/:*?"<>|]/.test(newName) || newName.startsWith('.')) {
+      setFileError('Choose a valid file name without path separators or reserved characters.');
+      return;
+    }
+    const previous = customFiles.find((file) => file.id === renamingId);
+    if (!previous) { setRenamingId(null); return; }
+    const newPath = previous.path.slice(0, previous.path.lastIndexOf('/') + 1) + newName;
+    if (customFiles.some((file) => file.id !== renamingId && file.path === newPath)) {
+      setFileError('A file with that name already exists.');
+      return;
+    }
     const updated = customFiles.map((f) => {
       if (f.id === renamingId) {
         const parts = f.path.split('/');
         parts[parts.length - 1] = newName;
-        return { ...f, name: newName, path: parts.join('/') };
+        const kind: WorkspaceFile['kind'] = newName.endsWith('.qasm') ? 'qasm' : newName.endsWith('.json') ? 'json' : newName.endsWith('.md') ? 'markdown' : 'python';
+        return { ...f, id: newPath, name: newName, path: parts.join('/'), kind };
       }
       return f;
     });
-    saveCustomFiles(updated);
+    if (!saveCustomFiles(updated)) return;
+    const renamed = updated.find((file) => file.id === newPath);
+    if (renamed) onFileRenamed?.(renamingId, renamed);
     setRenamingId(null);
   };
 
   const deleteFile = (id: string) => {
+    const file = customFiles.find((item) => item.id === id);
+    if (!file || !window.confirm(`Delete "${file.name}" from this browser workspace?${activeFileId === id && dirty ? ' Unsaved edits will also be discarded.' : ''}`)) return;
     const updated = customFiles.filter((f) => f.id !== id);
-    saveCustomFiles(updated);
-    if (activeFileId === id) {
-      onOpenFile(DEFAULT_CIRCUITS[0]);
-    }
+    if (saveCustomFiles(updated)) onFileDeleted?.(id);
   };
 
   const duplicateFile = (file: WorkspaceFile) => {
     const baseName = file.name.replace(/(\.[^.]+)$/, '');
     const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.py';
-    const copyName = `${baseName}_copy${ext}`;
-    const copyPath = `${file.path.split('/')[0]}/${copyName}`;
+    let copyName = `${baseName}_copy${ext}`;
+    const folder = file.path.slice(0, file.path.lastIndexOf('/') + 1);
+    let copyPath = `${folder}${copyName}`;
+    let suffix = 2;
+    while (customFiles.some((item) => item.path === copyPath)) {
+      copyName = `${baseName}_copy_${suffix++}${ext}`;
+      copyPath = `${folder}${copyName}`;
+    }
 
     const newFile: WorkspaceFile = {
       ...file,
@@ -424,7 +262,7 @@ export function Explorer({
       path: copyPath,
     };
 
-    saveCustomFiles([newFile, ...customFiles]);
+    if (!saveCustomFiles([newFile, ...customFiles])) return;
     onOpenFile(newFile);
   };
 
@@ -476,15 +314,35 @@ export function Explorer({
     );
   };
 
-  const circuitsList = [
-    ...DEFAULT_CIRCUITS,
-    ...customFiles.filter((f) => f.path.startsWith('circuits/')),
-  ];
+  const renderTreeFile = (file: WorkspaceFile) => {
+    const isActive = activeFileId === file.id;
+    return (
+      <div key={file.id} role="button" tabIndex={0} aria-label={`Open ${file.path}`}
+        className={`vs-file-row ${isActive ? 'active' : ''}`}
+        onClick={() => { if (renamingId !== file.id) onOpenFile(file); }}
+        onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpenFile(file); } }}
+        onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, file }); }}>
+        {renderFileIcon(file)}
+        {renamingId === file.id ? (
+          <input ref={renameInputRef} type="text" className="vs-create-input" aria-label={`Rename ${file.name}`}
+            value={renameValue} onChange={(event) => setRenameValue(event.target.value)}
+            onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Enter') handleRenameCommit(); if (event.key === 'Escape') setRenamingId(null); }}
+            onBlur={handleRenameCommit} onClick={(event) => event.stopPropagation()} />
+        ) : <span className="vs-file-label" title={file.path}>{file.name}</span>}
+        {file.qubits && <span className="vs-qubit-tag">{file.qubits}q</span>}
+        {isActive && dirty && <span className="vs-dirty-dot" title="Unsaved modifications">●</span>}
+        <div className="vs-hover-tools">
+          <button type="button" className="vs-tool-btn" title={`Rename ${file.name}`} onClick={(event) => { event.stopPropagation(); setRenamingId(file.id); setRenameValue(file.name); }}><Icon name="edit" size={11} /></button>
+          <button type="button" className="vs-tool-btn danger" title={`Delete ${file.name}`} onClick={(event) => { event.stopPropagation(); deleteFile(file.id); }}><Icon name="trash" size={11} /></button>
+        </div>
+      </div>
+    );
+  };
 
-  const qasmList = [
-    ...DEFAULT_QASM,
-    ...customFiles.filter((f) => f.path.startsWith('openqasm/')),
-  ];
+  const circuitsList = customFiles.filter((f) => f.path.startsWith('circuits/'));
+
+  const qasmList = customFiles.filter((f) => f.path.startsWith('openqasm/'));
+  const rootFiles = customFiles.filter((f) => !f.path.startsWith('circuits/') && !f.path.startsWith('openqasm/'));
 
   return (
     <nav className={`vscode-sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Workspace Explorer">
@@ -536,6 +394,7 @@ export function Explorer({
       </div>
 
       <div className="vs-explorer-scroll">
+        {fileError && <p className="vs-workspace-error" role="alert">{fileError}</p>}
         {/* SECTION 1: WORKSPACE FILES (PRIMARY EXPANDED SECTION) */}
         <div className="vs-accordion-section">
           <div
@@ -547,11 +406,12 @@ export function Explorer({
               <Icon name="chevron" size={10} />
             </span>
             <span className="vs-section-title">WORKSPACE FILES</span>
-            <span className="vs-section-count">{circuitsList.length + qasmList.length + projects.length + 1}</span>
+            <span className="vs-section-count">{customFiles.length + projects.length}</span>
           </div>
 
           {sectionsOpen.workspace && (
             <div className="vs-tree-container">
+              {customFiles.length === 0 && projects.length === 0 && !isCreatingFile && <p className="vs-empty-hint">Your workspace is empty. Choose Get Started, or create a file.</p>}
               {/* Folder: circuits/ */}
               <div className="vs-folder-block">
                 <div
@@ -592,76 +452,7 @@ export function Explorer({
                       </div>
                     )}
 
-                    {circuitsList.map((file) => {
-                      const isActive = activeFileId === file.id || activeFileId === file.name;
-                      const isRenaming = renamingId === file.id;
-
-                      return (
-                        <div
-                          key={file.id}
-                          className={`vs-file-row ${isActive ? 'active' : ''}`}
-                          onClick={() => onOpenFile(file)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setContextMenu({ x: e.clientX, y: e.clientY, file });
-                          }}
-                        >
-                          {renderFileIcon(file)}
-
-                          {isRenaming ? (
-                            <input
-                              ref={renameInputRef}
-                              type="text"
-                              className="vs-create-input"
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleRenameCommit();
-                                if (e.key === 'Escape') setRenamingId(null);
-                              }}
-                              onBlur={handleRenameCommit}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          ) : (
-                            <span className="vs-file-label" title={file.path}>
-                              {file.name}
-                            </span>
-                          )}
-
-                          {file.qubits && <span className="vs-qubit-tag">{file.qubits}q</span>}
-
-                          {isActive && dirty && <span className="vs-dirty-dot" title="Unsaved modifications">●</span>}
-
-                          <div className="vs-hover-tools">
-                            <button
-                              type="button"
-                              className="vs-tool-btn"
-                              title="Rename (F2)"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRenamingId(file.id);
-                                setRenameValue(file.name);
-                              }}
-                            >
-                              <Icon name="edit" size={11} />
-                            </button>
-                            {customFiles.some((cf) => cf.id === file.id) && (
-                              <button
-                                type="button"
-                                className="vs-tool-btn danger"
-                                title="Delete File"
-                                onClick={(e) => {
-                                e.stopPropagation();
-                                deleteFile(file.id);
-                              }}
-                              >
-                                <Icon name="trash" size={11} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {circuitsList.map(renderTreeFile)}
                   </div>
                 )}
               </div>
@@ -685,27 +476,7 @@ export function Explorer({
                 {expandedFolders.openqasm && (
                   <div className="vs-folder-children">
                     <div className="vs-indent-guide" />
-                    {qasmList.map((file) => {
-                      const isActive = activeFileId === file.id || activeFileId === file.name;
-                      return (
-                        <div
-                          key={file.id}
-                          className={`vs-file-row ${isActive ? 'active' : ''}`}
-                          onClick={() => onOpenFile(file)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setContextMenu({ x: e.clientX, y: e.clientY, file });
-                          }}
-                        >
-                          {renderFileIcon(file)}
-                          <span className="vs-file-label" title={file.path}>
-                            {file.name}
-                          </span>
-                          {file.qubits && <span className="vs-qubit-tag">{file.qubits}q</span>}
-                          {isActive && dirty && <span className="vs-dirty-dot">●</span>}
-                        </div>
-                      );
-                    })}
+                    {qasmList.map(renderTreeFile)}
                   </div>
                 )}
               </div>
@@ -754,14 +525,7 @@ export function Explorer({
                 )}
               </div>
 
-              {/* Root File: README.md */}
-              <div
-                className={`vs-file-row root ${activeFileId === README_FILE.id ? 'active' : ''}`}
-                onClick={() => onOpenFile(README_FILE)}
-              >
-                {renderFileIcon(README_FILE)}
-                <span className="vs-file-label">{README_FILE.name}</span>
-              </div>
+              {rootFiles.map(renderTreeFile)}
             </div>
           )}
         </div>
@@ -882,7 +646,7 @@ export function Explorer({
           {sectionsOpen.snapshots && (
             <div className="vs-accordion-body">
               {experiments.length === 0 ? (
-                <div className="vs-empty-hint">No snapshots recorded in SQLite yet.</div>
+                <div className="vs-empty-hint">No snapshots recorded yet.</div>
               ) : (
                 <div className="vs-history-list">
                   {experiments.map((exp) => (
