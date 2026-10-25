@@ -106,7 +106,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
         </div>
 
         <span className="classical-entry-brand">QORE · QUANTUM STUDIO</span>
-        <h1 className="enhanced-quantum-title">Welcome to Qubit</h1>
+        <h1 className="enhanced-quantum-title">Welcome to Qore</h1>
         <p className="enhanced-quantum-lead">A high-performance workspace for quantum circuits, simulation & research.</p>
 
         {/* 5-Second Quantum Loading Track */}
