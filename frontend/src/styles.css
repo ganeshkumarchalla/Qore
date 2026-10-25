@@ -3974,8 +3974,12 @@ textarea:focus,
   gap: 2px;
   margin-left: 4px;
 }
-.vs-file-row:hover .vs-hover-tools {
+.vs-file-row:hover .vs-hover-tools,
+.vs-folder-row:hover .vs-hover-tools {
   display: flex;
+}
+.vs-folder-row:hover .vs-item-count {
+  display: none;
 }
 
 .vs-tool-btn {

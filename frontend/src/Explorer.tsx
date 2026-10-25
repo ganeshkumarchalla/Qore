@@ -1,7 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icons';
 import { formatDate, type ExperimentSummary, type Project } from './types';
-import { getWorkspaceStorageKey, loadWorkspaceFiles, saveWorkspaceFiles, WORKSPACE_CHANGED_EVENT } from './workspace';
+import {
+  deleteWorkspaceFolder,
+  getWorkspaceStorageKey,
+  loadWorkspaceFiles,
+  loadWorkspaceFolders,
+  renameWorkspaceFolder,
+  saveWorkspaceFiles,
+  saveWorkspaceFolders,
+  WORKSPACE_CHANGED_EVENT,
+} from './workspace';
 
 export interface WorkspaceFile {
   id: string;
@@ -38,7 +47,6 @@ interface ExplorerProps {
   onSetOptLevel?: (level: string) => void;
 }
 
-
 export function Explorer({
   sidebarOpen,
   activeFileId,
@@ -68,6 +76,9 @@ export function Explorer({
     snapshots: false,
   });
 
+  // Dynamic user folders
+  const [folders, setFolders] = useState<string[]>(loadWorkspaceFolders);
+
   // Folder expansion states inside the workspace
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
     circuits: true,
@@ -79,10 +90,17 @@ export function Explorer({
   // Custom user files in localStorage
   const [customFiles, setCustomFiles] = useState<WorkspaceFile[]>(loadWorkspaceFiles);
   const [fileError, setFileError] = useState('');
+  const [noticeMessage, setNoticeMessage] = useState('');
 
+  // Synchronize with workspace events
   useEffect(() => {
-    const sync = () => setCustomFiles(loadWorkspaceFiles());
-    const storage = (event: StorageEvent) => { if (event.key === null || event.key === getWorkspaceStorageKey()) sync(); };
+    const sync = () => {
+      setCustomFiles(loadWorkspaceFiles());
+      setFolders(loadWorkspaceFolders());
+    };
+    const storage = (event: StorageEvent) => {
+      if (event.key === null || event.key.startsWith(getWorkspaceStorageKey())) sync();
+    };
     window.addEventListener(WORKSPACE_CHANGED_EVENT, sync);
     window.addEventListener('storage', storage);
     return () => {
@@ -91,46 +109,95 @@ export function Explorer({
     };
   }, []);
 
-  // Inline creation states
+  // Notice banner auto-clear
+  useEffect(() => {
+    if (noticeMessage) {
+      const timer = setTimeout(() => setNoticeMessage(''), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [noticeMessage]);
+
+  // Inline file creation states
   const [isCreatingFile, setIsCreatingFile] = useState(false);
-  const [createName, setCreateName] = useState('');
+  const [createFileName, setCreateFileName] = useState('');
   const [targetFolder, setTargetFolder] = useState('circuits');
 
-  // Inline rename states
+  // Inline folder creation states
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [createFolderName, setCreateFolderName] = useState('');
+
+  // Inline file rename states
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
-  // Right-click context menu
-  const [contextMenu, setContextMenu] = useState<{
+  // Inline folder rename states
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [renameFolderValue, setRenameFolderValue] = useState('');
+
+  // Move-to modal/popover state
+  const [movingFile, setMovingFile] = useState<WorkspaceFile | null>(null);
+  const [targetMoveFolder, setTargetMoveFolder] = useState('');
+
+  // Right-click context menus
+  const [fileContextMenu, setFileContextMenu] = useState<{
     x: number;
     y: number;
     file: WorkspaceFile;
   } | null>(null);
 
-  const createInputRef = useRef<HTMLInputElement>(null);
-  const renameInputRef = useRef<HTMLInputElement>(null);
+  const [folderContextMenu, setFolderContextMenu] = useState<{
+    x: number;
+    y: number;
+    folder: string;
+  } | null>(null);
+
+  const createFileRef = useRef<HTMLInputElement>(null);
+  const createFolderRef = useRef<HTMLInputElement>(null);
+  const renameFileRef = useRef<HTMLInputElement>(null);
+  const renameFolderRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const createCommitted = useRef(false);
 
   useEffect(() => {
     if (isCreatingFile) {
       createCommitted.current = false;
-      const timer = setTimeout(() => createInputRef.current?.focus(), 50);
+      const timer = setTimeout(() => createFileRef.current?.focus(), 50);
       return () => clearTimeout(timer);
     }
   }, [isCreatingFile]);
 
   useEffect(() => {
+    if (isCreatingFolder) {
+      const timer = setTimeout(() => createFolderRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isCreatingFolder]);
+
+  useEffect(() => {
     if (renamingId) {
       const timer = setTimeout(() => {
-        renameInputRef.current?.focus();
-        renameInputRef.current?.select();
+        renameFileRef.current?.focus();
+        renameFileRef.current?.select();
       }, 50);
       return () => clearTimeout(timer);
     }
   }, [renamingId]);
 
   useEffect(() => {
-    const handleOutsideClick = () => setContextMenu(null);
+    if (renamingFolder) {
+      const timer = setTimeout(() => {
+        renameFolderRef.current?.focus();
+        renameFolderRef.current?.select();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [renamingFolder]);
+
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setFileContextMenu(null);
+      setFolderContextMenu(null);
+    };
     window.addEventListener('click', handleOutsideClick);
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
@@ -142,7 +209,7 @@ export function Explorer({
       setFileError('');
       return true;
     } catch {
-      setFileError('Your workspace could not be saved. Check browser storage before trying again. Existing files were not changed.');
+      setFileError('Your workspace could not be saved. Check browser storage before trying again.');
       return false;
     }
   };
@@ -156,16 +223,114 @@ export function Explorer({
   };
 
   const collapseAll = () => {
-    setExpandedFolders({ circuits: false, openqasm: false, projects: false, experiments: false });
+    const closed: Record<string, boolean> = { projects: false, experiments: false };
+    folders.forEach((f) => { closed[f] = false; });
+    setExpandedFolders(closed);
   };
 
   const expandAll = () => {
-    setExpandedFolders({ circuits: true, openqasm: true, projects: true, experiments: true });
+    const open: Record<string, boolean> = { projects: true, experiments: true };
+    folders.forEach((f) => { open[f] = true; });
+    setExpandedFolders(open);
   };
 
-  const handleCreateCommit = () => {
+  // --- Folder Management ---
+  const handleCreateFolderCommit = () => {
+    const raw = createFolderName.trim().replace(/[\\/:*?"<>|]/g, '');
+    if (!raw) {
+      setIsCreatingFolder(false);
+      return;
+    }
+    if (folders.includes(raw) || raw === 'projects' || raw === 'experiments') {
+      setFileError(`Folder "${raw}" already exists.`);
+      return;
+    }
+    const nextFolders = [...folders, raw];
+    saveWorkspaceFolders(nextFolders);
+    setFolders(nextFolders);
+    setExpandedFolders((prev) => ({ ...prev, [raw]: true }));
+    setIsCreatingFolder(false);
+    setCreateFolderName('');
+    setNoticeMessage(`Folder "${raw}" created.`);
+  };
+
+  const handleRenameFolderCommit = () => {
+    if (!renamingFolder || !renameFolderValue.trim()) {
+      setRenamingFolder(null);
+      return;
+    }
+    const newName = renameFolderValue.trim().replace(/[\\/:*?"<>|]/g, '');
+    if (!newName || newName === renamingFolder) {
+      setRenamingFolder(null);
+      return;
+    }
+    if (folders.includes(newName) || newName === 'projects' || newName === 'experiments') {
+      setFileError(`Folder "${newName}" already exists.`);
+      return;
+    }
+    renameWorkspaceFolder(renamingFolder, newName);
+    setFolders(loadWorkspaceFolders());
+    const updatedFiles = loadWorkspaceFiles();
+    setCustomFiles(updatedFiles);
+
+    // Update active file reference if it lived in renamed folder
+    if (activeFileId.startsWith(`${renamingFolder}/`)) {
+      const newActiveId = `${newName}/${activeFileId.slice(renamingFolder.length + 1)}`;
+      const activeFile = updatedFiles.find((f) => f.id === newActiveId);
+      if (activeFile) onFileRenamed?.(activeFileId, activeFile);
+    }
+
+    setExpandedFolders((prev) => {
+      const next = { ...prev };
+      next[newName] = next[renamingFolder] ?? true;
+      delete next[renamingFolder];
+      return next;
+    });
+    setRenamingFolder(null);
+    setNoticeMessage(`Renamed folder to "${newName}".`);
+  };
+
+  const handleDeleteFolder = (folderName: string) => {
+    const filesInFolder = customFiles.filter((f) => f.path.startsWith(`${folderName}/`));
+    const confirmMsg = filesInFolder.length > 0
+      ? `Delete folder "${folderName}" and all ${filesInFolder.length} file(s) inside it?`
+      : `Delete empty folder "${folderName}"?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    filesInFolder.forEach((f) => onFileDeleted?.(f.id));
+    deleteWorkspaceFolder(folderName);
+    setFolders(loadWorkspaceFolders());
+    setCustomFiles(loadWorkspaceFiles());
+    setNoticeMessage(`Deleted folder "${folderName}".`);
+  };
+
+  const handleDuplicateFolder = (folderName: string) => {
+    let copyName = `${folderName}_copy`;
+    let suffix = 2;
+    while (folders.includes(copyName)) {
+      copyName = `${folderName}_copy_${suffix++}`;
+    }
+    const filesToCopy = customFiles.filter((f) => f.path.startsWith(`${folderName}/`));
+    const newFiles: WorkspaceFile[] = filesToCopy.map((f) => {
+      const rest = f.path.slice(folderName.length + 1);
+      const newPath = `${copyName}/${rest}`;
+      return {
+        ...f,
+        id: newPath,
+        path: newPath,
+      };
+    });
+    saveWorkspaceFolders([...folders, copyName]);
+    setFolders(loadWorkspaceFolders());
+    saveCustomFiles([...newFiles, ...customFiles]);
+    setExpandedFolders((prev) => ({ ...prev, [copyName]: true }));
+    setNoticeMessage(`Duplicated "${folderName}" to "${copyName}".`);
+  };
+
+  // --- File Management ---
+  const handleCreateFileCommit = () => {
     if (createCommitted.current) return;
-    const raw = createName.trim();
+    const raw = createFileName.trim();
     if (!raw) {
       setIsCreatingFile(false);
       return;
@@ -180,11 +345,21 @@ export function Explorer({
     const isJson = fileName.endsWith('.json');
     const isMd = fileName.endsWith('.md');
     const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
-    const path = `${targetFolder}/${fileName}`;
+    const folder = targetFolder || 'circuits';
+    const path = `${folder}/${fileName}`;
+
     if (customFiles.some((file) => file.path === path)) {
-      setFileError('A file with that name already exists. Choose another name.');
+      setFileError(`"${fileName}" already exists in ${folder}. Choose another name.`);
       return;
     }
+
+    const defaultSource = isQasm
+      ? `OPENQASM 3.0;\ninclude "stdgates.inc";\n\nqubit[2] q;\nbit[2] c;\n\nh q[0];\ncx q[0], q[1];\nc = measure q;\n`
+      : isJson
+      ? `{\n  "version": "1.0",\n  "qubits": 2,\n  "operations": []\n}\n`
+      : isMd
+      ? `# ${fileName.replace(/\.md$/, '')}\n\nQuantum documentation notes.\n`
+      : `from qiskit import QuantumCircuit\n\nqc = QuantumCircuit(2, 2)\nqc.h(0)\nqc.cx(0, 1)\nqc.measure([0, 1], [0, 1])\n`;
 
     const newFile: WorkspaceFile = {
       id: path,
@@ -192,19 +367,19 @@ export function Explorer({
       path,
       type: 'file',
       kind,
-      source: '',
+      source: defaultSource,
     };
 
     const nextFiles = [newFile, ...customFiles];
     if (!saveCustomFiles(nextFiles)) return;
     createCommitted.current = true;
     onOpenFile(newFile);
-
     setIsCreatingFile(false);
-    setCreateName('');
+    setCreateFileName('');
+    setNoticeMessage(`Created ${fileName}`);
   };
 
-  const handleRenameCommit = () => {
+  const handleRenameFileCommit = () => {
     if (!renamingId || !renameValue.trim()) {
       setRenamingId(null);
       return;
@@ -215,18 +390,23 @@ export function Explorer({
       return;
     }
     const previous = customFiles.find((file) => file.id === renamingId);
-    if (!previous) { setRenamingId(null); return; }
-    const newPath = previous.path.slice(0, previous.path.lastIndexOf('/') + 1) + newName;
+    if (!previous) {
+      setRenamingId(null);
+      return;
+    }
+    const folder = previous.path.includes('/') ? previous.path.slice(0, previous.path.lastIndexOf('/') + 1) : '';
+    const newPath = `${folder}${newName}`;
     if (customFiles.some((file) => file.id !== renamingId && file.path === newPath)) {
-      setFileError('A file with that name already exists.');
+      setFileError('A file with that name already exists in this folder.');
       return;
     }
     const updated = customFiles.map((f) => {
       if (f.id === renamingId) {
-        const parts = f.path.split('/');
-        parts[parts.length - 1] = newName;
-        const kind: WorkspaceFile['kind'] = newName.endsWith('.qasm') ? 'qasm' : newName.endsWith('.json') ? 'json' : newName.endsWith('.md') ? 'markdown' : 'python';
-        return { ...f, id: newPath, name: newName, path: parts.join('/'), kind };
+        const isQasm = newName.endsWith('.qasm');
+        const isJson = newName.endsWith('.json');
+        const isMd = newName.endsWith('.md');
+        const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
+        return { ...f, id: newPath, name: newName, path: newPath, kind };
       }
       return f;
     });
@@ -234,20 +414,24 @@ export function Explorer({
     const renamed = updated.find((file) => file.id === newPath);
     if (renamed) onFileRenamed?.(renamingId, renamed);
     setRenamingId(null);
+    setNoticeMessage(`Renamed to ${newName}`);
   };
 
-  const deleteFile = (id: string) => {
+  const handleDeleteFile = (id: string) => {
     const file = customFiles.find((item) => item.id === id);
-    if (!file || !window.confirm(`Delete "${file.name}" from this browser workspace?${activeFileId === id && dirty ? ' Unsaved edits will also be discarded.' : ''}`)) return;
+    if (!file || !window.confirm(`Delete "${file.name}"?${activeFileId === id && dirty ? ' Unsaved edits will also be discarded.' : ''}`)) return;
     const updated = customFiles.filter((f) => f.id !== id);
-    if (saveCustomFiles(updated)) onFileDeleted?.(id);
+    if (saveCustomFiles(updated)) {
+      onFileDeleted?.(id);
+      setNoticeMessage(`Deleted ${file.name}`);
+    }
   };
 
-  const duplicateFile = (file: WorkspaceFile) => {
+  const handleDuplicateFile = (file: WorkspaceFile) => {
     const baseName = file.name.replace(/(\.[^.]+)$/, '');
     const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.py';
     let copyName = `${baseName}_copy${ext}`;
-    const folder = file.path.slice(0, file.path.lastIndexOf('/') + 1);
+    const folder = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/') + 1) : '';
     let copyPath = `${folder}${copyName}`;
     let suffix = 2;
     while (customFiles.some((item) => item.path === copyPath)) {
@@ -264,10 +448,131 @@ export function Explorer({
 
     if (!saveCustomFiles([newFile, ...customFiles])) return;
     onOpenFile(newFile);
+    setNoticeMessage(`Duplicated as ${copyName}`);
+  };
+
+  // --- Move File to Destination Folder ---
+  const handleMoveFileCommit = () => {
+    if (!movingFile || !targetMoveFolder) {
+      setMovingFile(null);
+      return;
+    }
+    const cleanFolder = targetMoveFolder.trim().replace(/\/+$/, '');
+    const newPath = `${cleanFolder}/${movingFile.name}`;
+    if (newPath === movingFile.path) {
+      setMovingFile(null);
+      return;
+    }
+    if (customFiles.some((f) => f.id !== movingFile.id && f.path === newPath)) {
+      setFileError(`A file named "${movingFile.name}" already exists in "${cleanFolder}".`);
+      return;
+    }
+    const updated = customFiles.map((f) => {
+      if (f.id === movingFile.id) {
+        return { ...f, id: newPath, path: newPath };
+      }
+      return f;
+    });
+    if (saveCustomFiles(updated)) {
+      const moved = updated.find((f) => f.id === newPath);
+      if (moved) onFileRenamed?.(movingFile.id, moved);
+      setNoticeMessage(`Moved "${movingFile.name}" to "${cleanFolder}/"`);
+    }
+    setMovingFile(null);
+  };
+
+  // --- Export / Download File ---
+  const downloadFile = (file: WorkspaceFile) => {
+    const blob = new Blob([file.source || ''], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setNoticeMessage(`Downloaded ${file.name}`);
+  };
+
+  // --- Export Full Workspace Backup ---
+  const exportAllFiles = () => {
+    const payload = {
+      workspace: 'QORE Quantum IDE',
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      folders,
+      files: customFiles,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `qore_workspace_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setNoticeMessage('Workspace backup downloaded.');
+  };
+
+  // --- Copy File Contents to Clipboard ---
+  const copyFileContent = (file: WorkspaceFile) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(file.source || '');
+      setNoticeMessage(`Copied code of "${file.name}" to clipboard.`);
+    }
   };
 
   const copyPath = (path: string) => {
-    navigator.clipboard?.writeText(path);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(path);
+      setNoticeMessage(`Copied path "${path}"`);
+    }
+  };
+
+  // --- Import / Upload Files from Host OS ---
+  const triggerImport = (folder: string = 'circuits') => {
+    setTargetFolder(folder);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    const folder = targetFolder || 'circuits';
+    const loadedFiles: WorkspaceFile[] = [];
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const source = String(e.target?.result || '');
+        const name = file.name;
+        const path = `${folder}/${name}`;
+        const isQasm = name.endsWith('.qasm');
+        const isJson = name.endsWith('.json');
+        const isMd = name.endsWith('.md');
+        const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
+        const newFile: WorkspaceFile = {
+          id: path,
+          name,
+          path,
+          type: 'file',
+          kind,
+          source,
+        };
+        loadedFiles.push(newFile);
+
+        if (loadedFiles.length === files.length) {
+          const nextFiles = [...loadedFiles, ...customFiles.filter((cf) => !loadedFiles.some((lf) => lf.path === cf.path))];
+          saveCustomFiles(nextFiles);
+          if (loadedFiles[0]) onOpenFile(loadedFiles[0]);
+          setNoticeMessage(`Imported ${loadedFiles.length} file(s) into "${folder}/".`);
+        }
+      };
+      reader.readAsText(file);
+    });
+    event.target.value = '';
   };
 
   // Clean, uncluttered file icon renderer
@@ -317,47 +622,264 @@ export function Explorer({
   const renderTreeFile = (file: WorkspaceFile) => {
     const isActive = activeFileId === file.id;
     return (
-      <div key={file.id} role="button" tabIndex={0} aria-label={`Open ${file.path}`}
+      <div
+        key={file.id}
+        role="button"
+        tabIndex={0}
+        aria-label={`Open ${file.path}`}
         className={`vs-file-row ${isActive ? 'active' : ''}`}
-        onClick={() => { if (renamingId !== file.id) onOpenFile(file); }}
-        onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpenFile(file); } }}
-        onContextMenu={(event) => { event.preventDefault(); setContextMenu({ x: event.clientX, y: event.clientY, file }); }}>
+        onClick={() => {
+          if (renamingId !== file.id) onOpenFile(file);
+        }}
+        onKeyDown={(event) => {
+          if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            onOpenFile(file);
+          }
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setFolderContextMenu(null);
+          setFileContextMenu({ x: event.clientX, y: event.clientY, file });
+        }}
+      >
         {renderFileIcon(file)}
         {renamingId === file.id ? (
-          <input ref={renameInputRef} type="text" className="vs-create-input" aria-label={`Rename ${file.name}`}
-            value={renameValue} onChange={(event) => setRenameValue(event.target.value)}
-            onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Enter') handleRenameCommit(); if (event.key === 'Escape') setRenamingId(null); }}
-            onBlur={handleRenameCommit} onClick={(event) => event.stopPropagation()} />
-        ) : <span className="vs-file-label" title={file.path}>{file.name}</span>}
+          <input
+            ref={renameFileRef}
+            type="text"
+            className="vs-create-input"
+            aria-label={`Rename ${file.name}`}
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === 'Enter') handleRenameFileCommit();
+              if (event.key === 'Escape') setRenamingId(null);
+            }}
+            onBlur={handleRenameFileCommit}
+            onClick={(event) => event.stopPropagation()}
+          />
+        ) : (
+          <span className="vs-file-label" title={file.path}>
+            {file.name}
+          </span>
+        )}
         {file.qubits && <span className="vs-qubit-tag">{file.qubits}q</span>}
         {isActive && dirty && <span className="vs-dirty-dot" title="Unsaved modifications">●</span>}
+
+        {/* Hover Action Tools for File */}
         <div className="vs-hover-tools">
-          <button type="button" className="vs-tool-btn" title={`Rename ${file.name}`} onClick={(event) => { event.stopPropagation(); setRenamingId(file.id); setRenameValue(file.name); }}><Icon name="edit" size={11} /></button>
-          <button type="button" className="vs-tool-btn danger" title={`Delete ${file.name}`} onClick={(event) => { event.stopPropagation(); deleteFile(file.id); }}><Icon name="trash" size={11} /></button>
+          <button
+            type="button"
+            className="vs-tool-btn"
+            title={`Download ${file.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              downloadFile(file);
+            }}
+          >
+            <Icon name="download" size={11} />
+          </button>
+          <button
+            type="button"
+            className="vs-tool-btn"
+            title={`Duplicate ${file.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleDuplicateFile(file);
+            }}
+          >
+            <Icon name="copy" size={11} />
+          </button>
+          <button
+            type="button"
+            className="vs-tool-btn"
+            title={`Rename ${file.name} (F2)`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setRenamingId(file.id);
+              setRenameValue(file.name);
+            }}
+          >
+            <Icon name="edit" size={11} />
+          </button>
+          <button
+            type="button"
+            className="vs-tool-btn danger"
+            title={`Delete ${file.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleDeleteFile(file.id);
+            }}
+          >
+            <Icon name="trash" size={11} />
+          </button>
         </div>
       </div>
     );
   };
 
-  const circuitsList = customFiles.filter((f) => f.path.startsWith('circuits/'));
+  const renderFolderBlock = (folderName: string) => {
+    const isExpanded = !!expandedFolders[folderName];
+    const filesInFolder = customFiles.filter((f) => f.path.startsWith(`${folderName}/`));
 
-  const qasmList = customFiles.filter((f) => f.path.startsWith('openqasm/'));
-  const rootFiles = customFiles.filter((f) => !f.path.startsWith('circuits/') && !f.path.startsWith('openqasm/'));
+    return (
+      <div key={folderName} className="vs-folder-block">
+        <div
+          className="vs-folder-row"
+          onClick={() => toggleFolder(folderName)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setFileContextMenu(null);
+            setFolderContextMenu({ x: event.clientX, y: event.clientY, folder: folderName });
+          }}
+        >
+          <span className={`vs-chevron ${isExpanded ? 'open' : ''}`}>
+            <Icon name="chevron" size={9} />
+          </span>
+          <span className="vs-folder-icon">
+            <Icon name="folder" size={13} />
+          </span>
+
+          {renamingFolder === folderName ? (
+            <input
+              ref={renameFolderRef}
+              type="text"
+              className="vs-create-input"
+              aria-label={`Rename folder ${folderName}`}
+              value={renameFolderValue}
+              onChange={(e) => setRenameFolderValue(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') handleRenameFolderCommit();
+                if (e.key === 'Escape') setRenamingFolder(null);
+              }}
+              onBlur={handleRenameFolderCommit}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span className="vs-folder-name" title={`Folder: ${folderName}/`}>
+              {folderName}
+            </span>
+          )}
+
+          <span className="vs-item-count">{filesInFolder.length}</span>
+
+          {/* Hover Action Tools for Folder */}
+          <div className="vs-hover-tools">
+            <button
+              type="button"
+              className="vs-tool-btn"
+              title={`New File inside ${folderName}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setTargetFolder(folderName);
+                setIsCreatingFile(true);
+                setExpandedFolders((p) => ({ ...p, [folderName]: true }));
+              }}
+            >
+              <Icon name="filePlus" size={11} />
+            </button>
+            <button
+              type="button"
+              className="vs-tool-btn"
+              title={`Upload Files into ${folderName}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerImport(folderName);
+              }}
+            >
+              <Icon name="upload" size={11} />
+            </button>
+            <button
+              type="button"
+              className="vs-tool-btn"
+              title={`Rename Folder "${folderName}"`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setRenamingFolder(folderName);
+                setRenameFolderValue(folderName);
+              }}
+            >
+              <Icon name="edit" size={11} />
+            </button>
+            <button
+              type="button"
+              className="vs-tool-btn danger"
+              title={`Delete Folder "${folderName}"`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteFolder(folderName);
+              }}
+            >
+              <Icon name="trash" size={11} />
+            </button>
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="vs-folder-children">
+            <div className="vs-indent-guide" />
+            {isCreatingFile && targetFolder === folderName && (
+              <div className="vs-inline-create">
+                <span className="clean-file-icon py">
+                  <Icon name="circuit" size={12} />
+                </span>
+                <input
+                  ref={createFileRef}
+                  type="text"
+                  className="vs-create-input"
+                  placeholder="filename.py (or .qasm, .json, .md)"
+                  value={createFileName}
+                  onChange={(e) => setCreateFileName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateFileCommit();
+                    if (e.key === 'Escape') setIsCreatingFile(false);
+                  }}
+                  onBlur={handleCreateFileCommit}
+                />
+              </div>
+            )}
+            {filesInFolder.length === 0 && !isCreatingFile && (
+              <div className="vs-empty-hint" style={{ paddingLeft: '22px', fontSize: '11px', opacity: 0.6 }}>
+                Empty folder (click + to add file)
+              </div>
+            )}
+            {filesInFolder.map(renderTreeFile)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const rootFiles = customFiles.filter((f) => !folders.some((fld) => f.path.startsWith(`${fld}/`)));
 
   return (
     <nav className={`vscode-sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Workspace Explorer">
-      {/* 1. Single Clean Top Header (VS Code Native) */}
+      {/* Hidden File Input for OS Uploads */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".py,.qasm,.json,.md,.txt"
+        style={{ display: 'none' }}
+        onChange={handleFileUpload}
+      />
+
+      {/* 1. Header Toolbar (Full IDE File & Folder Controls) */}
       <div className="vs-explorer-header">
         <span className="vs-explorer-title">EXPLORER</span>
         <div className="vs-explorer-actions">
           <button
             type="button"
             className="vs-action-btn"
-            title="New Circuit File (.py)"
+            title="New File (in active folder)"
             onClick={() => {
-              setTargetFolder('circuits');
+              setTargetFolder(folders[0] || 'circuits');
               setIsCreatingFile(true);
-              setExpandedFolders((p) => ({ ...p, circuits: true }));
               setSectionsOpen((p) => ({ ...p, workspace: true }));
             }}
           >
@@ -367,8 +889,11 @@ export function Explorer({
           <button
             type="button"
             className="vs-action-btn"
-            title="New Project"
-            onClick={onNewProject}
+            title="New Folder"
+            onClick={() => {
+              setIsCreatingFolder(true);
+              setSectionsOpen((p) => ({ ...p, workspace: true }));
+            }}
           >
             <Icon name="folderPlus" size={13} />
           </button>
@@ -376,8 +901,39 @@ export function Explorer({
           <button
             type="button"
             className="vs-action-btn"
+            title="Import / Upload Files from Computer"
+            onClick={() => triggerImport(folders[0] || 'circuits')}
+          >
+            <Icon name="upload" size={13} />
+          </button>
+
+          <button
+            type="button"
+            className="vs-action-btn"
+            title="Export Workspace Backup (.json)"
+            onClick={exportAllFiles}
+          >
+            <Icon name="download" size={13} />
+          </button>
+
+          <button
+            type="button"
+            className="vs-action-btn"
+            title="New Cloud Project"
+            onClick={onNewProject}
+          >
+            <Icon name="plus" size={13} />
+          </button>
+
+          <button
+            type="button"
+            className="vs-action-btn"
             title="Refresh Explorer"
-            onClick={onRefresh}
+            onClick={() => {
+              setCustomFiles(loadWorkspaceFiles());
+              setFolders(loadWorkspaceFolders());
+              onRefresh();
+            }}
           >
             <Icon name="refresh" size={12} />
           </button>
@@ -395,7 +951,13 @@ export function Explorer({
 
       <div className="vs-explorer-scroll">
         {fileError && <p className="vs-workspace-error" role="alert">{fileError}</p>}
-        {/* SECTION 1: WORKSPACE FILES (PRIMARY EXPANDED SECTION) */}
+        {noticeMessage && (
+          <div className="vs-workspace-notice" role="status" style={{ padding: '4px 10px', fontSize: '11px', color: '#57D9FF', background: 'rgba(87, 217, 255, 0.08)', borderBottom: '1px solid rgba(87, 217, 255, 0.2)' }}>
+            {noticeMessage}
+          </div>
+        )}
+
+        {/* SECTION 1: WORKSPACE FILES */}
         <div className="vs-accordion-section">
           <div
             className="vs-section-header"
@@ -411,82 +973,32 @@ export function Explorer({
 
           {sectionsOpen.workspace && (
             <div className="vs-tree-container">
-              {customFiles.length === 0 && projects.length === 0 && !isCreatingFile && <p className="vs-empty-hint">Your workspace is empty. Choose Get Started, or create a file.</p>}
-              {/* Folder: circuits/ */}
-              <div className="vs-folder-block">
-                <div
-                  className="vs-folder-row"
-                  onClick={() => toggleFolder('circuits')}
-                >
-                  <span className={`vs-chevron ${expandedFolders.circuits ? 'open' : ''}`}>
-                    <Icon name="chevron" size={9} />
-                  </span>
-                  <span className="vs-folder-icon">
-                    <Icon name="folder" size={13} />
-                  </span>
-                  <span className="vs-folder-name">circuits</span>
-                  <span className="vs-item-count">{circuitsList.length}</span>
+              {/* Inline Folder Creation Row */}
+              {isCreatingFolder && (
+                <div className="vs-inline-create" style={{ padding: '4px 8px 4px 18px', background: 'rgba(87, 217, 255, 0.06)' }}>
+                  <Icon name="folder" size={13} />
+                  <input
+                    ref={createFolderRef}
+                    type="text"
+                    className="vs-create-input"
+                    placeholder="New folder name..."
+                    value={createFolderName}
+                    onChange={(e) => setCreateFolderName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateFolderCommit();
+                      if (e.key === 'Escape') setIsCreatingFolder(false);
+                    }}
+                    onBlur={handleCreateFolderCommit}
+                  />
                 </div>
+              )}
 
-                {expandedFolders.circuits && (
-                  <div className="vs-folder-children">
-                    <div className="vs-indent-guide" />
-                    {isCreatingFile && targetFolder === 'circuits' && (
-                      <div className="vs-inline-create">
-                        <span className="clean-file-icon py">
-                          <Icon name="circuit" size={12} />
-                        </span>
-                        <input
-                          ref={createInputRef}
-                          type="text"
-                          className="vs-create-input"
-                          placeholder="filename.py"
-                          value={createName}
-                          onChange={(e) => setCreateName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleCreateCommit();
-                            if (e.key === 'Escape') setIsCreatingFile(false);
-                          }}
-                          onBlur={handleCreateCommit}
-                        />
-                      </div>
-                    )}
+              {/* Dynamic Folders */}
+              {folders.map(renderFolderBlock)}
 
-                    {circuitsList.map(renderTreeFile)}
-                  </div>
-                )}
-              </div>
-
-              {/* Folder: openqasm/ */}
+              {/* Projects Folder */}
               <div className="vs-folder-block">
-                <div
-                  className="vs-folder-row"
-                  onClick={() => toggleFolder('openqasm')}
-                >
-                  <span className={`vs-chevron ${expandedFolders.openqasm ? 'open' : ''}`}>
-                    <Icon name="chevron" size={9} />
-                  </span>
-                  <span className="vs-folder-icon">
-                    <Icon name="folder" size={13} />
-                  </span>
-                  <span className="vs-folder-name">openqasm</span>
-                  <span className="vs-item-count">{qasmList.length}</span>
-                </div>
-
-                {expandedFolders.openqasm && (
-                  <div className="vs-folder-children">
-                    <div className="vs-indent-guide" />
-                    {qasmList.map(renderTreeFile)}
-                  </div>
-                )}
-              </div>
-
-              {/* Folder: projects/ */}
-              <div className="vs-folder-block">
-                <div
-                  className="vs-folder-row"
-                  onClick={() => toggleFolder('projects')}
-                >
+                <div className="vs-folder-row" onClick={() => toggleFolder('projects')}>
                   <span className={`vs-chevron ${expandedFolders.projects ? 'open' : ''}`}>
                     <Icon name="chevron" size={9} />
                   </span>
@@ -525,17 +1037,15 @@ export function Explorer({
                 )}
               </div>
 
+              {/* Any Root Files */}
               {rootFiles.map(renderTreeFile)}
             </div>
           )}
         </div>
 
-        {/* SECTION 2: QUICK SIMULATION (COLLAPSIBLE ACCORDION) */}
+        {/* SECTION 2: QUICK SIMULATION */}
         <div className="vs-accordion-section">
-          <div
-            className="vs-section-header"
-            onClick={() => toggleSection('simulation')}
-          >
+          <div className="vs-section-header" onClick={() => toggleSection('simulation')}>
             <span className={`vs-chevron ${sectionsOpen.simulation ? 'open' : ''}`}>
               <Icon name="chevron" size={10} />
             </span>
@@ -581,12 +1091,9 @@ export function Explorer({
           )}
         </div>
 
-        {/* SECTION 3: TRANSPILER FORGE (COLLAPSIBLE ACCORDION) */}
+        {/* SECTION 3: TRANSPILER FORGE */}
         <div className="vs-accordion-section">
-          <div
-            className="vs-section-header"
-            onClick={() => toggleSection('transpile')}
-          >
+          <div className="vs-section-header" onClick={() => toggleSection('transpile')}>
             <span className={`vs-chevron ${sectionsOpen.transpile ? 'open' : ''}`}>
               <Icon name="chevron" size={10} />
             </span>
@@ -630,12 +1137,9 @@ export function Explorer({
           )}
         </div>
 
-        {/* SECTION 4: EXPERIMENT HISTORY (COLLAPSIBLE ACCORDION) */}
+        {/* SECTION 4: EXPERIMENT HISTORY */}
         <div className="vs-accordion-section">
-          <div
-            className="vs-section-header"
-            onClick={() => toggleSection('snapshots')}
-          >
+          <div className="vs-section-header" onClick={() => toggleSection('snapshots')}>
             <span className={`vs-chevron ${sectionsOpen.snapshots ? 'open' : ''}`}>
               <Icon name="chevron" size={10} />
             </span>
@@ -675,13 +1179,54 @@ export function Explorer({
         <span className="vs-footer-engine">AerSimulator · Qiskit 2.6</span>
       </div>
 
-      {/* Context Menu */}
-      {contextMenu && (
+      {/* Move File Destination Modal */}
+      {movingFile && (
+        <div className="vscode-modal-overlay" onClick={() => setMovingFile(null)}>
+          <div className="vscode-modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '340px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#E1E4EA' }}>
+              Move &ldquo;{movingFile.name}&rdquo;
+            </h3>
+            <p style={{ fontSize: '12px', color: '#9DA7B8', marginBottom: '12px' }}>
+              Select target folder:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
+              {folders.map((fld) => (
+                <button
+                  key={fld}
+                  type="button"
+                  className={`vs-level-btn ${targetMoveFolder === fld ? 'active' : ''}`}
+                  style={{ textAlign: 'left', padding: '6px 10px' }}
+                  onClick={() => setTargetMoveFolder(fld)}
+                >
+                  <Icon name="folder" size={12} />
+                  <span style={{ marginLeft: '6px' }}>{fld}/</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button type="button" className="vs-btn secondary" onClick={() => setMovingFile(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="vs-btn primary"
+                disabled={!targetMoveFolder}
+                onClick={handleMoveFileCommit}
+              >
+                Move File
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Context Menu */}
+      {fileContextMenu && (
         <div
           className="vscode-context-menu"
           style={{
-            top: Math.min(contextMenu.y, window.innerHeight - 200),
-            left: Math.min(contextMenu.x, window.innerWidth - 200),
+            top: Math.min(fileContextMenu.y, window.innerHeight - 260),
+            left: Math.min(fileContextMenu.x, window.innerWidth - 220),
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -689,8 +1234,8 @@ export function Explorer({
             type="button"
             className="context-menu-item"
             onClick={() => {
-              onOpenFile(contextMenu.file);
-              setContextMenu(null);
+              onOpenFile(fileContextMenu.file);
+              setFileContextMenu(null);
             }}
           >
             <Icon name="play" size={12} />
@@ -701,9 +1246,9 @@ export function Explorer({
             type="button"
             className="context-menu-item"
             onClick={() => {
-              setRenamingId(contextMenu.file.id);
-              setRenameValue(contextMenu.file.name);
-              setContextMenu(null);
+              setRenamingId(fileContextMenu.file.id);
+              setRenameValue(fileContextMenu.file.name);
+              setFileContextMenu(null);
             }}
           >
             <Icon name="edit" size={12} />
@@ -715,8 +1260,8 @@ export function Explorer({
             type="button"
             className="context-menu-item"
             onClick={() => {
-              duplicateFile(contextMenu.file);
-              setContextMenu(null);
+              handleDuplicateFile(fileContextMenu.file);
+              setFileContextMenu(null);
             }}
           >
             <Icon name="copy" size={12} />
@@ -727,12 +1272,49 @@ export function Explorer({
             type="button"
             className="context-menu-item"
             onClick={() => {
-              copyPath(contextMenu.file.path);
-              setContextMenu(null);
+              downloadFile(fileContextMenu.file);
+              setFileContextMenu(null);
+            }}
+          >
+            <Icon name="download" size={12} />
+            <span>Download File</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              copyFileContent(fileContextMenu.file);
+              setFileContextMenu(null);
+            }}
+          >
+            <Icon name="code" size={12} />
+            <span>Copy Code</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              copyPath(fileContextMenu.file.path);
+              setFileContextMenu(null);
             }}
           >
             <Icon name="search" size={12} />
             <span>Copy Relative Path</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              setMovingFile(fileContextMenu.file);
+              setTargetMoveFolder(folders[0] || 'circuits');
+              setFileContextMenu(null);
+            }}
+          >
+            <Icon name="folder" size={12} />
+            <span>Move to Folder…</span>
           </button>
 
           <div className="context-menu-sep" />
@@ -741,13 +1323,90 @@ export function Explorer({
             type="button"
             className="context-menu-item danger"
             onClick={() => {
-              deleteFile(contextMenu.file.id);
-              setContextMenu(null);
+              handleDeleteFile(fileContextMenu.file.id);
+              setFileContextMenu(null);
             }}
           >
             <Icon name="trash" size={12} />
             <span>Delete File</span>
             <kbd>Del</kbd>
+          </button>
+        </div>
+      )}
+
+      {/* Folder Context Menu */}
+      {folderContextMenu && (
+        <div
+          className="vscode-context-menu"
+          style={{
+            top: Math.min(folderContextMenu.y, window.innerHeight - 240),
+            left: Math.min(folderContextMenu.x, window.innerWidth - 220),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              setTargetFolder(folderContextMenu.folder);
+              setIsCreatingFile(true);
+              setExpandedFolders((p) => ({ ...p, [folderContextMenu.folder]: true }));
+              setFolderContextMenu(null);
+            }}
+          >
+            <Icon name="filePlus" size={12} />
+            <span>New File in &ldquo;{folderContextMenu.folder}&rdquo;</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              triggerImport(folderContextMenu.folder);
+              setFolderContextMenu(null);
+            }}
+          >
+            <Icon name="upload" size={12} />
+            <span>Upload Files Here</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              setRenamingFolder(folderContextMenu.folder);
+              setRenameFolderValue(folderContextMenu.folder);
+              setFolderContextMenu(null);
+            }}
+          >
+            <Icon name="edit" size={12} />
+            <span>Rename Folder</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              handleDuplicateFolder(folderContextMenu.folder);
+              setFolderContextMenu(null);
+            }}
+          >
+            <Icon name="copy" size={12} />
+            <span>Duplicate Folder</span>
+          </button>
+
+          <div className="context-menu-sep" />
+
+          <button
+            type="button"
+            className="context-menu-item danger"
+            onClick={() => {
+              handleDeleteFolder(folderContextMenu.folder);
+              setFolderContextMenu(null);
+            }}
+          >
+            <Icon name="trash" size={12} />
+            <span>Delete Folder</span>
           </button>
         </div>
       )}

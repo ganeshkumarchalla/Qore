@@ -85,3 +85,52 @@ export function addBlankFile(): WorkspaceFile {
   saveWorkspaceFiles([file, ...files]);
   return file;
 }
+
+
+export function loadWorkspaceFolders(): string[] {
+  try {
+    const raw = localStorage.getItem(getWorkspaceStorageKey() + ':folders');
+    const custom: string[] = raw ? JSON.parse(raw) : [];
+    const files = loadWorkspaceFiles();
+    const fromFiles = files.map((f) => f.path.split('/')[0]).filter(Boolean);
+    const set = new Set(['circuits', 'openqasm', ...custom, ...fromFiles]);
+    return Array.from(set);
+  } catch {
+    return ['circuits', 'openqasm'];
+  }
+}
+
+export function saveWorkspaceFolders(folders: string[]): void {
+  const clean = Array.from(new Set(folders.map((f) => f.trim()).filter(Boolean)));
+  localStorage.setItem(getWorkspaceStorageKey() + ':folders', JSON.stringify(clean));
+  window.dispatchEvent(new Event(WORKSPACE_CHANGED_EVENT));
+}
+
+export function renameWorkspaceFolder(oldName: string, newName: string): void {
+  const oldFolder = oldName.trim();
+  const newFolder = newName.trim();
+  if (!oldFolder || !newFolder || oldFolder === newFolder) return;
+
+  const folders = loadWorkspaceFolders().map((f) => (f === oldFolder ? newFolder : f));
+  saveWorkspaceFolders(folders);
+
+  const files = loadWorkspaceFiles().map((f) => {
+    if (f.path.startsWith(`${oldFolder}/`)) {
+      const rest = f.path.slice(oldFolder.length + 1);
+      const newPath = `${newFolder}/${rest}`;
+      return { ...f, id: newPath, path: newPath };
+    }
+    return f;
+  });
+  saveWorkspaceFiles(files);
+}
+
+export function deleteWorkspaceFolder(folderName: string): void {
+  const folder = folderName.trim();
+  if (!folder) return;
+  const folders = loadWorkspaceFolders().filter((f) => f !== folder);
+  saveWorkspaceFolders(folders);
+
+  const files = loadWorkspaceFiles().filter((f) => !f.path.startsWith(`${folder}/`));
+  saveWorkspaceFiles(files);
+}
