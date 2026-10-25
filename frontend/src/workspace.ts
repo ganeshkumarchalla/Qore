@@ -519,3 +519,11 @@ export function addBlankFile(): WorkspaceFile {
   const file: WorkspaceFile = { id: newWorkspaceId(), name: path.split('/').pop()!, path, type: 'file', kind: 'python', source: '' };
   saveWorkspaceFiles([file, ...list]); return file;
 }
+export function addQasmStarterFile(): WorkspaceFile {
+  const list = loadWorkspaceFiles();
+  let path = 'openqasm/qaoa_maxcut.qasm', suffix = 2;
+  while (list.some(file => file.path === path)) path = 'openqasm/qaoa_maxcut_' + suffix++ + '.qasm';
+  const file: WorkspaceFile = { id: newWorkspaceId(), name: path.split('/').pop()!, path, type: 'file', kind: 'qasm', qubits: 4,
+    source: 'OPENQASM 2.0;\ninclude "qelib1.inc";\n\n// 4-Qubit QAOA Max-Cut Graph Partition\nqreg q[4];\ncreg c[4];\n\nh q[0];\nh q[1];\nh q[2];\nh q[3];\n\ncx q[0], q[1];\nrz(0.45) q[1];\ncx q[0], q[1];\n\ncx q[1], q[2];\nrz(0.45) q[2];\ncx q[1], q[2];\n\nrx(0.62) q[0];\nrx(0.62) q[1];\nrx(0.62) q[2];\nrx(0.62) q[3];\n\nmeasure q -> c;\n' };
+  saveWorkspaceFiles([file, ...list]); return file;
+}
