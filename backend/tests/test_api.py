@@ -224,3 +224,10 @@ def test_user_names_are_persisted_as_data_not_sql(client, bell_source):
     assert response.status_code == 201
     assert client.get(f"/api/projects/{response.json()['id']}").json()["name"] == name
     assert len(client.get("/api/projects").json()) == 1
+
+
+def test_api_responses_explicitly_prevent_search_indexing(client):
+    for path in ("/api/health", "/api/auth/session", "/api/projects"):
+        response = client.get(path)
+        assert "noindex" in response.headers["x-robots-tag"]
+        assert "no-store" in response.headers["cache-control"]

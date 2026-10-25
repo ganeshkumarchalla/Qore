@@ -1,0 +1,4 @@
+# Render consumes the verified production build; review and edit its sources.
+/frontend/dist/** linguist-generated=true -diff
+# Preserve the existing Windows README line endings without false whitespace errors.
+README.md whitespace=cr-at-eol

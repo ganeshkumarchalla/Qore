@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ErrorBoundary } from './ErrorBoundary';
 import { Circuit, MetricCards } from './Circuit';
 import { Icon } from './Icons';
 import { BlochSphereViewer, QasmViewer, StatevectorAmplitudesViewer, UnitaryMatrixViewer } from './QuantumVisuals';
@@ -578,127 +579,175 @@ export function Research({
   );
 }
 
-export function Intelligence({
-  source,
-  simulation,
-  optimization,
-  health,
-}: {
+interface AssistantContext {
   source: string;
   simulation: Simulation | null;
   optimization: Optimization | null;
   health: Health | null;
-}) {
+  fileName?: string;
+  historical?: boolean;
+}
+
+export function Intelligence({ source, simulation, optimization, health, fileName, historical }: AssistantContext) {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [model, setModel] = useState('');
   const [available, setAvailable] = useState<boolean | null>(null);
+  const generation = useRef(0);
+  const ready = Boolean(health?.ai_available && source.trim());
+
+  useEffect(() => {
+    generation.current += 1;
+    setAnswer(''); setError(''); setModel(''); setAvailable(null); setPending(false);
+    return () => { generation.current += 1; };
+  }, [source, simulation?.id, optimization?.id]);
 
   async function ask(text = question) {
-    if (!text.trim() || pending) return;
+    if (!text.trim() || pending || !ready) return;
+    const requestGeneration = generation.current;
     setQuestion(text);
-    setPending(true);
-    setError('');
-    setAnswer('');
+    setPending(true); setError(''); setAnswer('');
     try {
       const data = await api<{ available: boolean; answer: string; model?: string }>('/assistant', {
-        question: text,
+        question: text.trim(),
         source,
         simulation_id: simulation?.id,
         optimization_id: optimization?.id,
       });
+      if (generation.current !== requestGeneration) return;
       setAnswer(data.answer);
       setModel(data.model ?? '');
       setAvailable(data.available);
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (reason) {
+      if (generation.current === requestGeneration) setError(reason instanceof Error ? reason.message : 'The assistant could not respond. Please try again.');
     } finally {
-      setPending(false);
+      if (generation.current === requestGeneration) setPending(false);
     }
   }
 
-  return (
-    <div className="intelligence-layout">
-      <section className="panel assistant">
-        <div className="panel-heading">
-          <div>
-            <span className="eyebrow">QUANTUM COPILOT</span>
-            <h2>Grounded AI Assistant</h2>
-          </div>
-          <span className={`pill ${health?.ai_available ? 'success' : ''}`}>
-            <span className="dot" />
-            {health?.ai_available ? 'AI Provider Configured' : 'AI Offline (Optional)'}
-          </span>
+  const prompts = [
+    { text: 'Explain this circuit', question: 'Explain this quantum circuit', enabled: true },
+    { text: 'Interpret the results', question: 'Interpret measurement probabilities', enabled: Boolean(simulation) },
+    { text: 'Review the optimization', question: 'Explain compiler optimization differences', enabled: Boolean(optimization) },
+  ];
+
+  return <div className="intelligence-layout">
+    <section className="panel assistant">
+      <div className="qore-assistant-availability">
+        <span className={'pill ' + (health?.ai_available ? 'success' : '')}>
+          <span className="dot" />{health ? health.ai_available ? 'Assistant available' : 'Assistant unavailable' : 'Checking availability'}
+        </span>
+        <span className="qore-assistant-readonly"><Icon name="code" size={12} />Read-only</span>
+      </div>
+      <p className="help">Explore your circuit and understand its results while keeping your workspace in view. The assistant can explain context; it cannot edit or run your code.</p>
+      <div className="qore-assistant-context">
+        <div><Icon name={historical ? 'clock' : 'file'} size={14} /><strong>{fileName || 'No circuit open'}</strong></div>
+        <span>{historical ? 'Historical snapshot · read-only source' : source.trim() ? 'Active editor · ' + source.split('\n').length + ' lines' : 'Open or create a circuit to begin.'}</span>
+      </div>
+      <div className="context-chips">
+        <span><Icon name="lab" size={13} />{simulation ? simulation.shots.toLocaleString() + ' shots' : 'No simulation'}</span>
+        <span><Icon name="forge" size={13} />{optimization ? 'Optimization attached' : 'No optimization'}</span>
+      </div>
+      {health && !health.ai_available && <p className="qore-assistant-service-note" role="status">AI assistance is currently unavailable. Your circuit editor, Lab, and Forge remain available.</p>}
+      <div className="prompt-options" aria-label="Suggested questions">
+        {prompts.map(prompt => <button key={prompt.text} type="button"
+          disabled={pending || !ready || !prompt.enabled} onClick={() => void ask(prompt.question)}>
+          {prompt.text}<Icon name="arrow" size={12} />
+        </button>)}
+      </div>
+      <form onSubmit={event => { event.preventDefault(); void ask(); }}>
+        <label htmlFor="assistant-question">Ask about your circuit</label>
+        <textarea id="assistant-question" value={question} maxLength={4000}
+          onChange={event => setQuestion(event.target.value)} rows={4} disabled={pending || !ready}
+          placeholder={source.trim() ? 'What does each operation do, and how should I interpret the output?' : 'Open a circuit to ask a question…'}
+          aria-describedby="qore-assistant-review" />
+        <div className="assistant-action">
+          <span id="qore-assistant-review" className="tiny muted">Review explanations against your measured results.</span>
+          <button className="button primary small" type="submit" disabled={pending || !ready || !question.trim()}>
+            {pending ? <span className="spinner" /> : <Icon name="spark" size={14} />}
+            {pending ? 'Thinking…' : 'Ask assistant'}
+          </button>
         </div>
+      </form>
+      {pending && <p className="help" role="status">Reading the attached circuit context…</p>}
+      {error && <div className="error-box" role="alert">{error}</div>}
+      {answer && <div className="assistant-answer" role="status">
+        <div className="section-head"><Icon name="spark" size={15} /><h3>{available ? 'Assistant response' : 'Service notice'}</h3></div>
+        {model && <span className="mini-tag">{model}</span>}
+        <p className="preserve-lines">{answer}</p>
+      </div>}
+    </section>
+    <p className="qore-assistant-footnote"><Icon name="info" size={13} />Only the active circuit and attached run context accompany your question.</p>
+  </div>;
+}
 
-        <p className="help">
-          The assistant analyzes your active circuit, simulation measurements, and compiler transformations. It operates with strictly read-only context.
-        </p>
+export function AssistantSidebar({ isOpen, onClose, contextId, ...context }: AssistantContext & {
+  isOpen: boolean;
+  onClose: () => void;
+  contextId: string;
+}) {
+  const [overlay, setOverlay] = useState(() => window.matchMedia('(max-width: 1100px)').matches);
+  const panel = useRef<HTMLElement>(null);
+  const closeCallback = useRef(onClose);
+  closeCallback.current = onClose;
 
-        <div className="context-chips">
-          <span><Icon name="code" size={13} /> Active Source ({source.split('\n').length} lines)</span>
-          <span><Icon name="lab" size={13} /> {simulation ? `Simulation (${simulation.shots} shots)` : 'No simulation'}</span>
-          <span><Icon name="forge" size={13} /> {optimization ? 'Optimization candidate' : 'No optimization'}</span>
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1100px)');
+    const update = () => setOverlay(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = requestAnimationFrame(() => panel.current?.querySelector<HTMLButtonElement>('.qore-assistant-close')?.focus());
+    const onKey = (event: KeyboardEvent) => {
+      const root = panel.current;
+      if (!root) return;
+      // Other dialogs keep their own Escape handling when opened above this panel.
+      const focusInside = root.contains(document.activeElement);
+      if (event.key === 'Escape' && focusInside) {
+        event.preventDefault(); event.stopPropagation(); closeCallback.current();
+      }
+      if (!overlay || event.key !== 'Tab') return;
+      if (document.querySelector('.modal-overlay')) return;
+      const controls = Array.from(root.querySelectorAll<HTMLElement>('button:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]'))
+        .filter(element => element.offsetParent !== null);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (!first) { event.preventDefault(); root.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || !focusInside)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !focusInside)) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', onKey, true);
+      if (panel.current?.contains(document.activeElement) || document.activeElement === document.body) {
+        if (previous?.isConnected) previous.focus();
+        else document.getElementById('qore-assistant-toggle')?.focus();
+      }
+    };
+  }, [isOpen, overlay]);
+
+  if (!isOpen) return null;
+  return <>
+    {overlay && <button type="button" className="qore-assistant-backdrop" tabIndex={-1} aria-label="Close assistant sidebar" onClick={onClose} />}
+    <aside ref={panel} id="qore-assistant-sidebar" className="qore-assistant-sidebar" tabIndex={-1}
+      role={overlay ? 'dialog' : 'complementary'} aria-modal={overlay || undefined} aria-labelledby="qore-assistant-title">
+      <header className="qore-assistant-header">
+        <div className="qore-assistant-heading"><span className="qore-assistant-symbol"><Icon name="spark" size={18} /></span>
+          <div><span>QORE INTELLIGENCE</span><h2 id="qore-assistant-title">Assistant</h2></div>
         </div>
-
-        <div className="prompt-options">
-          {['Explain this quantum circuit', 'Interpret measurement probabilities', 'Explain compiler optimization differences'].map((text) => (
-            <button key={text} disabled={pending} onClick={() => ask(text)}>
-              {text} <Icon name="arrow" size={12} />
-            </button>
-          ))}
-        </div>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void ask();
-          }}
-        >
-          <label htmlFor="assistant-question">Ask a question</label>
-          <textarea
-            id="assistant-question"
-            value={question}
-            maxLength={4000}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="e.g. Why does this circuit produce entanglement between qubits 0 and 1?"
-            rows={3}
-          />
-          <div className="assistant-action">
-            <span className="tiny muted">Responses are advisory and require human review.</span>
-            <button className="button primary small" type="submit" disabled={pending || !question.trim()}>
-              {pending ? <span className="spinner" /> : <Icon name="spark" size={14} />}
-              {pending ? 'Thinking…' : 'Ask Copilot'}
-            </button>
-          </div>
-        </form>
-
-        {error && <div className="error-box" role="alert">{error}</div>}
-
-        {answer && (
-          <div className="assistant-answer">
-            <div className="section-head">
-              <Icon name="spark" size={15} />
-              <h3>{available ? 'Copilot Response' : 'Service Notice'}</h3>
-              {model && <span className="mini-tag">{model}</span>}
-            </div>
-            <p className="preserve-lines">{answer}</p>
-          </div>
-        )}
-      </section>
-
-      <section className="panel assistant-note">
-        <Icon name="spark" size={24} />
-        <h3>Optional Capability</h3>
-        <p className="help">
-          All core quantum workflows (Monaco editing, QORE-IR visualization, Aer local simulation, compiler optimization, and SQLite provenance) run entirely locally without requiring an API key.
-        </p>
-        <p className="help">
-          To enable Gemini assistance, set <code>GEMINI_API_KEY</code> on your local server.
-        </p>
-      </section>
-    </div>
-  );
+        <button type="button" className="qore-assistant-close topbar-util-btn" aria-label="Close assistant sidebar" title="Close assistant (Escape)" onClick={onClose}><Icon name="close" size={14} /></button>
+      </header>
+      <div className="qore-assistant-scroll">
+        <ErrorBoundary label="QORE assistant" key={contextId}>
+          <Intelligence key={contextId} {...context} />
+        </ErrorBoundary>
+      </div>
+    </aside>
+  </>;
 }

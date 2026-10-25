@@ -1,0 +1,105 @@
+name: QORE quality gates
+
+on:
+  push:
+    branches: [editing, main, production]
+  pull_request:
+    branches: [main, production]
+  schedule:
+    - cron: '30 3 * * *' # 09:00 Asia/Kolkata
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qore-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Security, frontend, backend and quantum correctness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - name: Install locked frontend dependencies
+        run: |
+          npm install --global pnpm@9.15.9
+          pnpm --dir frontend install --frozen-lockfile
+      - name: Install Python test dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check -e '.[test]'
+      - name: Run daily baseline without external credentials
+        run: .venv/bin/python scripts/daily_quality_report.py
+      - name: Install isolated browser test runtime
+        run: pnpm --dir frontend exec playwright install --with-deps chromium
+      - name: Verify browser workflows against the production build
+        run: |
+          python - <<'PY'
+          import os, subprocess, time
+          from pathlib import Path
+          from urllib.request import urlopen
+          environment = dict(os.environ)
+          for name in list(environment):
+              if name.startswith(('SUPABASE_', 'GEMINI_', 'GOOGLE_', 'OPENAI_')):
+                  environment.pop(name, None)
+          Path('.tmp').mkdir(exist_ok=True)
+          environment.update(PYTHONPATH='backend', PYTEST_CURRENT_TEST='isolated_ci_ui',
+              QORE_STORAGE='sqlite', QORE_DB_PATH='.tmp/ui.sqlite3', QORE_REQUIRE_AUTH='false',
+              QORE_PUBLIC_URL='http://127.0.0.1:8000', QORE_TEST_URL='http://127.0.0.1:8000')
+          server = subprocess.Popen(['.venv/bin/python', '-m', 'uvicorn', 'qore.main:app',
+              '--host', '127.0.0.1', '--port', '8000', '--no-access-log'], env=environment,
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          try:
+              for attempt in range(60):
+                  if server.poll() is not None:
+                      raise RuntimeError('The isolated UI server exited before readiness.')
+                  try:
+                      with urlopen('http://127.0.0.1:8000/api/health', timeout=1) as response:
+                          if response.status == 200:
+                              break
+                  except OSError:
+                      time.sleep(.5)
+              else:
+                  raise RuntimeError('The isolated UI server did not become ready.')
+              subprocess.run(['pnpm', '--dir', 'frontend', 'run', 'test:ui'],
+                  env=environment, check=True, timeout=180)
+          finally:
+              server.terminate()
+              try:
+                  server.wait(timeout=10)
+              except subprocess.TimeoutExpired:
+                  server.kill()
+          PY
+      - name: Publish numeric check summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('evidence/daily_quality_report.json')
+          lines = ['## QORE quality gates', '']
+          if path.exists():
+              data = json.loads(path.read_text(encoding='utf-8'))
+              lines.append(f"Completed {data.get('stages_passed', 0)} of {data.get('stages_total', 0)} stages successfully.")
+              lines.extend(['', '| Check | Result |', '| --- | --- |'])
+              for item in data.get('stages', []):
+                  lines.append(f"| {item['name']} | {'PASS' if item.get('passed') else 'FAIL'} |")
+          else:
+              lines.append('Setup failed before the baseline report could be generated.')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
+              output.write('\n'.join(lines) + '\n')
+          PY

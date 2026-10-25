@@ -1,6 +1,7 @@
 # Virtual Environments & Build
 .venv/
 .tmp/
+supabase/.temp/
 node_modules/
 evidence/
 scripts/capture_*.js

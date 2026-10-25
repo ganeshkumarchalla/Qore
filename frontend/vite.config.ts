@@ -13,6 +13,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Shared runtime helpers must stay outside the lazy editor chunk.
+          // Otherwise the app imports Monaco merely to load another module.
+          if (id.includes('commonjsHelpers') || id.includes('vite/preload-helper')) return 'runtime';
           if (id.includes('monaco-editor') || id.includes('@monaco-editor')) return 'monaco';
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) return 'react';
         },

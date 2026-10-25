@@ -7,6 +7,10 @@ QORE is a focused quantum development environment for writing circuits, proving 
 
 The welcome now opens automatically. **Get Started** creates a single editable three-qubit circuit on request. Hosted accounts use verified email/Google sessions and owner-scoped cloud records. See the [production setup guide](docs/PRODUCTION.md) for provider activation, Render environment settings, security boundaries, and the acceptance checks required before release.
 
+The **Assistant** now opens in its own secondary sidebar beside your current view. It receives the active circuit and attached results, clears stale answers as context changes, and keeps source changes under your control. The editor runtime loads on demand after a file is opened.
+
+[Daily engineering reviews](docs/AUTOMATED_REVIEWS.md) cover eight dedicated areas, from quantum correctness and private records to secrets, scalability, and public-page SEO. A repeatable local baseline and repository quality workflow combine frontend checks, backend regression tests, real circuit acceptance, and redacted security reports.
+
 ## About QORE
 
 QORE is a research-grade quantum workspace designed to make experimental computing understandable, reproducible, and reviewable. It gives a developer one calm surface for authoring a circuit, compiling it into a typed intermediate representation, running controlled simulations, exploring quantum state evidence, optimizing transformations, and preserving the complete result as an immutable experiment.

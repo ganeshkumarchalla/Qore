@@ -89,7 +89,7 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
         if (configuration.status === 'fulfilled') setConfig(configuration.value);
         else setError(errorMessage(configuration.reason));
         if (session.status === 'fulfilled') {
-          if (session.value.user) callbacks.current.onLoginSuccess(session.value.user);
+          if (session.value.user && session.value.user.id !== currentUser?.id) callbacks.current.onLoginSuccess(session.value.user);
           else if (currentUser) void callbacks.current.onLogout();
         } else {
           setError(errorMessage(session.reason));
@@ -144,13 +144,6 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
     setMode(next); setPassword(''); setError(''); setNotice(''); setShowPassword(false);
   };
 
-  const checkAvailability = async () => {
-    setChecking(true); setError('');
-    try { setConfig(await api<AuthConfig>('/auth/config')); }
-    catch (reason) { setError(errorMessage(reason)); }
-    finally { setChecking(false); }
-  };
-
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy || !config?.configured || !config.email_enabled) return;
@@ -185,6 +178,13 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
     finally { setPending(null); }
   };
 
+  const checkAvailability = async () => {
+    setChecking(true);
+    setError('');
+    try { setConfig(await api<AuthConfig>('/auth/config')); }
+    catch (reason) { setError(errorMessage(reason)); }
+    finally { setChecking(false); }
+  };
   const googleAvailable = Boolean(config?.configured && config.google_enabled);
   const emailAvailable = Boolean(config?.configured && config.email_enabled);
   const providerMessage = checking ? 'Checking sign-in availability…'
@@ -201,8 +201,8 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
           <div className="auth-header-brand">
             <Icon name="account" size={30} />
             <div>
-              <h3 id="qore-auth-title">Your QORE account</h3>
-              <p id="qore-auth-description">A personal workspace for your quantum experiments</p>
+              <h3 id="qore-auth-title">Your QORE Account</h3>
+              <p id="qore-auth-description">Personal workspace for your quantum circuits & simulations</p>
             </div>
           </div>
           <button type="button" className="icon-close" onClick={onClose} disabled={busy} aria-label="Close account dialog">
@@ -212,7 +212,7 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
 
         <div style={{ overflowY: 'auto', minHeight: 0 }}>
           {error && <div className="auth-error-banner" role="alert"><Icon name="info" size={14} /><span>{error}</span></div>}
-          {notice && <p className="help" role="status" style={{ padding: '12px 20px', margin: 0 }}>{notice}</p>}
+          {notice && <p className="help" role="status" style={{ padding: '12px 20px', margin: 0, color: '#57D9FF' }}>{notice}</p>}
 
           {currentUser ? (
             <div className="auth-profile-dashboard">
@@ -222,7 +222,7 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
                 <span className="auth-user-email">{currentUser.email}</span>
                 <span className="auth-tier-badge">{currentUser.tier}</span>
               </div>
-              <p className="help">You are signed in. Your projects and experiments belong to your account.</p>
+              <p className="help">You are signed in. Your cloud projects and experiments belong to your account.</p>
               <div className="auth-profile-actions">
                 <button type="button" className="clean-button secondary full-width" onClick={() => void signOut()} disabled={busy}>
                   {pending === 'signout' ? 'Signing out…' : 'Sign out'}
@@ -246,41 +246,99 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
                 <p id="qore-auth-provider-status" className="help" role="status" style={{ margin: 0 }}>{providerMessage}</p>
                 {!checking && !googleAvailable && <button type="button" className="clean-button secondary small" disabled={busy} onClick={() => void checkAvailability()}>Check sign-in availability</button>}
               </div>
+              {emailAvailable && <div className="auth-divider"><span>OR USE EMAIL</span></div>}
+              <form onSubmit={event => void submit(event)} className="auth-form-body">
+                {mode === 'signup' && (
+                  <div className="auth-form-field">
+                    <label htmlFor="qore-auth-name">Your Name</label>
+                    <input
+                      id="qore-auth-name"
+                      className="auth-input"
+                      type="text"
+                      autoComplete="name"
+                      maxLength={80}
+                      required
+                      disabled={busy}
+                      placeholder="e.g. Marie Curie"
+                      value={fullName}
+                      onChange={event => setFullName(event.target.value)}
+                    />
+                  </div>
+                )}
 
-              {emailAvailable && <>
-                <div className="auth-divider"><span>OR USE EMAIL</span></div>
-                <form onSubmit={event => void submit(event)} className="auth-form-body">
-                  {mode === 'signup' && <div className="auth-form-field">
-                    <label htmlFor="qore-auth-name">Name</label>
-                    <input id="qore-auth-name" className="auth-input" type="text" autoComplete="name" maxLength={80} required disabled={busy}
-                      value={fullName} onChange={event => setFullName(event.target.value)} />
-                  </div>}
-                  <div className="auth-form-field">
-                    <label htmlFor="qore-auth-email">Email</label>
-                    <input id="qore-auth-email" className="auth-input" type="email" autoComplete="email" maxLength={254} required disabled={busy}
-                      value={email} onChange={event => setEmail(event.target.value)} />
+                <div className="auth-form-field">
+                  <label htmlFor="qore-auth-email">Email Address</label>
+                  <input
+                    id="qore-auth-email"
+                    className="auth-input"
+                    type="email"
+                    autoComplete="email"
+                    maxLength={254}
+                    required
+                    disabled={busy}
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={event => setEmail(event.target.value)}
+                  />
+                </div>
+
+                <div className="auth-form-field">
+                  <label htmlFor="qore-auth-password">Password</label>
+                  <div className="auth-password-wrap">
+                    <input
+                      id="qore-auth-password"
+                      className="auth-input"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                      required
+                      disabled={busy}
+                      minLength={mode === 'signup' ? 12 : 1}
+                      maxLength={mode === 'signup' ? 128 : 512}
+                      placeholder={mode === 'signup' ? 'At least 12 characters' : 'Enter password'}
+                      aria-describedby={mode === 'signup' ? 'qore-auth-password-help' : undefined}
+                      value={password}
+                      onChange={event => setPassword(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="auth-pwd-toggle"
+                      disabled={busy}
+                      onClick={() => setShowPassword(value => !value)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-pressed={showPassword}
+                    >
+                      <Icon name={showPassword ? 'eyeOff' : 'eye'} size={14} />
+                    </button>
                   </div>
-                  <div className="auth-form-field">
-                    <label htmlFor="qore-auth-password">Password</label>
-                    <div className="auth-password-wrap">
-                      <input id="qore-auth-password" className="auth-input" type={showPassword ? 'text' : 'password'}
-                        autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required disabled={busy}
-                        minLength={mode === 'signup' ? 12 : 1} maxLength={mode === 'signup' ? 128 : 512}
-                        aria-describedby={mode === 'signup' ? 'qore-auth-password-help' : undefined}
-                        value={password} onChange={event => setPassword(event.target.value)} />
-                      <button type="button" className="auth-pwd-toggle" disabled={busy} onClick={() => setShowPassword(value => !value)}
-                        aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>
-                        <Icon name={showPassword ? 'eyeOff' : 'eye'} size={14} />
-                      </button>
-                    </div>
-                    {mode === 'signup' && <p id="qore-auth-password-help" className="help" style={{ margin: 0 }}>Use at least 12 characters.</p>}
-                  </div>
-                  <button type="submit" className="clean-button primary full-width auth-submit-btn" disabled={busy || checking}>
-                    {pending === 'signin' ? 'Signing in…' : pending === 'signup' ? 'Creating your account…' : mode === 'signup' ? 'Create account' : 'Sign in to QORE'}
-                  </button>
-                </form>
-              </>}
-              {config && !config.required && <p className="help" style={{ padding: '0 20px 18px', margin: 0 }}>You can continue using the local workspace without an account.</p>}
+                  {mode === 'signup' && (
+                    <p id="qore-auth-password-help" className="help" style={{ margin: 0 }}>
+                      Use at least 12 characters.
+                    </p>
+                  )}
+                </div>
+
+                <button type="submit" className="clean-button primary full-width auth-submit-btn" disabled={busy || checking || !emailAvailable}>
+                  {pending === 'signin' ? 'Signing in…' : pending === 'signup' ? 'Creating your account…' : mode === 'signup' ? 'Create Account' : 'Sign In to QORE'}
+                </button>
+              </form>
+
+              <div style={{ textAlign: 'center', padding: '0 20px 18px' }}>
+                {mode === 'signin' ? (
+                  <p className="help" style={{ margin: 0 }}>
+                    Don&apos;t have an account?{' '}
+                    <button type="button" style={{ background: 'none', border: 'none', color: '#57D9FF', cursor: 'pointer', padding: 0, textDecoration: 'underline' }} onClick={() => switchMode('signup')}>
+                      Create one
+                    </button>
+                  </p>
+                ) : (
+                  <p className="help" style={{ margin: 0 }}>
+                    Already have an account?{' '}
+                    <button type="button" style={{ background: 'none', border: 'none', color: '#57D9FF', cursor: 'pointer', padding: 0, textDecoration: 'underline' }} onClick={() => switchMode('signin')}>
+                      Sign in
+                    </button>
+                  </p>
+                )}
+              </div>
             </>
           )}
         </div>

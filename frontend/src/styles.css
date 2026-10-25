@@ -6407,6 +6407,101 @@ input:focus, select:focus, textarea:focus {
   .bloch-viewer-card .bloch-grid-card { min-height: 230px !important; }
 }
 
+/* The assistant is a secondary surface; the selected workspace stays in place. */
+.qore-assistant-toggle {
+  width: auto;
+  gap: 7px;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+.qore-assistant-sidebar {
+  flex: 0 0 clamp(322px, 26vw, 396px);
+  width: clamp(322px, 26vw, 396px);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 32;
+  border-left: 1px solid rgba(176, 208, 237, .19);
+  color: var(--vscode-text);
+  background: linear-gradient(155deg, rgba(29, 43, 61, .96), rgba(14, 22, 35, .95));
+  box-shadow: -12px 0 36px rgba(2, 8, 17, .18), inset 1px 0 rgba(235, 246, 255, .035);
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  animation: qoreAssistantEnter .24s ease both;
+}
+.qore-assistant-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 16px;
+  border-bottom: 1px solid rgba(176, 208, 237, .13);
+  background: linear-gradient(115deg, rgba(145, 191, 232, .07), transparent);
+}
+.qore-assistant-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.qore-assistant-symbol {
+  width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center;
+  border: 1px solid rgba(148, 196, 235, .23); color: #a8d4f7;
+  background: linear-gradient(145deg, rgba(132, 184, 231, .19), rgba(105, 124, 179, .13));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .12);
+}
+.qore-assistant-heading > div > span { font-size: 9px; font-weight: 700; letter-spacing: .13em; color: #9bafc5; }
+.qore-assistant-heading h2 { margin: 3px 0 0; font-size: 17px; line-height: 1.2; font-weight: 700; color: #f4f8ff; }
+.qore-assistant-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.qore-assistant-sidebar .intelligence-layout { display: flex; flex-direction: column; gap: 14px; padding: 16px !important; }
+.qore-assistant-sidebar .panel.assistant { border: 0; padding: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+.qore-assistant-availability { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.qore-assistant-availability .pill { font-size: 10px; }
+.qore-assistant-readonly { display: inline-flex; align-items: center; gap: 4px; color: #afbed1; font-size: 10px; margin-left: auto; }
+.qore-assistant-sidebar .help { font-size: 12px; line-height: 1.7; color: #bac9da; }
+.qore-assistant-context { padding: 12px; border: 1px solid rgba(158, 194, 225, .16); border-radius: 13px; background: rgba(5, 13, 25, .24); }
+.qore-assistant-context > div { display: flex; align-items: center; gap: 7px; min-width: 0; color: #e8f2ff; }
+.qore-assistant-context strong { overflow-wrap: anywhere; font-size: 12px; font-weight: 650; }
+.qore-assistant-context > span { display: block; color: #9fb2c9; font-size: 10.5px; line-height: 1.6; margin-top: 6px; }
+.qore-assistant-sidebar .context-chips { gap: 5px; margin-block: 10px 16px; }
+.qore-assistant-sidebar .context-chips > span { font-size: 10px; border-radius: 7px; padding: 4px 7px; }
+.qore-assistant-sidebar .prompt-options { flex-direction: column; gap: 7px; margin-block: 15px; }
+.qore-assistant-sidebar .prompt-options button { width: 100%; text-align: left; justify-content: space-between; border-radius: 10px; padding: 10px 11px; font-size: 11px; line-height: 1.45; }
+.qore-assistant-sidebar button:disabled { cursor: not-allowed; opacity: .48; }
+.qore-assistant-sidebar .assistant form { gap: 9px; }
+.qore-assistant-sidebar .assistant label { color: #e6effa; font-size: 12px; font-weight: 650; }
+.qore-assistant-sidebar .assistant textarea { width: 100%; min-height: 108px; max-height: 280px; font: inherit; font-size: 12px; line-height: 1.65; padding: 12px; box-sizing: border-box; }
+.qore-assistant-sidebar .assistant-action { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.qore-assistant-sidebar .assistant-action > span { flex: 1 1 140px; font-size: 10px; line-height: 1.55; }
+.qore-assistant-sidebar .assistant-action > button { margin-left: auto; border-radius: 9px; min-height: 32px; }
+.qore-assistant-sidebar .assistant-answer { border-radius: 13px; border-color: rgba(151, 197, 234, .19); background: linear-gradient(145deg, rgba(97, 146, 191, .08), rgba(9, 16, 29, .34)); padding: 13px; }
+.qore-assistant-sidebar .assistant-answer h3 { font-size: 12px; }
+.qore-assistant-sidebar .preserve-lines { font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.qore-assistant-sidebar .mini-tag { display: inline-block; max-width: 100%; overflow-wrap: anywhere; margin-top: 8px; }
+.qore-assistant-service-note { font-size: 11px; line-height: 1.65; padding: 11px; border-radius: 10px; background: rgba(140, 164, 191, .07); color: #b5c4d7; }
+.qore-assistant-footnote { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 13px 0; border-top: 1px solid rgba(158, 194, 225, .13); color: #93a7bf; font-size: 10px; line-height: 1.65; }
+.qore-assistant-footnote svg { flex-shrink: 0; margin-top: 2px; }
+.qore-assistant-backdrop { position: absolute; inset: 0; z-index: 60; border: 0; border-radius: 0; background: rgba(3, 8, 16, .52); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+@keyframes qoreAssistantEnter { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+@media (min-width: 1101px) and (max-width: 1600px) {
+  .qore-assistant-open .studio-split-view { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .qore-assistant-open .studio-split-view > .editor-pane,
+  .qore-assistant-open .studio-split-view > .preview-pane { min-height: 420px; height: auto; flex-shrink: 0; }
+  .qore-assistant-open .studio-split-view > .editor-pane { border-right: 0; border-bottom: 1px solid var(--vscode-border); }
+}
+@media (max-width: 1100px) {
+  .qore-assistant-sidebar { position: fixed; inset: 38px 0 24px auto; z-index: 61; width: min(400px, 94vw); max-width: 100%; }
+  .qore-assistant-backdrop { position: fixed; inset: 38px 0 24px; }
+  .qore-assistant-toggle > span { display: none; }
+  .qore-assistant-toggle { width: 30px; padding-inline: 0; }
+}
+@media (max-width: 600px) {
+  .qore-assistant-toggle { position: fixed; top: 3px; right: 8px; z-index: 45; background: #213248; box-shadow: 0 0 0 4px #131e2b; }
+}
+@media (max-width: 480px) {
+  .qore-assistant-sidebar { width: min(100%, 400px); }
+  .qore-assistant-header { padding: 14px; }
+  .qore-assistant-sidebar .intelligence-layout { padding: 14px !important; }
+}
+
 /* Component-level failure isolation keeps the workbench usable when a heavy
    renderer fails. */
 .component-fallback {

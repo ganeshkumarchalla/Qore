@@ -10,6 +10,9 @@ import sys
 import re
 import json
 import argparse
+import base64
+import fnmatch
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any
@@ -20,7 +23,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Files and directories to skip from secret scanning
 IGNORED_DIRS = {
     ".venv", "venv", "node_modules", ".git", ".pytest_cache", ".tmp",
-    "dist", "build", "__pycache__", ".idea"
+    "dist", "build", "__pycache__", ".idea", ".cache", "evidence",
+    "temp_edge_profile", "browser_profiles", "playwright-report", "test-results",
+    "website_captures", "media", "Pictures", "video_assets", "screen_recordings",
 }
 
 IGNORED_FILES = {
@@ -29,9 +34,46 @@ IGNORED_FILES = {
 
 def mask_secret(val: str) -> str:
     """Mask secret value so it is never exposed in logs or reports."""
-    if len(val) <= 8:
-        return "[REDACTED]"
-    return val[:4] + "..." + val[-4:] + f" [REDACTED len={len(val)}]"
+    return "[REDACTED]"
+
+
+def project_files(root: Path):
+    """Prune generated/private browser trees before traversing their contents."""
+    for directory, folders, files in os.walk(root, followlinks=False):
+        folders[:] = [name for name in folders if name not in IGNORED_DIRS
+                      and not (Path(directory) / name).is_symlink()]
+        for name in files:
+            path = Path(directory) / name
+            if not path.is_symlink():
+                yield path
+
+
+def ignored_local_env(path: Path, root: Path) -> bool:
+    """Skip an ignored server .env without opening it; client .env is audited."""
+    if path.name != ".env" or "frontend" in path.relative_to(root).parts:
+        return False
+    if (root / ".git").exists():
+        try:
+            result = subprocess.run(["git", "check-ignore", "--quiet", "--", str(path.relative_to(root))],
+                                    cwd=root, capture_output=True, timeout=5,
+                                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+            return result.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+    ignore = root / ".gitignore"
+    if not ignore.exists():
+        return False
+    relative = path.relative_to(root).as_posix()
+    ignored = False
+    for line in ignore.read_text(encoding="utf-8", errors="ignore").splitlines():
+        pattern = line.strip()
+        if not pattern or pattern.startswith("#"):
+            continue
+        negate = pattern.startswith("!")
+        pattern = pattern.lstrip("!").lstrip("/")
+        if fnmatch.fnmatch(relative, pattern) or ("/" not in pattern and fnmatch.fnmatch(path.name, pattern)):
+            ignored = not negate
+    return ignored
 
 
 class Finding:
@@ -64,7 +106,8 @@ class SecretScannerAgent:
 
     SECRET_PATTERNS = [
         (re.compile(r"AIza[0-9A-Za-z\-_]{35}"), "Google / Gemini API Key"),
-        (re.compile(r"sk-[a-zA-Z0-9]{32,}"), "OpenAI API Key"),
+        (re.compile(r"sk-(?:proj-|svcacct-)?[a-zA-Z0-9_-]{20,}"), "OpenAI API Key"),
+        (re.compile(r"sb_secret_[A-Za-z0-9_-]{20,}"), "Supabase Secret Key"),
         (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS Access Key ID"),
         (re.compile(r"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,}"), "GitHub Token"),
         (re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"), "Private Key Certificate"),
@@ -73,88 +116,62 @@ class SecretScannerAgent:
         (re.compile(r"(?:password|passwd|secret_key|api_secret)\s*[:=]\s*['\"][^'\"]{8,}['\"]", re.IGNORECASE), "Hardcoded Secret / Password Assignment"),
     ]
 
+    JWT_PATTERN = re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{8,}\b")
+    SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".yaml", ".yml", ".toml", ".md", ".sh", ".ps1", ".html", ".ini", ".cfg", ".conf", ".xml", ".sql", ".tf", ".properties"}
+
+    @classmethod
+    def credential_matches(cls, content):
+        for pattern, description in cls.SECRET_PATTERNS:
+            for match in pattern.finditer(content):
+                value = match.group(0)
+                # Explicit fixture/placeholder password assignments are not live
+                # credentials. Never exempt structured key tokens merely because
+                # the token happens to contain a word such as "example".
+                if description == "Hardcoded Secret / Password Assignment":
+                    literal = re.search(r"['\"]([^'\"]+)['\"]$", value)
+                    if literal and literal.group(1).lower().startswith(("your_", "<", "fixture-", "test-", "example-", "not-a-real-")):
+                        continue
+                yield description, value, content.count("\n", 0, match.start()) + 1
+        for match in cls.JWT_PATTERN.finditer(content):
+            token = match.group(0)
+            payload = token.split(".")[1]
+            if len(payload) > 16384:
+                continue
+            try:
+                decoded = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+            except (ValueError, UnicodeError):
+                continue
+            if isinstance(decoded, dict) and decoded.get("role") == "service_role":
+                yield "Supabase Service Role JWT", token, content.count("\n", 0, match.start()) + 1
+
     def run(self, root: Path) -> List[Finding]:
         findings = []
-
-        # 1. Check .env.example specifically to make sure real keys aren't in example files
-        env_example = root / ".env.example"
-        if env_example.exists():
-            content = env_example.read_text(encoding="utf-8", errors="ignore")
-            for line in content.splitlines():
-                if "=" in line and not line.strip().startswith("#"):
-                    k, v = line.split("=", 1)
-                    k, v = k.strip(), v.strip()
-                    if v and not v.startswith("your_") and not v.startswith("<") and not v.startswith("gemini-"):
-                        if any(pattern.search(v) for pattern, _ in self.SECRET_PATTERNS):
-                            findings.append(Finding(
-                                agent=self.NAME,
-                                severity="CRITICAL",
-                                title="Real Secret in .env.example",
-                                description=f"Variable '{k}' in .env.example contains what appears to be a live credential.",
-                                file_path=str(env_example.relative_to(root)),
-                                recommendation="Replace real secret in .env.example with a placeholder (e.g., GEMINI_API_KEY=your_key_here)."
-                            ))
-
-        # 2. Check frontend for any backend secrets or dangerous VITE_ prefixes
-        frontend_dir = root / "frontend"
-        if frontend_dir.exists():
-            for p in frontend_dir.rglob("*"):
-                if p.is_file() and not any(part in IGNORED_DIRS for part in p.parts):
-                    if p.suffix.lower() in [".ts", ".tsx", ".js", ".jsx", ".env", ".html"]:
-                        try:
-                            text = p.read_text(encoding="utf-8", errors="ignore")
-                            # Check for VITE_ variable leaks of API keys
-                            for match in re.finditer(r"VITE_[A-Z0-9_]*(?:KEY|SECRET|TOKEN|AUTH)\s*[:=]\s*['\"]([^'\"]+)['\"]", text, re.IGNORECASE):
-                                val = match.group(1)
-                                if len(val) > 8:
-                                    findings.append(Finding(
-                                        agent=self.NAME,
-                                        severity="CRITICAL",
-                                        title="Client-Side Secret Exposure via VITE_ Variable",
-                                        description=f"Secret variable exposed in client bundle: {mask_secret(val)} in {p.name}",
-                                        file_path=str(p.relative_to(root)),
-                                        recommendation="Never expose API keys in Vite client variables. Move all authenticated calls to the backend."
-                                    ))
-                        except Exception:
-                            pass
-
-        # 3. Scan all project source files
-        for p in root.rglob("*"):
-            if not p.is_file():
+        for path in project_files(root):
+            if path.name in IGNORED_FILES or ignored_local_env(path, root):
                 continue
-            if any(part in IGNORED_DIRS for part in p.parts):
+            is_config = path.name.startswith(".env") or path.name.lower().startswith(("dockerfile", "containerfile"))
+            if path.suffix.lower() not in self.SOURCE_SUFFIXES and not is_config:
                 continue
-            if p.name in IGNORED_FILES:
-                continue
-            # Skip the legitimate local .env file from reporting as an internal leak,
-            # but ensure it exists safely in local workspace
-            if p.name == ".env":
-                continue
-
-            # Only scan readable code and config files
-            if p.suffix.lower() not in [".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".yaml", ".yml", ".toml", ".md", ".sh", ".ps1"]:
-                continue
-
+            relative = str(path.relative_to(root))
             try:
-                content = p.read_text(encoding="utf-8", errors="ignore")
-                for pattern, desc in self.SECRET_PATTERNS:
-                    match = pattern.search(content)
-                    if match:
-                        matched_str = match.group(0)
-                        # Filter out common test strings or false positives
-                        if "your_" in matched_str.lower() or "example" in matched_str.lower() or "placeholder" in matched_str.lower():
-                            continue
-                        findings.append(Finding(
-                            agent=self.NAME,
-                            severity="CRITICAL",
-                            title=f"Potential Hardcoded {desc}",
-                            description=f"Found pattern matching {desc}: {mask_secret(matched_str)}",
-                            file_path=str(p.relative_to(root)),
-                            recommendation="Remove hardcoded secret from code. Load credentials via environment variables in backend/.env only."
-                        ))
-            except Exception:
-                pass
-
+                content = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                findings.append(Finding(self.NAME, "HIGH", "Source/configuration could not be scanned",
+                    "The file was unreadable. Its contents have not been certified as free of secrets.", relative,
+                    "Restore read access and rerun the audit."))
+                continue
+            for description, value, line in self.credential_matches(content):
+                findings.append(Finding(self.NAME, "CRITICAL",
+                    "Real Secret in .env.example" if path.name == ".env.example" else f"Potential Hardcoded {description}",
+                    f"Found {description} at line {line}: {mask_secret(value)}", relative,
+                    "Remove the credential from source/configuration, rotate it if exposed, and use server environment configuration."))
+            if "frontend" in path.relative_to(root).parts:
+                for match in re.finditer(r"VITE_[A-Z0-9_]*(?:KEY|SECRET|TOKEN|AUTH)\s*[:=]\s*['\"]?([^'\"\s,;]+)", content, re.IGNORECASE):
+                    value = match.group(1)
+                    if len(value) > 8 and not value.lower().startswith(("your_", "<", "placeholder")):
+                        findings.append(Finding(self.NAME, "CRITICAL", "Client-Side Secret Exposure via VITE_ Variable",
+                            f"A credential-like VITE_ value is exposed to client builds: {mask_secret(value)}", relative,
+                            "Keep sensitive keys on the backend and route authenticated requests through /api."))
         return findings
 
 
@@ -172,6 +189,10 @@ class FileExposureAgent:
         ("data/", "Application SQLite and local state database files (data/)"),
         ("*.sqlite", "SQLite database files (*.sqlite)"),
         ("*.sqlite3", "SQLite database files (*.sqlite3)"),
+        ("*.sqlite*", "SQLite journals and database variants (*.sqlite*)"),
+        ("*.db", "Database files (*.db)"),
+        ("*.swp", "Editor swap files (*.swp)"),
+        ("*.bak", "Editor backup files (*.bak)"),
         ("credentials.json", "OAuth / Service account credentials (credentials.json)"),
     ]
 
@@ -205,9 +226,7 @@ class FileExposureAgent:
                     ))
 
         # 2. Check for dangerous leftover or swap files
-        for p in root.rglob("*"):
-            if not p.is_file() or any(part in IGNORED_DIRS for part in p.parts):
-                continue
+        for p in project_files(root):
             lower_name = p.name.lower()
             if lower_name.endswith((".bak", ".swp", ".orig", ".tmp", "~")) and not p.parts[len(root.parts):][0] == ".tmp":
                 findings.append(Finding(
@@ -218,6 +237,24 @@ class FileExposureAgent:
                     file_path=str(p.relative_to(root)),
                     recommendation="Remove backup/swap files to avoid exposing previous code versions or deleted secrets."
                 ))
+
+        # Git membership is inspected by name only; no credential file is read.
+        if (root / ".git").exists():
+            try:
+                result = subprocess.run(["git", "ls-files", "--cached", "-z"], cwd=root,
+                    capture_output=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                if result.returncode != 0:
+                    raise OSError("Git inventory unavailable")
+                for tracked in result.stdout.decode("utf-8", errors="replace").split("\0"):
+                    name = Path(tracked).name
+                    if name == ".env" or (name.startswith(".env.") and name != ".env.example") or name.endswith((".pem", ".key", ".db", ".sqlite", ".sqlite3")) or name == "credentials.json":
+                        findings.append(Finding(self.NAME, "HIGH", "Sensitive file is tracked by Git",
+                            "A sensitive configuration/database/credential path is present in Git's index; ignore rules do not untrack it.",
+                            tracked, "Remove the sensitive file from version control while preserving the local file; rotate any exposed credentials."))
+            except (OSError, subprocess.TimeoutExpired):
+                findings.append(Finding(self.NAME, "HIGH", "Git exposure inventory unavailable",
+                    "Tracked credential paths could not be audited.", ".git", "Restore Git access and rerun the audit."))
 
         # 3. Check .env file presence and permissions
         env_file = root / ".env"
@@ -496,11 +533,11 @@ class SecurityCoordinator:
             f"",
             f"| Subsystem / Agent | Verification Focus | Status |",
             f"| :--- | :--- | :--- |",
-            f"| **Secrets & Credentials Agent** | Scanned root, backend, frontend (`VITE_*`), and `.env.example` for exposed API keys, tokens, and private certs | ✅ PASS (0 leaks) |",
-            f"| **File Safety & Git Exposure Agent** | Verified `.gitignore` protection for `.env*`, `data/`, `*.sqlite*`, certificates, and swap/backup files | ✅ PASS (Protected) |",
-            f"| **File Permissions & ACLs** | Verified `.env` file location outside static assets with access restricted to authorized local owner & SYSTEM | ✅ PASS (Restricted) |",
-            f"| **IDE & Environment Hardening Agent** | Workspace Trust enabled, search exclusions enforced for secrets, and telemetry disabled in `.vscode/settings.json` | ✅ PASS (Hardened) |",
-            f"| **Config & Dependency Security Agent** | Verified backend CORS configuration restricts unauthenticated wildcards and reviewed dependencies | ✅ PASS (Verified) |",
+            f"| **Secrets & Credentials Agent** | Source, Dockerfiles, environment examples/variants, frontend variables, modern keys and privileged JWTs | {'FINDINGS' if any(f.agent == SecretScannerAgent.NAME for f in findings) else 'No findings in scanned scope'} |",
+            f"| **File Safety & Git Exposure Agent** | Ignore rules, tracked sensitive paths, backups, local environment placement and POSIX permissions | {'FINDINGS' if any(f.agent == FileExposureAgent.NAME for f in findings) else 'No findings in scanned scope'} |",
+            f"| **File Permissions & ACLs** | Windows ACLs require a separate host permission inspection | Not verified by this scanner |",
+            f"| **IDE & Environment Hardening Agent** | Workspace Trust and telemetry configuration | {'FINDINGS' if any(f.agent == IDEEnvironmentAgent.NAME for f in findings) else 'No findings in scanned scope'} |",
+            f"| **Config & Dependency Security Agent** | Credentialed wildcard CORS and dependency pinning heuristics | {'FINDINGS' if any(f.agent == ConfigAuditAgent.NAME for f in findings) else 'No findings in scanned scope'} |",
             f"",
             f"---",
             f"",
@@ -564,8 +601,8 @@ def main():
         print(f"          {json_path}")
         print("=" * 60)
 
-    # Exit code: 1 if critical issues found, 0 otherwise
-    if any(f.severity == "CRITICAL" for f in findings):
+    # Match ACTION_REQUIRED status; a high-severity exposure must fail CI too.
+    if any(f.severity in {"CRITICAL", "HIGH"} for f in findings):
         sys.exit(1)
     sys.exit(0)
 

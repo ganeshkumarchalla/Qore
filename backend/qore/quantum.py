@@ -17,7 +17,7 @@ from typing import Any
 
 import numpy as np
 from qiskit import QuantumCircuit, transpile, qasm2
-from qiskit.quantum_info import Operator, Statevector, partial_trace
+from qiskit.quantum_info import DensityMatrix, Operator, Statevector, partial_trace
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel, depolarizing_error
 
@@ -638,7 +638,7 @@ def compute_circuit_bloch_and_unitary(circuit: QuantumCircuit, ir: dict[str, Any
             state = Statevector.from_instruction(u_circ)
             for q in range(n):
                 other = [i for i in range(n) if i != q]
-                rho = partial_trace(state, other) if other else state.to_operator()
+                rho = partial_trace(state, other) if other else DensityMatrix(state)
                 x = float(np.real(np.trace(rho.data @ np.array([[0, 1], [1, 0]], dtype=complex))))
                 y = float(np.real(np.trace(rho.data @ np.array([[0, -1j], [1j, 0]], dtype=complex))))
                 z = float(np.real(np.trace(rho.data @ np.array([[1, 0], [0, -1]], dtype=complex))))
@@ -653,6 +653,7 @@ def compute_circuit_bloch_and_unitary(circuit: QuantumCircuit, ir: dict[str, Any
                     "z": round(z, 4),
                     "r": round(r, 4),
                     "purity": round(purity, 4),
+                    "is_pure": bool(abs(purity - 1.0) < 1e-8),
                     "theta": round(theta, 4),
                     "phi": round(phi, 4),
                 })

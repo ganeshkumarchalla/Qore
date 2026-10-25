@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icons';
 import type { Settings, Theme } from './types';
 
@@ -92,6 +92,7 @@ export function saveStoredSettings(settings: Settings) {
 }
 
 type SettingCategory = 'optics' | 'editor' | 'kernel' | 'hardware' | 'transpiler' | 'copilot';
+const SettingName = createContext<string | undefined>(undefined);
 
 // Clean iOS / macOS styled toggle switch
 function CustomToggle({
@@ -103,10 +104,12 @@ function CustomToggle({
   onChange: (next: boolean) => void;
   disabled?: boolean;
 }) {
+  const accessibleName = useContext(SettingName);
   return (
     <button
       type="button"
       role="switch"
+      aria-label={accessibleName}
       aria-checked={checked}
       disabled={disabled}
       className={`clean-toggle-switch ${checked ? 'active' : ''}`}
@@ -122,18 +125,32 @@ function SettingRow({
   title,
   desc,
   control,
+  disabled = false,
+  reason,
 }: {
   title: string;
   desc: string;
   control: React.ReactNode;
+  disabled?: boolean;
+  reason?: 'Unavailable in this runtime' | 'Server controlled';
 }) {
+  const identity = useId();
   return (
     <div className="clean-setting-row">
       <div className="clean-setting-info">
-        <span className="clean-setting-title">{title}</span>
-        <span className="clean-setting-desc">{desc}</span>
+        <span className="clean-setting-title" id={`${identity}-title`}>{title}</span>
+        <span className="clean-setting-desc" id={`${identity}-description`}>{desc}</span>
+        {disabled && <span className="clean-setting-desc" id={`${identity}-availability`}
+          style={{ color: '#b9cbe0', fontSize: 10, marginTop: 4 }}>{reason ?? 'Unavailable in this runtime'}</span>}
       </div>
-      <div className="clean-setting-control">{control}</div>
+      <SettingName.Provider value={title}>
+        <fieldset className="clean-setting-control" disabled={disabled}
+          aria-labelledby={`${identity}-title`}
+          aria-describedby={`${identity}-description${disabled ? ` ${identity}-availability` : ''}`}
+          style={{ border: 0, padding: 0, margin: 0, opacity: disabled ? 0.48 : 1 }}>
+          {control}
+        </fieldset>
+      </SettingName.Provider>
     </div>
   );
 }
@@ -173,14 +190,39 @@ export function SettingsModal({
   const [category, setCategory] = useState<SettingCategory>('optics');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedNotification, setCopiedNotification] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  const notificationTimer = useRef<number | null>(null);
+  closeRef.current = onClose;
 
   useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLInputElement>('.settings-search-input')?.focus());
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      if (e.key === 'Escape') {
+        e.preventDefault(); e.stopPropagation(); closeRef.current();
+      }
+      if (e.key !== 'Tab') return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]'))
+        .filter(element => element.offsetParent !== null);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (!first) { e.preventDefault(); dialog.focus(); return; }
+      if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        e.preventDefault(); first.focus();
+      }
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+    document.addEventListener('keydown', handleKey, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleKey, true);
+      if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, []);
 
   const update = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setCurrent((prev) => {
@@ -220,7 +262,8 @@ export function SettingsModal({
     downloadAnchor.click();
     downloadAnchor.remove();
     setCopiedNotification(true);
-    setTimeout(() => setCopiedNotification(false), 2000);
+    if (notificationTimer.current !== null) window.clearTimeout(notificationTimer.current);
+    notificationTimer.current = window.setTimeout(() => setCopiedNotification(false), 2000);
   };
 
   const themeOptions: { id: Theme; name: string; desc: string; preview: string }[] = [
@@ -250,7 +293,7 @@ export function SettingsModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal-card settings-card-window" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div ref={dialogRef} tabIndex={-1} className="modal-card settings-card-window" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         {/* 1. Modal Top Header */}
         <div className="settings-top-header">
           <div className="settings-header-title">
@@ -269,6 +312,7 @@ export function SettingsModal({
             <input
               type="text"
               className="settings-search-input"
+              aria-label="Search settings"
               placeholder="Search settings (e.g. shots, noise, theme, font size, seed, density)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -382,7 +426,7 @@ export function SettingsModal({
 
                   {matchesSearch('ui density compact balanced comfortable wire style shaders glass') && (
                     <SettingCard title="DISPLAY & SHADERS">
-                      <SettingRow
+                      <SettingRow disabled reason="Unavailable in this runtime"
                         title="Workbench UI Density"
                         desc="Adjust padding and height scale across explorer rows, topbar, and tabs."
                         control={
@@ -401,7 +445,7 @@ export function SettingsModal({
                         }
                       />
 
-                      <SettingRow
+                      <SettingRow disabled reason="Unavailable in this runtime"
                         title="Circuit Wire Shader Style"
                         desc="Rendering aesthetic for quantum circuit wires, registers, and gate conduits."
                         control={
@@ -431,7 +475,7 @@ export function SettingsModal({
                         }
                       />
 
-                      <SettingRow
+                      <SettingRow disabled reason="Unavailable in this runtime"
                         title="Live State Pulse Propagation"
                         desc="Real-time wave animations traversing quantum gates and wires during execution."
                         control={
@@ -442,7 +486,7 @@ export function SettingsModal({
                         }
                       />
 
-                      <SettingRow
+                      <SettingRow disabled reason="Unavailable in this runtime"
                         title="Background Auto-Save"
                         desc="Silently persist active circuit buffer changes to storage in background."
                         control={
@@ -468,6 +512,7 @@ export function SettingsModal({
                         <div className="clean-slider-group">
                           <input
                             type="range"
+                            aria-label="Editor font size"
                             min="11"
                             max="18"
                             className="clean-range-slider"
@@ -479,7 +524,7 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title={`Terminal Font Size (${current.terminalFontSize ?? 13}px)`}
                       desc="Font scale utilized across integrated terminal sessions and command consoles."
                       control={
@@ -497,7 +542,7 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Terminal Cursor Blinking"
                       desc="Smooth blinking caret animation inside the active shell console."
                       control={
@@ -612,8 +657,8 @@ export function SettingsModal({
                     />
 
                     <SettingRow
-                      title="Format Circuit Code on Save"
-                      desc="Auto-format indentation and line breaks when saving circuit files."
+                      title="Format Code on Paste"
+                      desc="Ask the editor's language formatter to format pasted code when available."
                       control={
                         <CustomToggle
                           checked={current.formatOnSave ?? true}
@@ -677,6 +722,10 @@ export function SettingsModal({
                       control={
                         <input
                           type="number"
+                          aria-label="Deterministic RNG seed"
+                          min="0"
+                          max="2147483647"
+                          required
                           className="clean-number-input"
                           value={current.defaultSeed}
                           onChange={(e) => update('defaultSeed', Number(e.target.value))}
@@ -684,21 +733,21 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Server controlled"
                       title="Classical Bit Ordering (Endianness)"
-                      desc="Little-Endian (c[n-1]…c[0], Qiskit standard) or Big-Endian (textbook standard)."
+                      desc="Results use little-endian classical indices. Big-endian conversion is unavailable."
                       control={
                         <div className="clean-segmented-control">
                           <button
                             type="button"
-                            className={`seg-btn ${current.endianness === 'little' ? 'active' : ''}`}
+                            className="seg-btn active"
                             onClick={() => update('endianness', 'little')}
                           >
                             LITTLE-ENDIAN
                           </button>
                           <button
                             type="button"
-                            className={`seg-btn ${current.endianness === 'big' ? 'active' : ''}`}
+                            className="seg-btn"
                             onClick={() => update('endianness', 'big')}
                           >
                             BIG-ENDIAN
@@ -709,25 +758,25 @@ export function SettingsModal({
                   </SettingCard>
 
                   <SettingCard title="SAFETY & PRECISION THRESHOLDS">
-                    <SettingRow
-                      title={`Max Qubit Safety Guard (${current.maxQubitsGuard ?? 10} Qubits)`}
-                      desc="Threshold preventing exponential statevector RAM overflow crashes."
+                    <SettingRow disabled reason="Server controlled"
+                      title="Max Qubit Safety Guard (10 Qubits)"
+                      desc="The backend enforces this limit. Browser preferences cannot change it."
                       control={
                         <div className="clean-slider-group">
                           <input
                             type="range"
                             min="4"
-                            max="16"
+                            max="10"
                             className="clean-range-slider"
-                            value={current.maxQubitsGuard ?? 10}
+                            value={10}
                             onChange={(e) => update('maxQubitsGuard', Number(e.target.value))}
                           />
-                          <span className="clean-val-pill">{current.maxQubitsGuard ?? 10} Qubits</span>
+                          <span className="clean-val-pill">10 Qubits</span>
                         </div>
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Zero Amplitude Pruning Threshold"
                       desc="Amplitudes |c_i|² below this cutoff are rendered as exact zeros in HUD."
                       control={
@@ -743,21 +792,21 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Server controlled"
                       title="Numerical Precision Mode"
                       desc="Floating point numerical precision for complex statevector amplitude propagation."
                       control={
                         <div className="clean-segmented-control">
                           <button
                             type="button"
-                            className={`seg-btn ${(current.precisionMode ?? 'fp64') === 'fp64' ? 'active' : ''}`}
+                            className="seg-btn active"
                             onClick={() => update('precisionMode', 'fp64')}
                           >
                             FP64 (DOUBLE)
                           </button>
                           <button
                             type="button"
-                            className={`seg-btn ${current.precisionMode === 'fp32' ? 'active' : ''}`}
+                            className="seg-btn"
                             onClick={() => update('precisionMode', 'fp32')}
                           >
                             FP32 (SINGLE)
@@ -773,7 +822,7 @@ export function SettingsModal({
               {category === 'hardware' && (
                 <div className="settings-group-stack">
                   <SettingCard title="HARDWARE TOPOLOGY & CLOUD PROVIDERS">
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Default Cloud Provider Execution"
                       desc="Primary target ecosystem for cloud execution, transpilation, and hardware routing."
                       control={
@@ -796,7 +845,7 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Fault-Tolerant Error Budget"
                       desc="Allowable logical error probability budget for QDK resource estimation."
                       control={
@@ -812,7 +861,7 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Target Hardware Coupling Architecture"
                       desc="Physical chip topology used for routing and 2-qubit gate coupling checks."
                       control={
@@ -852,6 +901,7 @@ export function SettingsModal({
                             <div className="clean-slider-group">
                               <input
                                 type="range"
+                                aria-label="Depolarizing gate error"
                                 min="0.001"
                                 max="0.10"
                                 step="0.005"
@@ -871,6 +921,7 @@ export function SettingsModal({
                             <div className="clean-slider-group">
                               <input
                                 type="range"
+                                aria-label="Readout measurement error"
                                 min="0.005"
                                 max="0.15"
                                 step="0.005"
@@ -883,7 +934,7 @@ export function SettingsModal({
                           }
                         />
 
-                        <SettingRow
+                        <SettingRow disabled reason="Unavailable in this runtime"
                           title="Thermal Relaxation & Dephasing (T1 / T2)"
                           desc="Simulate energy decay (T1) and dephasing (T2) times on physical qubits."
                           control={
@@ -898,7 +949,7 @@ export function SettingsModal({
                   </SettingCard>
 
                   <SettingCard title="ERROR MITIGATION & SUPPRESSION">
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Readout Error Mitigation Strategy"
                       desc="Post-processing calibration filter applied to measurement histograms."
                       control={
@@ -914,7 +965,7 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Dynamical Decoupling Pulse Sequence"
                       desc="Insert refocusing pi-pulses into idle qubit wires to suppress dephasing noise."
                       control={
@@ -945,6 +996,7 @@ export function SettingsModal({
                         <select
                           className="clean-select"
                           value={current.defaultOptLevel}
+                          aria-label="Transpiler optimization level"
                           onChange={(e) => update('defaultOptLevel', Number(e.target.value))}
                         >
                           <option value={0}>Level 0 — Direct Native Mapping</option>
@@ -955,7 +1007,7 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Qubit Layout & Routing Heuristic"
                       desc="Algorithm used for placing SWAP operations across hardware couplings."
                       control={
@@ -972,7 +1024,7 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Target Hardware Basis Gates"
                       desc="Native physical gate set decomposed into during transpilation."
                       control={
@@ -998,7 +1050,7 @@ export function SettingsModal({
                   </SettingCard>
 
                   <SettingCard title="UNITARY EQUIVALENCE VALIDATION">
-                    <SettingRow
+                    <SettingRow disabled reason="Server controlled"
                       title="Commutation Analysis & Gate Cancellation"
                       desc="Commute compatible rotation gates past control qubits to maximize cancel pairs."
                       control={
@@ -1009,24 +1061,24 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Server controlled"
                       title="Strict Unitary Verification (U† U = I)"
-                      desc="Formally verify operator matrix equivalence of candidate transpiled circuit."
+                      desc="The backend checks supported candidates. Inspect the validation evidence for each run."
                       control={
                         <CustomToggle
-                          checked={current.strictUnitaryCheck ?? true}
+                          checked={true}
                           onChange={(val) => update('strictUnitaryCheck', val)}
                         />
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Server controlled"
                       title="Equivalence Numerical Tolerance"
                       desc="Maximum floating point deviation threshold allowed in operator verification."
                       control={
                         <select
                           className="clean-select"
-                          value={current.equivalenceTolerance}
+                          value="1e-9"
                           onChange={(e) => update('equivalenceTolerance', e.target.value)}
                         >
                           <option value="1e-9">1e-9 (Strict numerical tolerance)</option>
@@ -1043,15 +1095,15 @@ export function SettingsModal({
               {category === 'copilot' && (
                 <div className="settings-group-stack">
                   <SettingCard title="GEMINI COPILOT ENGINE">
-                    <SettingRow
+                    <SettingRow disabled reason="Server controlled"
                       title="Server-Managed Provider"
-                      desc="Credentials and model selection are configured only on the local backend. QORE never stores AI credentials in browser settings."
+                      desc="Credentials and model selection are configured on the backend. QORE never stores AI credentials in browser settings."
                       control={
                         <span className="clean-val-pill">SERVER ONLY</span>
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Server controlled"
                       title={`Copilot Temperature (${current.copilotTemperature ?? 0.2})`}
                       desc="0.0 for mathematically deterministic code; 0.8 for creative quantum algorithms."
                       control={
@@ -1072,7 +1124,7 @@ export function SettingsModal({
                   </SettingCard>
 
                   <SettingCard title="REASONING & SANDBOX SECURITY">
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Auto-Explain Generated Circuits in Chat"
                       desc="Provide step-by-step gate breakdown and unitary metrics with code proposals."
                       control={
@@ -1083,7 +1135,7 @@ export function SettingsModal({
                       }
                     />
 
-                    <SettingRow
+                    <SettingRow disabled reason="Unavailable in this runtime"
                       title="Stream Token Generation Animation"
                       desc="Render words progressively as they are generated by the Gemini engine."
                       control={

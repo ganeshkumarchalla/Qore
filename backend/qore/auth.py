@@ -80,16 +80,20 @@ class AuthSettings:
     publishable_key: str = field(default="", repr=False)
     public_url: str = "http://127.0.0.1:8000"
     require_auth: bool = False
+    service_role_key: str = field(default="", repr=False)
+    enable_google: bool = False
 
     @classmethod
     def from_env(cls) -> "AuthSettings":
         url = _origin(os.environ.get("SUPABASE_URL", ""))
         key = os.environ.get("SUPABASE_PUBLISHABLE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
+        service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
         public = _origin(os.environ.get("QORE_PUBLIC_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "http://127.0.0.1:8000")
         production = bool(os.environ.get("RENDER")) or os.environ.get("QORE_ENV", "").lower() == "production"
         configured = bool(url and key and public and not _privileged_key(key))
         required = production or configured or os.environ.get("QORE_REQUIRE_AUTH", "").lower() in {"1", "true", "yes"}
-        return cls(url, key, public, required)
+        enable_google = os.environ.get("QORE_ENABLE_GOOGLE", "").lower() in {"1", "true", "yes"}
+        return cls(url, key, public, required, service_key, enable_google)
 
     @property
     def configured(self) -> bool:
@@ -117,7 +121,7 @@ class SignInInput(BaseModel):
 
 class SignUpInput(SignInInput):
     name: str = Field(min_length=1, max_length=80)
-    password: str = Field(min_length=12, max_length=128, repr=False)
+    password: str = Field(min_length=8, max_length=128, repr=False)
 
     @field_validator("name")
     @classmethod
@@ -199,6 +203,8 @@ class AuthService:
     async def providers(self) -> dict[str, bool]:
         if not self.settings.configured:
             return {"google_enabled": False, "email_enabled": False}
+        if not self.settings.enable_google:
+            return {"google_enabled": False, "email_enabled": True}
         now = time.monotonic()
         if self._providers and now - self._providers[0] < 30:
             return self._providers[1]
@@ -426,7 +432,7 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
         service.clear_oauth(response)
 
         if error:
-            response.headers["location"] = f"/?auth_error={error}"
+            response.headers["location"] = "/?auth_error=signin_failed"
             return response
 
         # Validate ASCII pattern for state if present
@@ -434,7 +440,7 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
             response.headers["location"] = "/?auth_error=signin_failed"
             return response
 
-        if stored and not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", stored):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", stored):
             response.headers["location"] = "/?auth_error=signin_failed"
             return response
 
@@ -451,7 +457,7 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
             tokens, _user = await service.token_exchange("pkce", {"auth_code": code, "code_verifier": verifier})
             service.set_session(response, tokens)
         except AuthError as err:
-            response.headers["location"] = f"/?auth_error={err.code}"
+            response.headers["location"] = "/?auth_error=signin_failed"
         return response
 
     @router.post("/signin")
@@ -467,6 +473,31 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
     async def signup(payload: SignUpInput, request: Request):
         service.ensure_configured()
         service.rate_limit(request)
+        if service.settings.service_role_key:
+            headers = {"apikey": service.settings.service_role_key,
+                       "Authorization": f"Bearer {service.settings.service_role_key}",
+                       "Content-Type": "application/json"}
+            try:
+                async with httpx.AsyncClient(timeout=8, trust_env=False) as client:
+                    res = await client.post(
+                        f"{service.settings.supabase_url}/auth/v1/admin/users",
+                        headers=headers,
+                        json={"email": payload.email, "password": payload.password,
+                              "email_confirm": True, "user_metadata": {"full_name": payload.name}}
+                    )
+                    if res.status_code == 422:
+                        raise AuthError("signup_failed", "An account with this email address already exists. Sign in instead.", 400)
+                    if res.status_code not in {200, 201}:
+                        raise AuthError("signup_failed", "Account creation could not be completed. Check your details and try again.", 400)
+            except httpx.HTTPError:
+                raise AuthError("auth_provider_unavailable", "The sign-in service is temporarily unavailable.", 503)
+
+            # Auto-login newly registered user
+            tokens, user = await service.token_exchange("password", {"email": payload.email, "password": payload.password})
+            response = JSONResponse({"user": user, "message": "Account created successfully."}, headers={"Cache-Control": "no-store"})
+            service.set_session(response, tokens)
+            return response
+
         status, data = await service.upstream("POST", "/signup", payload={"email": payload.email,
                                            "password": payload.password, "data": {"full_name": payload.name}})
         if status == 429:

@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import Editor from '@monaco-editor/react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Circuit, MetricCards } from './Circuit';
 import { Icon, Logo, type IconName } from './Icons';
 import { CommandPalette, type CommandItem } from './CommandPalette';
 import { SettingsModal, loadStoredSettings, saveStoredSettings } from './SettingsModal';
 import { BlochSphereViewer, GatePalette, QasmViewer, UnitaryMatrixViewer } from './QuantumVisuals';
-import { Forge, Intelligence, Lab, Research, Warnings } from './Panels';
+import { AssistantSidebar, Forge, Lab, Research, Warnings } from './Panels';
 import { Explorer, type WorkspaceFile } from './Explorer';
 import { Terminal } from './Terminal';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -28,7 +27,9 @@ import {
   type Simulation,
 } from './types';
 
-type Tab = 'Studio' | 'Lab' | 'Forge' | 'Research' | 'Intelligence';
+const Editor = lazy(() => import('./QuantumEditor'));
+
+type Tab = 'Studio' | 'Lab' | 'Forge' | 'Research';
 type Modal = { kind: 'new' | 'rename' | 'save' | 'experiment' | 'discard' | 'approve'; action?: () => void };
 
 const tabs: { name: Tab; icon: IconName; label: string; shortLabel: string }[] = [
@@ -36,7 +37,6 @@ const tabs: { name: Tab; icon: IconName; label: string; shortLabel: string }[] =
   { name: 'Lab', icon: 'lab', label: 'Simulation', shortLabel: 'Lab' },
   { name: 'Forge', icon: 'forge', label: 'Optimization', shortLabel: 'Forge' },
   { name: 'Research', icon: 'research', label: 'History', shortLabel: 'Ledger' },
-  { name: 'Intelligence', icon: 'spark', label: 'Assistant', shortLabel: 'Copilot' },
 ];
 
 const blankSource = '# Write your quantum circuit here.\n';
@@ -82,6 +82,7 @@ export default function App() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isHudOpen, setIsHudOpen] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   // The entry screen is a page-load experience, not a permanent preference:
   // every refresh starts with the QORE welcome surface again.
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(true);
@@ -90,13 +91,14 @@ export default function App() {
   const [authRequired, setAuthRequired] = useState(true);
   const ownerRef = useRef<string | null>(null);
   const identityEpoch = useRef(0);
+  const initializationRequest = useRef(0);
   const [inspectorTab, setInspectorTab] = useState<'circuit' | 'bloch' | 'unitary' | 'qasm'>('circuit');
   const [activeDropdown, setActiveDropdown] = useState<'File' | 'Edit' | 'Quantum' | 'View' | 'Terminal' | 'Help' | null>(null);
   const [isRunMenuOpen, setIsRunMenuOpen] = useState(false);
 
-  const [shots, setShots] = useState('1024');
-  const [seed, setSeed] = useState('42');
-  const [level, setLevel] = useState('2');
+  const [shots, setShots] = useState(() => String(settings.defaultShots));
+  const [seed, setSeed] = useState(() => String(settings.defaultSeed));
+  const [level, setLevel] = useState(() => String(settings.defaultOptLevel));
 
   const [busy, setBusy] = useState('Connecting');
   const [error, setError] = useState('');
@@ -171,12 +173,14 @@ export default function App() {
       setParsed(null);
       setSimulation(null);
       setOptimization(null);
+      setIsAssistantOpen(false);
       setTab('Studio');
     }
     setCurrentUser(user);
   }, []);
 
   const initialize = useCallback(async () => {
+    const requestId = ++initializationRequest.current;
     setBusy('Connecting');
     setError('');
     try {
@@ -184,6 +188,7 @@ export default function App() {
         api<Health>('/health'),
         api<{ user: AuthUser | null; required: boolean }>('/auth/session'),
       ]);
+      if (requestId !== initializationRequest.current) return;
       setHealth(nextHealth);
       setAuthRequired(session.required);
       applyIdentity(session.user);
@@ -192,7 +197,7 @@ export default function App() {
         const [nextProjects, nextExperiments] = await Promise.all([
           api<Project[]>('/projects'), api<ExperimentSummary[]>('/experiments'),
         ]);
-        if (epoch === identityEpoch.current) {
+        if (requestId === initializationRequest.current && epoch === identityEpoch.current) {
           setProjects(nextProjects);
           setExperiments(nextExperiments);
         }
@@ -203,14 +208,15 @@ export default function App() {
       // Files are created only through an explicit user action. Existing local
       // files and signed-in projects remain available in Explorer.
     } catch (err) {
-      setError((err as Error).message);
+      if (requestId === initializationRequest.current) setError((err as Error).message);
     } finally {
-      setBusy('');
+      if (requestId === initializationRequest.current) setBusy('');
     }
   }, [applyIdentity]);
 
   useEffect(() => {
     void initialize();
+    return () => { initializationRequest.current += 1; };
   }, [initialize]);
 
   useEffect(() => {
@@ -786,10 +792,10 @@ export default function App() {
     },
     {
       id: 'view-copilot',
-      title: 'View: Open Quantum Copilot (Intelligence)',
+      title: 'View: Toggle Assistant Sidebar',
       category: 'Navigation',
       icon: 'spark',
-      action: () => setTab('Intelligence'),
+      action: () => setIsAssistantOpen(open => !open),
     },
     {
       id: 'view-bloch',
@@ -1254,6 +1260,16 @@ export default function App() {
                   >
                     <span>Research (Experiment Snapshots)</span>
                   </button>
+                  <button
+                    type="button"
+                    className="dropdown-item"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      setIsAssistantOpen(open => !open);
+                    }}
+                  >
+                    <span>{isAssistantOpen ? 'Close' : 'Open'} Assistant Sidebar</span>
+                  </button>
                   <div className="dropdown-divider" />
                   <button
                     type="button"
@@ -1385,7 +1401,7 @@ export default function App() {
                     className="dropdown-item"
                     onClick={() => {
                       setActiveDropdown(null);
-                      setNotice('QORE Studio — circuit editing, bounded local simulation, validated optimization, and private experiment records.');
+                      window.open('/about.html', '_blank', 'noopener,noreferrer');
                     }}
                   >
                     <span>About QORE Quantum Studio</span>
@@ -1518,6 +1534,19 @@ export default function App() {
           <div className="topbar-util-actions">
             <button
               type="button"
+              id="qore-assistant-toggle"
+              className={`topbar-util-btn qore-assistant-toggle ${isAssistantOpen ? 'active' : ''}`}
+              onClick={() => setIsAssistantOpen(open => !open)}
+              aria-label={isAssistantOpen ? 'Close assistant sidebar' : 'Open assistant sidebar'}
+              aria-expanded={isAssistantOpen}
+              aria-controls="qore-assistant-sidebar"
+              title="Toggle assistant sidebar"
+            >
+              <Icon name="spark" size={15} />
+              <span>Assistant</span>
+            </button>
+            <button
+              type="button"
               className={`topbar-util-btn ${isTerminalOpen ? 'active' : ''}`}
               onClick={() => setIsTerminalOpen(!isTerminalOpen)}
               title="Toggle Integrated Quantum Terminal (Ctrl+`)"
@@ -1532,7 +1561,7 @@ export default function App() {
       {busy && <div className="quantum-ambient-gradient-bar" />}
 
       {/* Workspace Row (Activity Bar + Explorer placed down below the upper bar) */}
-      <div className="workbench-workspace-row">
+      <div className={`workbench-workspace-row ${isAssistantOpen ? 'qore-assistant-open' : ''}`}>
         {/* 1. Activity Bar */}
         <aside className="activity-bar" aria-label="Activity Bar">
           <div className="activity-top">
@@ -1556,7 +1585,6 @@ export default function App() {
                 aria-label={item.label}
               >
                 <Icon name={item.icon} size={20} />
-                {item.name === 'Intelligence' && <span className="activity-badge">AI</span>}
               </button>
             ))}
           </div>
@@ -1790,6 +1818,7 @@ export default function App() {
 
                 <div className="pane-content editor-wrapper">
                   <ErrorBoundary label="Source editor" className="fill-fallback">
+                    <Suspense fallback={<div className="editor-loading"><span className="spinner" /> Loading editor…</div>}>
                     <Editor
                     height="100%"
                     language={activeFileId.endsWith('.md') ? 'markdown' : activeFileId.endsWith('.json') ? 'json' : activeFileId.endsWith('.qasm') ? 'c' : 'python'}
@@ -1802,7 +1831,7 @@ export default function App() {
                       minimap: { enabled: settings.minimap },
                       fontSize: settings.fontSize,
                       lineHeight: Math.round(settings.fontSize * 1.6),
-                      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                      fontFamily: settings.fontFamily,
                       autoClosingBrackets: (settings.autoCloseBrackets ?? true) ? 'always' : 'never',
                       autoClosingQuotes: (settings.autoCloseBrackets ?? true) ? 'always' : 'never',
                       formatOnPaste: settings.formatOnSave ?? true,
@@ -1811,8 +1840,8 @@ export default function App() {
                       automaticLayout: true,
                       tabSize: settings.tabSize,
                       wordWrap: settings.wordWrap ? 'on' : 'off',
-                      lineNumbers: settings.lineNumbers as any,
-                      cursorStyle: settings.cursorStyle as any,
+                      lineNumbers: settings.lineNumbers,
+                      cursorStyle: settings.cursorStyle,
                       cursorBlinking: 'smooth',
                       cursorSmoothCaretAnimation: 'on',
                       smoothScrolling: true,
@@ -1825,6 +1854,7 @@ export default function App() {
                       lineNumbersMinChars: 3,
                     }}
                     />
+                    </Suspense>
                   </ErrorBoundary>
                 </div>
                 <div className="pane-statusbar">
@@ -1967,15 +1997,6 @@ export default function App() {
               busy={!!busy}
             />
           )}
-          {tab === 'Intelligence' && (
-            <Intelligence
-              key={`${source.length}-${parsed?.source_hash ?? 'unparsed'}-${simulation?.id ?? ''}-${optimization?.id ?? ''}`}
-              source={source}
-              simulation={simulation}
-              optimization={optimization}
-              health={health}
-            />
-          )}
         </div>
 
         {/* 4. Integrated Animated Quantum Terminal Dock */}
@@ -2003,6 +2024,18 @@ export default function App() {
           />
         </ErrorBoundary>
       </main>
+      <AssistantSidebar
+        key={`assistant-${currentUser?.id ?? 'local'}`}
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
+        source={source}
+        simulation={simulation}
+        optimization={optimization}
+        health={health}
+        fileName={activeFileId || (source ? name : '')}
+        historical={!!historical}
+        contextId={historical?.id ?? activeFileId}
+      />
     </div>
 
     {/* 4. Studio Telemetry Status Bar (Bottom 24px) - Cleaned to show only essential info */}
@@ -2069,6 +2102,9 @@ export default function App() {
           settings={settings}
           onSave={(updated) => {
             setSettings(updated);
+            setShots(String(updated.defaultShots));
+            setSeed(String(updated.defaultSeed));
+            setLevel(String(updated.defaultOptLevel));
             saveStoredSettings(updated);
             setNotice('Settings saved.');
           }}

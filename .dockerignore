@@ -1,6 +1,7 @@
 .git
 .venv
 .tmp
+supabase/.temp
 node_modules
 frontend/node_modules
 data

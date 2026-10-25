@@ -68,4 +68,14 @@ Build the frontend with `pnpm install --frozen-lockfile` and `pnpm build` inside
 
 Use a paid host with enough memory for Qiskit workloads and configure platform monitoring, database backups, and recovery before opening the service broadly. QORE limits each process to two concurrent quantum jobs, imposes per-account job budgets and per-IP authentication budgets, caps request/source sizes, and times out workers. Budgets are currently process-local; multiple replicas require a shared rate limiter and global worker queue. Benchmark the intended concurrency and memory budget before scaling.
 
+Optional AI requests have a separate limit of ten requests per account per minute and two concurrent provider calls per process, with bounded waiting and a provider timeout. These budgets protect the shared provider integration; they are not a replacement for provider-side spending limits.
+
 Operator equivalence is checked up to six qubits, within the documented tolerance and terminal measurement mapping. Larger cases report the actual validation scope. Noise models are simulator models; Bloch vectors and ideal amplitudes are mathematical evidence, not device tomography. Optional cloud SDK packages do not constitute hardware access or a promise that every external SDK program can run in the bounded editor.
+
+## Public pages and search
+
+`/about.html` provides public, static product information with a canonical URL, descriptive metadata, and structured application data. `robots.txt` and `sitemap.xml` identify the public page. The workspace HTML uses `noindex`; API responses send `X-Robots-Tag: noindex, nofollow, noarchive` and private APIs still require authentication. Search directives are not access controls.
+
+If the production domain changes, update the canonical/Open Graph/structured-data URLs in `frontend/public/about.html` and the URLs in `robots.txt` and `sitemap.xml`, then rebuild. Search Console ownership verification and sitemap submission require the site owner's Google account; metadata alone does not prove indexing or rankings. See [Google's indexing controls](https://developers.google.com/search/docs/crawling-indexing/block-indexing) and [sitemap guidance](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap).
+
+Never embed credentials in the Dockerfile, committed build files, or CI configuration. Enter the publishable key directly in the host environment. If a privileged key has been exposed, rotate/revoke it in the provider dashboard; deleting it from the current file alone does not revoke it. Review history before sharing changes and avoid rewriting shared Git history without coordinating with collaborators.

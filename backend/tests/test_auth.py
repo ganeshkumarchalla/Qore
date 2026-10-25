@@ -18,7 +18,7 @@ from qore.auth import (
 
 USER_ID = "c7f73659-f339-4cb5-9b31-3fb384279718"
 USER = {"id": USER_ID, "email": "member@example.test", "user_metadata": {"full_name": "Qore Member"}}
-SETTINGS = AuthSettings("https://identity.example.test", "publishable-test-value", "https://qore.example.test", True)
+SETTINGS = AuthSettings("https://identity.example.test", "publishable-test-value", "https://qore.example.test", True, enable_google=True)
 TOKENS = {"access_token": "test-access-verified", "refresh_token": "test-refresh-verified", "expires_in": 3600}
 
 
@@ -187,6 +187,32 @@ def test_pkce_callback_exchanges_only_with_the_bound_server_verifier():
         assert calls == [("pkce", {"auth_code": "one-use-code", "code_verifier": verifier})]
         assert client.get("/api/private").json()["owner_id"] == USER_ID
         assert STATE_COOKIE not in client.cookies and VERIFIER_COOKIE not in client.cookies
+
+
+def test_query_stripped_callback_still_requires_browser_bound_oauth_cookies():
+    app, _service = auth_app(normal_provider)
+    with TestClient(app, base_url="https://qore.example.test", follow_redirects=False) as client:
+        client.get("/api/auth/google")
+        # The provider may omit the redirect query. PKCE and the initiation
+        # cookie still bind this response to this same browser's login attempt.
+        response = client.get("/api/auth/callback", params={"code": "one-use-code"})
+        assert response.headers["location"] == "/"
+        assert client.get("/api/private").json()["owner_id"] == USER_ID
+
+
+def test_callback_rejects_missing_initiation_cookie_and_hides_provider_error():
+    calls = []
+    def provider(request):
+        calls.append(request.url.path)
+        return normal_provider(request)
+    app, _service = auth_app(provider)
+    with TestClient(app, base_url="https://qore.example.test", follow_redirects=False) as client:
+        client.cookies.set(VERIFIER_COOKIE, "v" * 64)
+        response = client.get("/api/auth/callback", params={"code": "one-use-code"})
+        assert response.headers["location"] == "/?auth_error=signin_failed"
+        assert calls == []
+        response = client.get("/api/auth/callback", params={"error": "provider-internal-detail"})
+        assert response.headers["location"] == "/?auth_error=signin_failed"
 
 
 def test_expired_access_token_is_refreshed_and_cookies_rotated():
