@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icons';
 import type { Settings, Theme } from './types';
-import type { AuthUser } from './AuthModal';
 
 export const defaultSettings: Settings = {
   theme: 'obsidian-void',

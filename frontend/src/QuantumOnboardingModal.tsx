@@ -79,26 +79,26 @@ export function QuantumOnboardingModal({ isOpen, userName, onComplete }: Quantum
     return () => window.clearInterval(interval);
   }, [isOpen, phase]);
 
-  // 2. Slow Typewriter for Bold "Welcome to Quantum World" in Brighter Theme Phase
+  // 2. Slow Typewriter for Bold "Welcome to the World Of Qiskit & Quantum" in Brighter Theme Phase
   useEffect(() => {
     if (!isOpen || phase !== 'bright-welcome') return;
     setTypedWelcome('');
-    const welcomeTarget = 'Welcome to Quantum World';
+    const welcomeTarget = 'Welcome to the World Of Qiskit & Quantum';
     let index = 0;
     const interval = window.setInterval(() => {
       index++;
       setTypedWelcome(welcomeTarget.slice(0, index));
       if (index >= welcomeTarget.length) {
         window.clearInterval(interval);
-        // Linger smoothly, then transition out
+        // Linger much longer, then transition out slowly
         window.setTimeout(() => {
           setPhase('fading-out');
           window.setTimeout(() => {
             onCompleteRef.current();
-          }, 1100);
-        }, 1800);
+          }, 1800); // slower fade-out
+        }, 3200); // longer linger before fading
       }
-    }, 60); // Slow, deliberate, impactful typewriter
+    }, 90); // slower, more deliberate typewriter
 
     return () => window.clearInterval(interval);
   }, [isOpen, phase]);
@@ -155,7 +155,7 @@ export function QuantumOnboardingModal({ isOpen, userName, onComplete }: Quantum
               Welcome, <span className="quantum-gradient-text">{userName || 'Explorer'}</span>
             </h1>
             <p className="onboarding-subtitle">
-              Your quantum credentials are authenticated. Let&apos;s calibrate your quantum intuition before entering the studio.
+              Welcome to QORE Quantum Studio. Let&apos;s calibrate your quantum intuition before entering the workbench.
             </p>
           </div>
 

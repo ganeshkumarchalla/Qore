@@ -586,9 +586,13 @@ interface AssistantContext {
   health: Health | null;
   fileName?: string;
   historical?: boolean;
+  view: 'Studio' | 'Lab' | 'Forge' | 'Research';
+  workspaceSummary: string;
+  diagnostics: string;
+  onAction: (action: 'studio' | 'lab' | 'forge' | 'research' | 'simulate' | 'optimize' | 'terminal' | 'explorer' | 'settings' | 'new-file') => void;
 }
 
-export function Intelligence({ source, simulation, optimization, health, fileName, historical }: AssistantContext) {
+export function Intelligence({ source, simulation, optimization, health, fileName, historical, view, workspaceSummary, diagnostics, onAction }: AssistantContext) {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [pending, setPending] = useState(false);
@@ -596,16 +600,32 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
   const [model, setModel] = useState('');
   const [available, setAvailable] = useState<boolean | null>(null);
   const generation = useRef(0);
-  const ready = Boolean(health?.ai_available && source.trim());
+  const ready = Boolean(health?.ai_available);
 
   useEffect(() => {
     generation.current += 1;
     setAnswer(''); setError(''); setModel(''); setAvailable(null); setPending(false);
     return () => { generation.current += 1; };
-  }, [source, simulation?.id, optimization?.id]);
+  }, [fileName, simulation?.id, optimization?.id, view]);
+
+  const commands: Record<string, Parameters<typeof onAction>[0]> = {
+    'open studio': 'studio', 'open lab': 'lab', 'open forge': 'forge', 'open ledger': 'research',
+    'run simulation': 'simulate', 'optimize circuit': 'optimize', 'open terminal': 'terminal',
+    'open explorer': 'explorer', 'open settings': 'settings', 'create blank file': 'new-file',
+  };
 
   async function ask(text = question) {
-    if (!text.trim() || pending || !ready) return;
+    const normalized = text.trim().toLowerCase();
+    if (!normalized || pending) return;
+    if (commands[normalized]) {
+      onAction(commands[normalized]);
+      setQuestion(text);
+      setAnswer(`Done — ${normalized}.`);
+      setAvailable(true);
+      setModel('QI command');
+      return;
+    }
+    if (!ready) return;
     const requestGeneration = generation.current;
     setQuestion(text);
     setPending(true); setError(''); setAnswer('');
@@ -615,6 +635,10 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         source,
         simulation_id: simulation?.id,
         optimization_id: optimization?.id,
+        view,
+        file_name: fileName ?? '',
+        workspace_summary: workspaceSummary,
+        diagnostics,
       });
       if (generation.current !== requestGeneration) return;
       setAnswer(data.answer);
@@ -628,9 +652,9 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
   }
 
   const prompts = [
-    { text: 'Explain this circuit', question: 'Explain this quantum circuit', enabled: true },
+    { text: 'Guide this view', question: 'Explain this QORE view and the most useful next action', enabled: true },
+    { text: 'Explain this circuit', question: 'Explain this quantum circuit', enabled: Boolean(source.trim()) },
     { text: 'Interpret the results', question: 'Interpret measurement probabilities', enabled: Boolean(simulation) },
-    { text: 'Review the optimization', question: 'Explain compiler optimization differences', enabled: Boolean(optimization) },
   ];
 
   return <div className="intelligence-layout">
@@ -639,12 +663,20 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         <span className={'pill ' + (health?.ai_available ? 'success' : '')}>
           <span className="dot" />{health ? health.ai_available ? 'Assistant available' : 'Assistant unavailable' : 'Checking availability'}
         </span>
-        <span className="qore-assistant-readonly"><Icon name="code" size={12} />Read-only</span>
+        <span className="qore-assistant-readonly"><Icon name="code" size={12} />Backend connected</span>
       </div>
-      <p className="help">Explore your circuit and understand its results while keeping your workspace in view. The assistant can explain context; it cannot edit or run your code.</p>
+      <p className="help">Ask about any QORE workspace, quantum result, diagnostic, or workflow. Use the stacked controls for explicit actions.</p>
       <div className="qore-assistant-context">
         <div><Icon name={historical ? 'clock' : 'file'} size={14} /><strong>{fileName || 'No circuit open'}</strong></div>
-        <span>{historical ? 'Historical snapshot · read-only source' : source.trim() ? 'Active editor · ' + source.split('\n').length + ' lines' : 'Open or create a circuit to begin.'}</span>
+        <span>{view} · {historical ? 'Historical snapshot' : source.trim() ? source.split('\n').length + ' editor lines' : 'No circuit required'}</span>
+      </div>
+      <div className="qore-assistant-command-stack" aria-label="QI workspace actions">
+        <button type="button" onClick={() => onAction('studio')}>Studio</button>
+        <button type="button" onClick={() => onAction('lab')}>Lab</button>
+        <button type="button" onClick={() => onAction('forge')}>Forge</button>
+        <button type="button" onClick={() => onAction('research')}>Ledger</button>
+        <button type="button" onClick={() => onAction('terminal')}>Terminal</button>
+        <button type="button" onClick={() => onAction('new-file')}>New file</button>
       </div>
       <div className="context-chips">
         <span><Icon name="lab" size={13} />{simulation ? simulation.shots.toLocaleString() + ' shots' : 'No simulation'}</span>
@@ -658,10 +690,10 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         </button>)}
       </div>
       <form onSubmit={event => { event.preventDefault(); void ask(); }}>
-        <label htmlFor="assistant-question">Ask about your circuit</label>
+        <label htmlFor="assistant-question">Ask QI Assistant</label>
         <textarea id="assistant-question" value={question} maxLength={4000}
           onChange={event => setQuestion(event.target.value)} rows={4} disabled={pending || !ready}
-          placeholder={source.trim() ? 'What does each operation do, and how should I interpret the output?' : 'Open a circuit to ask a question…'}
+          placeholder={source.trim() ? 'Explain this workspace, result, or next step…' : 'Ask about QORE, or type “open lab”…'}
           aria-describedby="qore-assistant-review" />
         <div className="assistant-action">
           <span id="qore-assistant-review" className="tiny muted">Review explanations against your measured results.</span>
@@ -671,7 +703,7 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
           </button>
         </div>
       </form>
-      {pending && <p className="help" role="status">Reading the attached circuit context…</p>}
+      {pending && <p className="help" role="status">Reading the active QORE context…</p>}
       {error && <div className="error-box" role="alert">{error}</div>}
       {answer && <div className="assistant-answer" role="status">
         <div className="section-head"><Icon name="spark" size={15} /><h3>{available ? 'Assistant response' : 'Service notice'}</h3></div>
@@ -679,14 +711,13 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         <p className="preserve-lines">{answer}</p>
       </div>}
     </section>
-    <p className="qore-assistant-footnote"><Icon name="info" size={13} />Only the active circuit and attached run context accompany your question.</p>
+    <p className="qore-assistant-footnote"><Icon name="info" size={13} />QI receives the active view, workspace summary, diagnostics, and attached evidence—never the server API key.</p>
   </div>;
 }
 
-export function AssistantSidebar({ isOpen, onClose, contextId, ...context }: AssistantContext & {
+export function AssistantSidebar({ isOpen, onClose, ...context }: AssistantContext & {
   isOpen: boolean;
   onClose: () => void;
-  contextId: string;
 }) {
   const [overlay, setOverlay] = useState(() => window.matchMedia('(max-width: 1100px)').matches);
   const panel = useRef<HTMLElement>(null);
@@ -739,13 +770,13 @@ export function AssistantSidebar({ isOpen, onClose, contextId, ...context }: Ass
       role={overlay ? 'dialog' : 'complementary'} aria-modal={overlay || undefined} aria-labelledby="qore-assistant-title">
       <header className="qore-assistant-header">
         <div className="qore-assistant-heading"><span className="qore-assistant-symbol"><Icon name="spark" size={18} /></span>
-          <div><span>QORE INTELLIGENCE</span><h2 id="qore-assistant-title">Assistant</h2></div>
+          <div><span>QUANTUM INTELLIGENCE</span><h2 id="qore-assistant-title">QI Assistant</h2></div>
         </div>
         <button type="button" className="qore-assistant-close topbar-util-btn" aria-label="Close assistant sidebar" title="Close assistant (Escape)" onClick={onClose}><Icon name="close" size={14} /></button>
       </header>
       <div className="qore-assistant-scroll">
-        <ErrorBoundary label="QORE assistant" key={contextId}>
-          <Intelligence key={contextId} {...context} />
+        <ErrorBoundary label="QI Assistant">
+          <Intelligence {...context} />
         </ErrorBoundary>
       </div>
     </aside>

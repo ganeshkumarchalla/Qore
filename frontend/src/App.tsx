@@ -14,11 +14,9 @@ import { addBlankFile, addStarterFile, flushWorkspaceChanges, getActiveWorkspace
   initializeWorkspace, keepWorkspaceDraftAsCopy, loadWorkspaceFiles, newWorkspaceId, retryWorkspaceSync, saveWorkspaceFiles,
   setActiveWorkspaceFile, setWorkspaceOwner, undoWorkspaceDeletion, updateWorkspaceBuffer, WORKSPACE_CHANGED_EVENT } from './workspace';
 import { TrashPanel } from './TrashPanel';
-import type { AuthUser } from './AuthModal';
 import { QuantumOnboardingModal } from './QuantumOnboardingModal';
 import {
   api,
-  invalidateApiRequests,
   formatDate,
   readable,
   type Experiment,
@@ -106,10 +104,7 @@ export default function App() {
       return false;
     }
   });
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [onboardingState, setOnboardingState] = useState<{ name: string } | null>(null);
-  const [authRequired, setAuthRequired] = useState(false);
-  const ownerRef = useRef<string | null>(null);
   const identityEpoch = useRef(0);
   const initializationRequest = useRef(0);
   const [inspectorTab, setInspectorTab] = useState<'circuit' | 'bloch' | 'unitary' | 'qasm'>('circuit');
@@ -149,12 +144,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const owner = currentUser?.id ?? 'guest';
-    if (!workspaceStatus.ready || workspaceStatus.owner !== (currentUser?.id ?? null) || restoredOwner.current === owner) return;
+    const owner = 'local';
+    if (!workspaceStatus.ready || workspaceStatus.owner !== null || restoredOwner.current === owner) return;
     restoredOwner.current = owner;
     const file = getActiveWorkspaceFile();
     if (file && !activeFileId && !sourceRef.current) void loadSource(file.source, file.name, null, file.id);
-  }, [currentUser?.id, workspaceStatus.ready, workspaceStatus.owner]);
+  }, [workspaceStatus.ready, workspaceStatus.owner]);
 
   useEffect(() => {
     const file = loadWorkspaceFiles().find(item => item.id === activeFileId);
@@ -197,50 +192,16 @@ export default function App() {
     };
   }, []);
 
-  const applyIdentity = useCallback((user: AuthUser | null) => {
-    const owner = user?.id ?? null;
-    if (ownerRef.current !== owner) {
-      identityEpoch.current += 1;
-      invalidateApiRequests();
-      ownerRef.current = owner;
-      setWorkspaceOwner(owner);
-      restoredOwner.current = null;
-      setIsTrashOpen(false);
-      setSource('');
-      sourceRef.current = '';
-      setActiveFileId('');
-      setName('Untitled project');
-      setBaseline('');
-      setBaselineName('Untitled project');
-      setProjectId(null);
-      setProjects([]);
-      setExperiments([]);
-      setHistorical(null);
-      setSelectedExperiment(null);
-      setModal(null);
-      setParsed(null);
-      setSimulation(null);
-      setOptimization(null);
-      setIsAssistantOpen(false);
-      setTab('Studio');
-    }
-    setCurrentUser(user);
-  }, []);
-
   const initialize = useCallback(async () => {
     const requestId = ++initializationRequest.current;
     setBusy('Connecting');
     setError('');
     try {
-      const [nextHealth, session] = await Promise.all([
-        api<Health>('/health'),
-        api<{ user: AuthUser | null; required: boolean }>('/auth/session'),
-      ]);
+      const nextHealth = await api<Health>('/health');
       if (requestId !== initializationRequest.current) return;
       setHealth(nextHealth);
-      setAuthRequired(session.required);
-      applyIdentity(session.user);
-      await initializeWorkspace(session.user?.id ?? null);
+      setWorkspaceOwner(null);
+      await initializeWorkspace(null);
       if (requestId !== initializationRequest.current) return;
       const epoch = identityEpoch.current;
       const [nextProjects, nextExperiments] = await Promise.all([
@@ -270,20 +231,12 @@ export default function App() {
     } finally {
       if (requestId === initializationRequest.current) setBusy('');
     }
-  }, [applyIdentity]);
+  }, []);
 
   useEffect(() => {
     void initialize();
     return () => { initializationRequest.current += 1; };
   }, [initialize]);
-
-  useEffect(() => {
-    const expired = () => {
-      applyIdentity(null);
-    };
-    window.addEventListener('qore:session-expired', expired);
-    return () => window.removeEventListener('qore:session-expired', expired);
-  }, [applyIdentity]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'obsidian-void');
@@ -374,7 +327,7 @@ export default function App() {
     setError('');
 
     // Only invoke quantum compiler parser on Python quantum circuit code
-    if ((!authRequired || currentUser) && (nextSource.includes('QuantumCircuit') || nextSource.trimStart().startsWith('OPENQASM')) && !nextName.endsWith('.md') && !nextName.endsWith('.json') && !nextName.endsWith('.txt')) {
+    if ((nextSource.includes('QuantumCircuit') || nextSource.trimStart().startsWith('OPENQASM')) && !nextName.endsWith('.md') && !nextName.endsWith('.json') && !nextName.endsWith('.txt')) {
       setBusy('Parsing');
       try {
         const result = await api<Parsed>('/parse', { source: nextSource });
@@ -599,7 +552,7 @@ export default function App() {
           saveWorkspaceFiles(files.map((file) => file.id === activeFileId ? { ...file, source } : file));
           const confirmed = await flushWorkspaceChanges();
           if (confirmed) { setBaseline(source); setBaselineName(name); }
-          setNotice(currentUser ? confirmed ? 'File saved to your account.' : 'Draft retained on this device. Cloud save is pending; use Retry when connected.' : 'Draft retained in this browser. Sign in to keep files in your account.');
+          setNotice(confirmed ? 'File saved in this browser workspace.' : 'Draft retained in this browser.');
         } catch (error) {
           setError(error instanceof Error ? error.message : 'The file could not be saved. Your editor contents are unchanged.');
         }
@@ -607,7 +560,7 @@ export default function App() {
       }
     }
     if (!projectId) {
-      if (!currentUser) {
+      {
         try {
           const rawName = name.trim() || 'untitled';
           const isQasm = source.trim().startsWith('OPENQASM') || source.includes('qreg ') || rawName.endsWith('.qasm');
@@ -710,7 +663,7 @@ export default function App() {
         await loadSource(project.source, project.name, project.id);
         setNotice('Project created.');
       } else {
-        if (!currentUser && modal.kind === 'save') {
+        if (modal.kind === 'save') {
           const rawName = modalName.trim();
           const isQasm = source.trim().startsWith('OPENQASM') || source.includes('qreg ') || rawName.endsWith('.qasm');
           const fileName = rawName.includes('.') ? rawName : (isQasm ? `${rawName}.qasm` : `${rawName}.py`);
@@ -1677,7 +1630,7 @@ export default function App() {
 
         {/* 2. Advanced VS Code Workspace File Explorer */}
         <Explorer
-          key={currentUser?.id ?? 'local'}
+          key="local"
           sidebarOpen={sidebar}
           activeFileId={activeFileId}
           onOpenFile={handleOpenFile}
@@ -1708,11 +1661,10 @@ export default function App() {
         <main className="vscode-main">
         {(loadWorkspaceFiles().some(file => file.id === activeFileId) || workspaceStatus.error || workspaceStatus.pending > 0) && <div className={`qore-workspace-save ${workspaceStatus.error ? 'has-error' : ''}`} role="status">
           <Icon name={workspaceStatus.error ? 'info' : workspaceStatus.saving ? 'refresh' : 'save'} size={13} />
-          <span>{!currentUser ? 'Local draft · sign in for account storage' : !workspaceStatus.ready ? 'Cloud workspace unavailable · drafts preserved on this device'
-            : workspaceStatus.error ? workspaceStatus.error : workspaceStatus.saving ? 'Saving to your account…' : workspaceStatus.pending ? 'Save pending · recovery copy on this device' : 'Saved to your account'}</span>
-          {currentUser && (workspaceStatus.error || !workspaceStatus.ready) && <button type="button" disabled={workspaceStatus.saving}
-            onClick={() => void retryWorkspaceSync().catch(() => undefined)}>Retry sync</button>}
-          {currentUser && loadWorkspaceFiles().find(file => file.id === activeFileId)?.syncState === 'conflict' && <button type="button" disabled={workspaceAction}
+          <span>{workspaceStatus.error ? workspaceStatus.error : workspaceStatus.saving ? 'Saving in this browser…' : workspaceStatus.pending ? 'Save pending · recovery copy retained' : 'Saved in this browser workspace'}</span>
+          {(workspaceStatus.error || !workspaceStatus.ready) && <button type="button" disabled={workspaceStatus.saving}
+            onClick={() => void retryWorkspaceSync().catch(() => undefined)}>Retry save</button>}
+          {loadWorkspaceFiles().find(file => file.id === activeFileId)?.syncState === 'conflict' && <button type="button" disabled={workspaceAction}
             onClick={() => {
               const epoch = identityEpoch.current;
               setWorkspaceAction(true);
@@ -2071,7 +2023,7 @@ export default function App() {
         {/* 4. Integrated Animated Quantum Terminal Dock */}
         <ErrorBoundary label="Quantum terminal">
           <Terminal
-        key={currentUser?.id ?? 'local'}
+        key="local"
           isOpen={isTerminalOpen}
           onClose={() => setIsTerminalOpen(false)}
           onRunSimulation={() => void execute('simulate')}
@@ -2094,7 +2046,6 @@ export default function App() {
         </ErrorBoundary>
       </main>
       <AssistantSidebar
-        key={`assistant-${currentUser?.id ?? 'local'}`}
         isOpen={isAssistantOpen}
         onClose={() => setIsAssistantOpen(false)}
         source={source}
@@ -2103,7 +2054,21 @@ export default function App() {
         health={health}
         fileName={activeFileId || (source ? name : '')}
         historical={!!historical}
-        contextId={historical?.id ?? activeFileId}
+        view={tab}
+        workspaceSummary={`${loadWorkspaceFiles().filter(file => file.type === 'file').length} files; ${projects.length} projects; ${experiments.length} ledger records`}
+        diagnostics={error || (parsed?.warnings ?? []).join('\n')}
+        onAction={(action) => {
+          if (action === 'studio') setTab('Studio');
+          if (action === 'lab') setTab('Lab');
+          if (action === 'forge') setTab('Forge');
+          if (action === 'research') setTab('Research');
+          if (action === 'simulate') void execute('simulate');
+          if (action === 'optimize') void execute('optimize');
+          if (action === 'terminal') setIsTerminalOpen(true);
+          if (action === 'explorer') setSidebar(true);
+          if (action === 'settings') setIsSettingsOpen(true);
+          if (action === 'new-file') void startWorkspace('blank');
+        }}
       />
     </div>
 

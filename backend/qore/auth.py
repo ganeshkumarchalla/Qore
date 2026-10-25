@@ -443,13 +443,17 @@ class SessionMiddleware:
                 except AuthError as error:
                     return await auth_error_response(error)(scope, receive, send)
                 if not resolved.user and self.service.settings.require_auth:
-                    response = auth_error_response(AuthError("authentication_required", "Sign in to access your personal workspace."))
+                    response = auth_error_response(AuthError("authentication_required", "Authentication is optional."))
                     if resolved.invalid:
                         self.service.clear_session(response)
                     return await response(scope, receive, send)
                 if resolved.user:
                     identity = {"owner_id": resolved.user["id"], "user": resolved.user,
                                 "access_token": resolved.access_token}
+                    current_identity.set(identity)
+                    scope["state"].update(identity)
+                else:
+                    identity = {"owner_id": "local", "user": None, "access_token": None}
                     current_identity.set(identity)
                     scope["state"].update(identity)
             async def session_send(message):
