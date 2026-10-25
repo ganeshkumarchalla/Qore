@@ -210,7 +210,7 @@ def create_app(db_path=None):
 
     def store():
         identity = current_identity.get() or {}
-        if application.state.storage_mode == "supabase":
+        if application.state.storage_mode == "supabase" and identity.get("access_token") and identity.get("owner_id"):
             if not auth_service.settings.configured:
                 raise JobError("storage_unavailable", "Private workspace storage is not configured.", status=503)
             return CloudStore(auth_service.settings.supabase_url, auth_service.settings.publishable_key,

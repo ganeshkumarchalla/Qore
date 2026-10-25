@@ -135,7 +135,8 @@ class AuthSettings:
         public = _origin(os.environ.get("QORE_PUBLIC_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "http://127.0.0.1:8000")
         production = bool(os.environ.get("RENDER")) or os.environ.get("QORE_ENV", "").lower() == "production"
         configured = bool(url and key and public and not _privileged_key(key))
-        required = production or configured or os.environ.get("QORE_REQUIRE_AUTH", "").lower() in {"1", "true", "yes"}
+        # Auth requirement removed: QORE Studio is open to all visitors without login.
+        required = os.environ.get("QORE_REQUIRE_AUTH", "").lower() in {"1", "true", "yes"}
         return cls(url, key, public, required, service_key)
 
     @property

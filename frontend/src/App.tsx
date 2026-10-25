@@ -14,8 +14,7 @@ import { addBlankFile, addStarterFile, flushWorkspaceChanges, getActiveWorkspace
   initializeWorkspace, keepWorkspaceDraftAsCopy, loadWorkspaceFiles, newWorkspaceId, retryWorkspaceSync, saveWorkspaceFiles,
   setActiveWorkspaceFile, setWorkspaceOwner, undoWorkspaceDeletion, updateWorkspaceBuffer, WORKSPACE_CHANGED_EVENT } from './workspace';
 import { TrashPanel } from './TrashPanel';
-import { AuthModal, type AuthUser, loadStoredUser } from './AuthModal';
-import { AuthSuccessBanner } from './AuthSuccessBanner';
+import type { AuthUser } from './AuthModal';
 import { QuantumOnboardingModal } from './QuantumOnboardingModal';
 import {
   api,
@@ -92,14 +91,24 @@ export default function App() {
   const [workspaceStatus, setWorkspaceStatus] = useState(getWorkspaceStatus);
   const [workspaceAction, setWorkspaceAction] = useState(false);
   const restoredOwner = useRef<string | null>(null);
-  // The entry screen is a page-load experience, not a permanent preference:
-  // every refresh starts with the QORE welcome surface again.
-  const [isWelcomeOpen, setIsWelcomeOpen] = useState(true);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(loadStoredUser);
-  const [authSuccessState, setAuthSuccessState] = useState<{ user: AuthUser; isNewUser: boolean } | null>(null);
+  // First-time visitor tracking: Welcome screen and Getting Started appear only on first visit
+  const [hasStarted, setHasStarted] = useState(() => {
+    try {
+      return localStorage.getItem('qore_started') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(() => {
+    try {
+      return localStorage.getItem('qore_started') !== 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [onboardingState, setOnboardingState] = useState<{ name: string } | null>(null);
-  const [authRequired, setAuthRequired] = useState(true);
+  const [authRequired, setAuthRequired] = useState(false);
   const ownerRef = useRef<string | null>(null);
   const identityEpoch = useRef(0);
   const initializationRequest = useRef(0);
@@ -234,20 +243,28 @@ export default function App() {
       await initializeWorkspace(session.user?.id ?? null);
       if (requestId !== initializationRequest.current) return;
       const epoch = identityEpoch.current;
-      if (session.user || !session.required) {
-        const [nextProjects, nextExperiments] = await Promise.all([
-          api<Project[]>('/projects'), api<ExperimentSummary[]>('/experiments'),
-        ]);
-        if (requestId === initializationRequest.current && epoch === identityEpoch.current) {
-          setProjects(nextProjects);
-          setExperiments(nextExperiments);
-        }
-      } else {
-        setProjects([]);
-        setExperiments([]);
+      const [nextProjects, nextExperiments] = await Promise.all([
+        api<Project[]>('/projects'), api<ExperimentSummary[]>('/experiments'),
+      ]);
+      if (requestId === initializationRequest.current && epoch === identityEpoch.current) {
+        setProjects(nextProjects);
+        setExperiments(nextExperiments);
       }
-      // Files are created only through an explicit user action. Existing local
-      // files and signed-in projects remain available in Explorer.
+      const files = loadWorkspaceFiles();
+      const active = getActiveWorkspaceFile();
+      if (active) {
+        void loadSource(active.source, active.name, active.projectId || null, active.id);
+      } else if (files.length > 0) {
+        void loadSource(files[0].source, files[0].name, files[0].projectId || null, files[0].id);
+      } else {
+        const completed = (() => {
+          try { return localStorage.getItem('qore_started') === 'true'; } catch { return false; }
+        })();
+        if (completed) {
+          const file = addStarterFile();
+          void loadSource(file.source, file.name, null, file.id);
+        }
+      }
     } catch (err) {
       if (requestId === initializationRequest.current) setError((err as Error).message);
     } finally {
@@ -263,18 +280,8 @@ export default function App() {
   useEffect(() => {
     const expired = () => {
       applyIdentity(null);
-      setIsAuthOpen(true);
-      setError('Your session has expired. Sign in again to continue.');
     };
     window.addEventListener('qore:session-expired', expired);
-    const query = new URLSearchParams(window.location.search);
-    if (query.has('auth_error')) {
-      setIsAuthOpen(true);
-      setNotice('Sign-in was not completed. Please try again.');
-      query.delete('auth_error');
-      const remaining = query.toString();
-      window.history.replaceState(null, '', window.location.pathname + (remaining ? `?${remaining}` : '') + window.location.hash);
-    }
     return () => window.removeEventListener('qore:session-expired', expired);
   }, [applyIdentity]);
 
@@ -324,6 +331,8 @@ export default function App() {
   function startWorkspace(kind: 'guided' | 'blank') {
     safeSwitch(() => {
       try {
+        try { localStorage.setItem('qore_started', 'true'); } catch {}
+        setHasStarted(true);
         const file = kind === 'guided' ? addStarterFile() : addBlankFile();
         void loadSource(file.source, file.name, null, file.id);
         if (kind === 'guided') setNotice('Your three-qubit circuit is ready. Run Kernel to explore the 000 and 111 outcomes.');
@@ -525,11 +534,7 @@ export default function App() {
 
   async function execute(action: 'parse' | 'simulate' | 'optimize') {
     if (busy || !source.trim()) return;
-    if (authRequired && !currentUser) {
-      setIsAuthOpen(true);
-      setNotice('Sign in to run circuits and keep your results in your private workspace.');
-      return;
-    }
+
     setError('');
     const submittedSource = source;
     try {
@@ -1583,7 +1588,7 @@ export default function App() {
           {/* Sleek Utility Actions */}
           <div className="topbar-util-actions">
             <button type="button" className="topbar-util-btn" aria-label="Undo last file deletion"
-              title="Undo last file deletion" disabled={!currentUser || !workspaceStatus.lastDeletedId || workspaceAction}
+              title="Undo last file deletion" disabled={!workspaceStatus.lastDeletedId || workspaceAction}
               onClick={() => {
                 const epoch = identityEpoch.current;
                 setWorkspaceAction(true);
@@ -1592,7 +1597,7 @@ export default function App() {
               }}><Icon name="undo" size={16} /></button>
             <button type="button" className={`topbar-util-btn ${isTrashOpen ? 'active' : ''}`}
               aria-label="Open recently deleted files" aria-expanded={isTrashOpen} title="Recently deleted · restore for 48 hours"
-              disabled={!currentUser} onClick={() => setIsTrashOpen(true)}><Icon name="restore" size={16} /></button>
+              onClick={() => setIsTrashOpen(true)}><Icon name="restore" size={16} /></button>
             <button
               type="button"
               id="qore-assistant-toggle"
@@ -1618,21 +1623,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Slow-motion animated authentication success in the middle on the quantum theme */}
-      {authSuccessState && (
-        <AuthSuccessBanner
-          user={authSuccessState.user}
-          isNewUser={authSuccessState.isNewUser}
-          onDismiss={() => {
-            const wasNewUser = authSuccessState.isNewUser;
-            const userName = authSuccessState.user.name;
-            setAuthSuccessState(null);
-            if (wasNewUser) {
-              setOnboardingState({ name: userName });
-            }
-          }}
-        />
-      )}
+
 
       {/* Dynamic Quantum Gradient Flow Line (Active while loading / running) */}
       {busy && <div className="quantum-ambient-gradient-bar" />}
@@ -1667,32 +1658,6 @@ export default function App() {
           </div>
 
           <div className="activity-bottom">
-            <button
-              className="activity-item"
-              title={currentUser ? `Account: ${currentUser.name} (${currentUser.role})` : 'Sign in to your QORE account'}
-              aria-label="Account"
-              onClick={() => setIsAuthOpen(true)}
-            >
-              {currentUser ? (
-                <div
-                  className="activity-avatar-pill"
-                  style={
-                    currentUser.avatarUrl && currentUser.avatarUrl.startsWith('linear-gradient')
-                      ? { background: currentUser.avatarUrl }
-                      : undefined
-                  }
-                >
-                  {currentUser.avatarUrl && currentUser.avatarUrl.startsWith('data:') ? (
-                    <img src={currentUser.avatarUrl} alt={currentUser.name} className="avatar-img-round-pill" />
-                  ) : (
-                    <span>{currentUser.avatarInitials || currentUser.name.slice(0, 2).toUpperCase()}</span>
-                  )}
-                  <span className="activity-avatar-dot" />
-                </div>
-              ) : (
-                <Icon name="account" size={20} />
-              )}
-            </button>
             <button
               className="activity-item"
               title="Settings & Preferences (Ctrl+,)"
@@ -2172,34 +2137,17 @@ export default function App() {
       </div>
     </footer>
 
-      {/* Welcome to QORE Animated Splash Modal */}
+      {/* Welcome to QORE Animated Splash Modal (First-time visitors only) */}
       <WelcomeModal
         isOpen={isWelcomeOpen}
         onClose={() => {
           setIsWelcomeOpen(false);
-          if (!currentUser) {
-            setIsAuthOpen(true);
+          const completed = (() => {
+            try { return localStorage.getItem('qore_started') === 'true'; } catch { return false; }
+          })();
+          if (!completed) {
+            setOnboardingState({ name: 'Quantum Explorer' });
           }
-        }}
-      />
-
-      {/* Account credentials are handled by the server and identity provider. */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        currentUser={currentUser}
-        onLoginSuccess={(user, isNewUser) => {
-          applyIdentity(user);
-          void initialize();
-          setAuthSuccessState({ user, isNewUser: Boolean(isNewUser) });
-          if (!isNewUser) {
-            setNotice(`Welcome back, ${user.name}. Your private workspace is ready.`);
-          }
-        }}
-        onLogout={() => {
-          applyIdentity(null);
-          setNotice('Signed out of QORE.');
-          void initialize();
         }}
       />
 
@@ -2208,22 +2156,20 @@ export default function App() {
         <QuantumOnboardingModal
           isOpen={true}
           userName={onboardingState.name}
-          onComplete={() => setOnboardingState(null)}
+          onComplete={() => {
+            setOnboardingState(null);
+          }}
         />
       )}
 
-      <TrashPanel key={`trash-${currentUser?.id ?? 'guest'}`} isOpen={isTrashOpen} onClose={() => setIsTrashOpen(false)}
+      <TrashPanel key="trash-panel" isOpen={isTrashOpen} onClose={() => setIsTrashOpen(false)}
         onRestored={id => { const file = loadWorkspaceFiles().find(item => item.id === id); if (file) void loadSource(file.source, file.name, null, file.id); }} />
 
       {/* Settings Modal Dialog */}
       {isSettingsOpen && (
         <SettingsModal
           settings={settings}
-          currentUser={currentUser}
-          onOpenAuth={() => {
-            setIsSettingsOpen(false);
-            setIsAuthOpen(true);
-          }}
+          onClose={() => setIsSettingsOpen(false)}
           onSave={(updated) => {
             setSettings(updated);
             setShots(String(updated.defaultShots));
@@ -2232,7 +2178,6 @@ export default function App() {
             saveStoredSettings(updated);
             setNotice('Settings saved.');
           }}
-          onClose={() => setIsSettingsOpen(false)}
         />
       )}
 

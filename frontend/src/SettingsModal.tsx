@@ -92,7 +92,7 @@ export function saveStoredSettings(settings: Settings) {
   }
 }
 
-type SettingCategory = 'account' | 'optics' | 'editor' | 'kernel' | 'hardware' | 'transpiler' | 'copilot';
+type SettingCategory = 'optics' | 'editor' | 'kernel' | 'hardware' | 'transpiler' | 'copilot';
 const SettingName = createContext<string | undefined>(undefined);
 
 // Clean iOS / macOS styled toggle switch
@@ -178,14 +178,10 @@ export function SettingsModal({
   settings,
   onSave,
   onClose,
-  currentUser,
-  onOpenAuth,
 }: {
   settings: Settings;
   onSave: (next: Settings) => void;
   onClose: () => void;
-  currentUser?: AuthUser | null;
-  onOpenAuth?: () => void;
 }) {
   const [current, setCurrent] = useState<Settings>({
     ...defaultSettings,
@@ -278,7 +274,6 @@ export function SettingsModal({
   const accentColors = [{ label: 'QORE Blue', color: '#6ea8d8' }];
 
   const categoryMeta: Record<SettingCategory, { title: string; count: number; icon: IconName }> = {
-    account: { title: 'Account & Security (MFA)', count: 4, icon: 'account' },
     optics: { title: 'Workspace & Optics', count: 7, icon: 'code' },
     editor: { title: 'Monaco Editor & Terminal', count: 10, icon: 'file' },
     kernel: { title: 'Quantum Kernel (Aer)', count: 7, icon: 'circuit' },
@@ -381,147 +376,6 @@ export function SettingsModal({
                   <span className="search-filter-tag">Filter: &ldquo;{searchQuery}&rdquo;</span>
                 )}
               </div>
-
-              {/* CATEGORY 0: ACCOUNT & SECURITY (MFA) */}
-              {category === 'account' && (
-                <div className="settings-group-stack">
-                  {matchesSearch('account profile name email identity role tier specialty affiliation bio') && (
-                    <SettingCard title="QUANTUM IDENTITY & PROFILE">
-                      {currentUser ? (
-                        <div className="settings-account-hero">
-                          <div
-                            className="settings-account-avatar"
-                            style={
-                              currentUser.avatarUrl && currentUser.avatarUrl.startsWith('linear-gradient')
-                                ? { background: currentUser.avatarUrl }
-                                : { background: 'linear-gradient(135deg, #00f0ff, #3b82f6)' }
-                            }
-                          >
-                            {currentUser.avatarUrl && currentUser.avatarUrl.startsWith('data:') ? (
-                              <img src={currentUser.avatarUrl} alt={currentUser.name} className="avatar-img-round-pill" />
-                            ) : (
-                              <span>{currentUser.avatarInitials || currentUser.name.slice(0, 2).toUpperCase()}</span>
-                            )}
-                          </div>
-                          <div className="settings-account-details">
-                            <strong>{currentUser.name}</strong>
-                            <span className="settings-account-email">{currentUser.email}</span>
-                            <div className="settings-badge-row">
-                              <span className="settings-tag-pill">{currentUser.tier.toUpperCase()} TIER</span>
-                              <span className="settings-tag-pill">{currentUser.role}</span>
-                              {currentUser.organization && <span className="settings-tag-pill">{currentUser.organization}</span>}
-                            </div>
-                            {currentUser.title && (
-                              <div style={{ marginTop: '4px', fontSize: '11.5px', color: '#94a3b8' }}>
-                                Specialty: <span style={{ color: '#e2e8f0' }}>{currentUser.title}</span>
-                              </div>
-                            )}
-                            {currentUser.bio && (
-                              <div style={{ marginTop: '2px', fontSize: '11.5px', color: '#cbd5e1', fontStyle: 'italic' }}>
-                                &ldquo;{currentUser.bio}&rdquo;
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <button
-                              type="button"
-                              className="settings-action-btn primary"
-                              onClick={() => {
-                                onClose();
-                                onOpenAuth?.();
-                              }}
-                            >
-                              <Icon name="edit" size={14} />
-                              <span>Edit Profile</span>
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="settings-guest-box">
-                          <p>You are working as a Guest. Sign in to sync circuits, save quantum experiments, customize your profile, and enable 2FA / MFA.</p>
-                          <div>
-                            <button
-                              type="button"
-                              className="settings-action-btn primary"
-                              onClick={() => {
-                                onClose();
-                                onOpenAuth?.();
-                              }}
-                            >
-                              <Icon name="account" size={14} />
-                              <span>Sign In / Create Account</span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </SettingCard>
-                  )}
-
-                  {matchesSearch('mfa 2fa security authenticator totp two-factor backup codes') && (
-                    <SettingCard title="TWO-FACTOR AUTHENTICATION (MFA / TOTP)">
-                      <SettingRow
-                        title="TOTP Authenticator Protection"
-                        desc="Protect your account and quantum circuits with time-based one-time codes from Google Authenticator, Authy, or 1Password."
-                        control={
-                          <div className="settings-mfa-inline">
-                            <span className={`mfa-inline-badge ${currentUser?.mfaEnabled ? 'active' : 'inactive'}`}>
-                              {currentUser?.mfaEnabled ? 'ACTIVE (MFA ENABLED)' : 'NOT CONFIGURED'}
-                            </span>
-                            <button
-                              type="button"
-                              className="settings-action-btn"
-                              onClick={() => {
-                                onClose();
-                                onOpenAuth?.();
-                              }}
-                            >
-                              <Icon name="gear" size={13} />
-                              <span>{currentUser?.mfaEnabled ? 'Manage 2FA & Codes' : 'Configure 2FA'}</span>
-                            </button>
-                          </div>
-                        }
-                      />
-                    </SettingCard>
-                  )}
-
-                  {matchesSearch('password change reset recovery credentials') && (
-                    <SettingCard title="PASSWORD & CREDENTIALS">
-                      <SettingRow
-                        title="Account Password"
-                        desc="Change your login password or reset via email verification OTP."
-                        control={
-                          <button
-                            type="button"
-                            className="settings-action-btn"
-                            onClick={() => {
-                              onClose();
-                              onOpenAuth?.();
-                            }}
-                          >
-                            <Icon name="edit" size={13} />
-                            <span>Change Password</span>
-                          </button>
-                        }
-                      />
-                    </SettingCard>
-                  )}
-
-                  {matchesSearch('workspace enclave cryptography isolation data security') && (
-                    <SettingCard title="DATA ISOLATION & ENCLAVE">
-                      <SettingRow
-                        title="Per-Account Quantum Sandbox"
-                        desc="Circuit drafts and execution metrics are cryptographically isolated per user identifier."
-                        control={<span className="settings-tag-pill" style={{ color: '#38bdf8' }}>ENCLAVE VERIFIED</span>}
-                      />
-                      <SettingRow
-                        title="Identity Enclave"
-                        desc="Authentication is managed directly by QORE Supabase Enclave with secure HTTP cookies."
-                        control={<span className="settings-tag-pill" style={{ color: '#34d399' }}>CONNECTED</span>}
-                      />
-                    </SettingCard>
-                  )}
-                </div>
-              )}
 
               {/* CATEGORY 1: WORKSPACE & OPTICS */}
               {category === 'optics' && (

@@ -211,11 +211,11 @@ def test_privileged_provider_keys_are_not_accepted_as_public_configuration():
     assert not AuthSettings("https://identity.example.test", "sb_secret_forbidden-key", "https://qore.example.test", True).configured
 
 
-def test_deployed_environment_defaults_to_required_auth(monkeypatch):
+def test_deployed_environment_defaults_to_open_access(monkeypatch):
     for key in ("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY", "QORE_REQUIRE_AUTH"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("RENDER", "true")
-    assert AuthSettings.from_env().require_auth is True
+    assert AuthSettings.from_env().require_auth is False
 
 
 def test_email_only_config_and_retired_provider_has_no_route():
