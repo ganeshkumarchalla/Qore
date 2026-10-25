@@ -15,6 +15,8 @@ import { addBlankFile, addStarterFile, flushWorkspaceChanges, getActiveWorkspace
   setActiveWorkspaceFile, setWorkspaceOwner, undoWorkspaceDeletion, updateWorkspaceBuffer, WORKSPACE_CHANGED_EVENT } from './workspace';
 import { TrashPanel } from './TrashPanel';
 import { AuthModal, type AuthUser, loadStoredUser } from './AuthModal';
+import { AuthSuccessBanner } from './AuthSuccessBanner';
+import { QuantumOnboardingModal } from './QuantumOnboardingModal';
 import {
   api,
   invalidateApiRequests,
@@ -95,6 +97,8 @@ export default function App() {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(loadStoredUser);
+  const [authSuccessState, setAuthSuccessState] = useState<{ user: AuthUser; isNewUser: boolean } | null>(null);
+  const [onboardingState, setOnboardingState] = useState<{ name: string } | null>(null);
   const [authRequired, setAuthRequired] = useState(true);
   const ownerRef = useRef<string | null>(null);
   const identityEpoch = useRef(0);
@@ -1614,6 +1618,15 @@ export default function App() {
         </div>
       </header>
 
+      {/* Slow-motion animated authentication success banner floating below the top bar */}
+      {authSuccessState && (
+        <AuthSuccessBanner
+          user={authSuccessState.user}
+          isNewUser={authSuccessState.isNewUser}
+          onDismiss={() => setAuthSuccessState(null)}
+        />
+      )}
+
       {/* Dynamic Quantum Gradient Flow Line (Active while loading / running) */}
       {busy && <div className="quantum-ambient-gradient-bar" />}
 
@@ -1654,8 +1667,19 @@ export default function App() {
               onClick={() => setIsAuthOpen(true)}
             >
               {currentUser ? (
-                <div className="activity-avatar-pill">
-                  <span>{currentUser.avatarInitials}</span>
+                <div
+                  className="activity-avatar-pill"
+                  style={
+                    currentUser.avatarUrl && currentUser.avatarUrl.startsWith('linear-gradient')
+                      ? { background: currentUser.avatarUrl }
+                      : undefined
+                  }
+                >
+                  {currentUser.avatarUrl && currentUser.avatarUrl.startsWith('data:') ? (
+                    <img src={currentUser.avatarUrl} alt={currentUser.name} className="avatar-img-round-pill" />
+                  ) : (
+                    <span>{currentUser.avatarInitials || currentUser.name.slice(0, 2).toUpperCase()}</span>
+                  )}
                   <span className="activity-avatar-dot" />
                 </div>
               ) : (
@@ -2157,10 +2181,15 @@ export default function App() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         currentUser={currentUser}
-        onLoginSuccess={(user) => {
+        onLoginSuccess={(user, isNewUser) => {
           applyIdentity(user);
           void initialize();
-          setNotice(`Welcome, ${user.name}. Your private workspace is ready.`);
+          setAuthSuccessState({ user, isNewUser: Boolean(isNewUser) });
+          if (isNewUser) {
+            setOnboardingState({ name: user.name });
+          } else {
+            setNotice(`Welcome back, ${user.name}. Your private workspace is ready.`);
+          }
         }}
         onLogout={() => {
           applyIdentity(null);
@@ -2168,6 +2197,16 @@ export default function App() {
           void initialize();
         }}
       />
+
+      {/* Interactive Quantum Calibration & Onboarding Journey */}
+      {onboardingState && (
+        <QuantumOnboardingModal
+          isOpen={true}
+          userName={onboardingState.name}
+          onComplete={() => setOnboardingState(null)}
+        />
+      )}
+
       <TrashPanel key={`trash-${currentUser?.id ?? 'guest'}`} isOpen={isTrashOpen} onClose={() => setIsTrashOpen(false)}
         onRestored={id => { const file = loadWorkspaceFiles().find(item => item.id === id); if (file) void loadSource(file.source, file.name, null, file.id); }} />
 
@@ -2175,6 +2214,11 @@ export default function App() {
       {isSettingsOpen && (
         <SettingsModal
           settings={settings}
+          currentUser={currentUser}
+          onOpenAuth={() => {
+            setIsSettingsOpen(false);
+            setIsAuthOpen(true);
+          }}
           onSave={(updated) => {
             setSettings(updated);
             setShots(String(updated.defaultShots));
