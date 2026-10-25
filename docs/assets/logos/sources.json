@@ -1,0 +1,92 @@
+[
+  {
+    "file": "openai.svg",
+    "source": "https://cdn.openai.com/brand/OpenAI-Logos-2025.zip",
+    "license": "OpenAI trademark; supplied official brand asset",
+    "brand_guidelines": "https://openai.com/brand/",
+    "sha256": "b94ea61d860fae6f82f43571f36f17111fcf5d348e8e9cc22ae4b441c7560011",
+    "display_color": null,
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "antigravity.svg",
+    "source": "https://antigravity.google/assets/image/brand/antigravity-icon__full-color.svg",
+    "license": "Google trademark; supplied official press asset",
+    "brand_guidelines": "https://antigravity.google/press",
+    "sha256": "d775965ea1f8060538c15f758a3e22487317211fcb6051333b5e023f35aa726f",
+    "display_color": null,
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "canva.svg",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/13.21.0/icons/canva.svg",
+    "license": "CC0-1.0 (Simple Icons); underlying trademarks retained",
+    "brand_guidelines": "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md",
+    "sha256": "d3734c68a7effeb11fcbd8d1ba292cb7fb27cc53347571f6413a0eba674e66a2",
+    "display_color": "00C4CC",
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "figma.svg",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/13.21.0/icons/figma.svg",
+    "license": "CC0-1.0 (Simple Icons); underlying trademarks retained",
+    "brand_guidelines": "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md",
+    "sha256": "b9171110637bb953781a04044d9957478ae84f6a7ac597a25c0bfdfb3292a45e",
+    "display_color": "F24E1E",
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "supabase.svg",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/13.21.0/icons/supabase.svg",
+    "license": "CC0-1.0 (Simple Icons); underlying trademarks retained",
+    "brand_guidelines": "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md",
+    "sha256": "75f9566421d97d4f1d8d7f34526189fd6e727ca83987432fc2477c2fc8388086",
+    "display_color": "3FCF8E",
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "github.svg",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/13.21.0/icons/github.svg",
+    "license": "CC0-1.0 (Simple Icons); underlying trademarks retained",
+    "brand_guidelines": "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md",
+    "sha256": "141e413b3eaa71a9fdc848fe87f04e22b3ad83a0a20bc4bb9c0df310878e1a6c",
+    "display_color": "FFFFFF",
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "render.svg",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/13.21.0/icons/render.svg",
+    "license": "CC0-1.0 (Simple Icons); underlying trademarks retained",
+    "brand_guidelines": "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md",
+    "sha256": "332890f61688bf01bca9f120153c447fa7678984bc81efc6c9ebfbc5c5491fc9",
+    "display_color": "FFFFFF",
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "docker.svg",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/13.21.0/icons/docker.svg",
+    "license": "CC0-1.0 (Simple Icons); underlying trademarks retained",
+    "brand_guidelines": "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md",
+    "sha256": "ba1fb157870b2ec02e054aed42154ac7418e25af91ec321fd328d17cad4023cd",
+    "display_color": "2496ED",
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "powershell.svg",
+    "source": "https://raw.githubusercontent.com/PowerShell/PowerShell/master/assets/powershell_128.svg",
+    "license": "MIT (PowerShell repository); Microsoft trademark retained",
+    "brand_guidelines": "https://github.com/PowerShell/PowerShell/blob/master/LICENSE.txt",
+    "sha256": "8fdf921f055cf73f3d5a4f3fc2a518c3f84d5d680ce188c2043ecb9bc1a7260e",
+    "display_color": null,
+    "retrieved": "2026-10-25"
+  },
+  {
+    "file": "simple-icons-LICENSE.txt",
+    "source": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+    "license": "CC0-1.0",
+    "brand_guidelines": "https://simpleicons.org/",
+    "sha256": "9046848b63a5c92bff14e4accca80bd987e0623b74adf9226ce5198d312b79d5",
+    "display_color": null,
+    "retrieved": "2026-10-25"
+  }
+]

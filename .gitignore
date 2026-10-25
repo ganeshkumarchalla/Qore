@@ -19,6 +19,13 @@ frontend/*.tsbuildinfo
 data/
 Pictures/
 media/
+frontend/public/captures/
+frontend/public/intro-video.html
+frontend/public/*.mp4
+frontend/public/presenter_*.jpg
+frontend/dist/captures/
+frontend/dist/intro-video.html
+frontend/dist/*.mp4
 backend/~*/
 *.sqlite
 *.sqlite3

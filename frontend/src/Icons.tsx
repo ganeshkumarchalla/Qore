@@ -1,5 +1,7 @@
-export type IconName = 'code' | 'circuit' | 'lab' | 'forge' | 'research' | 'spark' | 'plus' | 'chevron' | 'play' | 'check' | 'save' | 'folder' | 'clock' | 'arrow' | 'edit' | 'close' | 'menu' | 'refresh' | 'info' | 'copy' | 'gear' | 'search' | 'file' | 'filePlus' | 'folderPlus' | 'trash' | 'collapse' | 'expand' | 'filter' | 'more' | 'python' | 'explorer' | 'terminal' | 'cube' | 'eye' | 'eyeOff' | 'account' | 'upload' | 'download';
+export type IconName = 'code' | 'circuit' | 'lab' | 'forge' | 'research' | 'spark' | 'plus' | 'chevron' | 'play' | 'check' | 'save' | 'folder' | 'clock' | 'arrow' | 'edit' | 'close' | 'menu' | 'refresh' | 'info' | 'copy' | 'gear' | 'search' | 'file' | 'filePlus' | 'folderPlus' | 'trash' | 'collapse' | 'expand' | 'filter' | 'more' | 'python' | 'explorer' | 'terminal' | 'cube' | 'eye' | 'eyeOff' | 'account' | 'upload' | 'download' | 'undo' | 'restore';
 const paths: Record<IconName, React.ReactNode> = {
+  undo: <><path d="M3 10h10a7 7 0 0 1 0 14" transform="translate(0 -4)"/><path d="m7 2-4 4 4 4"/></>,
+  restore: <><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7"/><path d="M12 7v5l3 2"/></>,
   account: (
     <>
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />

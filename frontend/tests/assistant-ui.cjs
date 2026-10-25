@@ -6,6 +6,7 @@ const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { workspaceFixture } = require('./workspace-fixture.cjs');
 const ROOT = path.resolve(__dirname, '../..');
 const EVIDENCE = path.join(ROOT, 'evidence');
 fs.mkdirSync(EVIDENCE, { recursive: true });
@@ -46,7 +47,9 @@ async function main() {
       bloch_vectors: [0, 1, 2].map(qubit => ({ qubit, x: 0, y: 0, z: 0, theta: 0, phi: 0, purity: 0.5, is_pure: false })),
     };
     let source = '', assistantRequest, runCount = 0;
+    const workspace = workspaceFixture();
     await page.route('**/api/**', async route => {
+      if (await workspace.handle(route)) return;
       const request = route.request(), pathname = new URL(request.url()).pathname;
       let body = {};
       if (pathname === '/api/health') body = { status: 'ok', ai_available: true, versions: { qiskit: 'ui-fixture-version' }, limits: { max_qubits: 10 } };

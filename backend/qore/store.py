@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .workspace import SQLiteWorkspace, initialize_workspace
+
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -17,7 +19,7 @@ def source_hash(source):
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
-class Store:
+class Store(SQLiteWorkspace):
     def __init__(self, path, owner_id="local"):
         self.path = Path(path)
         self.owner_id = owner_id
@@ -44,6 +46,7 @@ class Store:
                 if "owner_id" not in columns:
                     db.execute(f"ALTER TABLE {table} ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'local'")
                 db.execute(f"CREATE INDEX IF NOT EXISTS {table}_owner ON {table}(owner_id)")
+            initialize_workspace(db)
 
     def for_owner(self, owner_id):
         if not owner_id:

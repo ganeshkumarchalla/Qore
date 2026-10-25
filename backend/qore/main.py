@@ -27,6 +27,7 @@ from .auth import current_identity, register_auth
 from .cloud_store import CloudStore
 from .runtime import JobError, run_worker
 from .store import Store, source_hash
+from .workspace import register_workspace
 
 ROOT = Path(__file__).resolve().parents[2]
 if "PYTEST_CURRENT_TEST" not in os.environ and "pytest" not in sys.modules:
@@ -219,6 +220,8 @@ def create_app(db_path=None):
     async def storage(method, *args):
         scoped = store()
         return await asyncio.to_thread(getattr(scoped, method), *args)
+
+    register_workspace(application, storage)
 
     async def check_project(ident):
         if ident and not await storage("project", ident):

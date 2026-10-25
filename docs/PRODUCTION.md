@@ -6,7 +6,9 @@ QORE serves the React workbench and its FastAPI API from one origin. Hosted acco
 
 The animated welcome closes automatically. Explorer has no preloaded projects. **Get Started** creates one editable three-qubit GHZ circuit only when selected; **Create blank file** starts empty. Run Kernel opens the Lab, Forge proposes a transformation with equivalence evidence, and the Ledger preserves immutable snapshots. Editing source clears live results. Existing browser files are preserved.
 
-Production runs and cloud records require sign-in. Browser-only files are explicitly saved in account-specific caches. Use **Save As** to create a cloud project; ordinary local-file Save remains a browser save. Cache storage is not an encrypted vault: use a private browser profile on a shared computer, and export important local files before clearing browser data. Signing out clears the visible editor, results, terminal, and private lists; another account receives its own cache and cloud records.
+Production runs and cloud records require sign-in. Signed-in Explorer files and folders automatically synchronize to the account's database workspace, including the active file. Refreshing restores saved content; active files have no automatic expiry. The status indicator distinguishes saved changes, pending local drafts, and conflicts. Use **Save As** for a named project snapshot; the editable workspace and immutable Ledger evidence are separate records. Browser recovery storage preserves unsynced drafts and is not an encrypted vault. Use a private browser profile on shared computers. Signing out clears visible private state; another account receives its own workspace.
+
+The primary toolbar includes **Undo delete** and **Trash**. Deleting a folder moves its subtree to Trash atomically. Restore is available for 48 hours from deletion, subject to path conflicts; restoring never silently replaces an existing file. After the deadline, reads and restoration reject the deleted content immediately. A database cleanup job physically removes expired content every five minutes. Active files and folders are not touched by this job. Opaque tombstones prevent an old offline draft from recreating a deleted identifier. Each account currently has a limit of 1,000 entries and 16 MiB of source, with 32 KiB per file; this is bounded application storage rather than a general file drive.
 
 ## Required hosting configuration
 
@@ -21,35 +23,25 @@ Set these values in the hosting service's environment settings, never in fronten
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_PUBLISHABLE_KEY` | The project's publishable key, entered directly in the host dashboard |
 
-Do not use a secret/service-role key. QORE sends each verified user's short-lived token to PostgREST, so row-level security remains enforced. Google OAuth client secrets belong in the identity provider dashboard; QORE does not need them. Optional AI configuration uses server-side `GEMINI_API_KEY` and `GEMINI_MODEL`.
+Do not use a secret/service-role key. QORE sends each verified user's short-lived token to PostgREST, so row-level security remains enforced. Authentication is email and password only; the application has no Google sign-in route or button. Optional AI configuration uses server-side `GEMINI_API_KEY` and `GEMINI_MODEL`.
 
-Apply the SQL files in `supabase/migrations/` in order for a fresh project. For the connected QORE project, the production workspace and reduced-privilege migrations were already applied. They create three empty tables, enable RLS, remove anonymous access, and allow each account to access its own rows. Runs and experiments have SELECT/INSERT privileges only. Composite foreign keys prevent linking a different account's project or result. No example records are inserted.
+Apply the SQL files in `supabase/migrations/` in order for a fresh project. They create the project/run/experiment records and the editable workspace, enforce owner-scoped RLS, and insert no example records. Runs and experiments have SELECT/INSERT privileges only. Composite foreign keys prevent cross-account linking. Workspace mutation goes through a validated RPC: the caller cannot choose an owner or retention timestamp. Per-owner transaction locks and expected-version checks serialize updates without silently overwriting a newer version. The connected database has these migrations applied; verify the scheduled cleanup job after restoring or creating another database.
 
-## Google sign-in
+## Email sign-in and confirmation
 
-In Google Cloud, configure an OAuth web client. Its authorized redirect URI is:
+Enable the Email provider and email confirmation in Supabase Auth. Set the Site URL to the actual production HTTPS origin. Add the exact production redirect `https://qore-bmh1.onrender.com/?email_confirmation=opened` to its redirect allowlist; for a separate local test, also allow `http://127.0.0.1:8000/?email_confirmation=opened`. Set `QORE_PUBLIC_URL` to the corresponding origin, with no callback path. Avoid wildcard production origins.
 
-```text
-https://yxelmlwtggjgbvjpkmrx.supabase.co/auth/v1/callback
-```
+Create an account in QORE, choose a password of at least 12 characters, and confirm through the provider's email. Return to QORE and sign in with that password. **Resend verification email** handles pending confirmations without revealing whether a stranger's address is registered. QORE never uses an administrator key to bypass confirmation. Browser JavaScript receives only a public profile; session credentials stay in HttpOnly cookies. Production cookies are Secure and SameSite=Lax, and provider token fragments are removed from the URL before the app loads.
 
-In the Supabase Google provider settings, enable Google and enter the client ID and client secret directly. Configure the consent screen and test users if the OAuth app is in testing. Add QORE's production callback to the Supabase redirect allowlist:
-
-```text
-https://qore-bmh1.onrender.com/api/auth/callback**
-```
-
-For local testing only, also allow `http://127.0.0.1:8000/api/auth/callback**` and set the local `QORE_PUBLIC_URL` accordingly. The suffix permits the one-use state query parameter. Keep production redirects restricted to origins you control. Email confirmation uses the Supabase Site URL; set it to QORE's production origin and configure outbound email appropriately.
-
-The Google button reads the provider's live availability. It stays disabled with an explanation until the provider is enabled. **Check sign-in availability** refreshes that status (the backend caches provider settings for up to 30 seconds). Do not treat a mocked OAuth test as proof of a completed real Google login.
+The sign-in form checks live email-provider availability, cached for at most 30 seconds. Configure production SMTP with a sender domain and delivery monitoring; a successful API response is not proof that a particular mailbox received the message. Hosted-provider sandbox email limits and rate limits may prevent delivery until an operator configures email. Complete a real confirmation/sign-in test after each provider or redirect change, and keep passwords and verification codes out of issue reports and chat.
 
 ## Container deployment on Render
 
-Use the repository root as the Docker build context and `Dockerfile` as the deployment definition. The image builds the frontend from its lockfile, installs the quantum runtime, and runs as an unprivileged user. Uvicorn binds to the host-provided `PORT`. Access logging is disabled so OAuth query parameters are not recorded.
+Use the repository root as the Docker build context and `Dockerfile` as the deployment definition. The image builds the frontend from its lockfile, installs the quantum runtime, and runs as an unprivileged user. Uvicorn binds to the host-provided `PORT`. Access logging is disabled to avoid recording sensitive request URLs.
 
-Set the environment values above before promoting the editing branch to the production branch watched by Render. Check `/api/health`, `/api/auth/config`, and `/api/auth/session`. A healthy process and an enabled Google provider are separate checks. Unauthenticated `/api/projects` should return 401. A production deployment missing authentication configuration fails closed with 503 for private APIs.
+Set the environment values above before promoting the editing branch to the production branch watched by Render. Check `/api/health`, `/api/auth/config`, and `/api/auth/session`. Process health, email-provider availability, actual email delivery, and database permissions are separate checks. Unauthenticated `/api/projects` and `/api/workspace` should return 401. A production deployment missing authentication configuration fails closed with 503 for private APIs.
 
-Then complete a real sign-in, create a project, run the three-qubit circuit, save a snapshot, reload it, sign out, and verify a second account cannot open the first account's project URL. Build artifacts, browser profiles, local databases, credentials, and generated promotional media are excluded from the container context.
+Then complete a real email sign-in, create a file, edit it, wait for **Saved**, refresh, and check the exact source. Delete and undo it, test Trash restoration and path conflicts, run the three-qubit circuit, save a Ledger snapshot, and restore that evidence. Sign out and verify another account cannot read the first account's file or project. Build artifacts, browser profiles, local databases, credentials, and generated promotional media are excluded from the container context.
 
 ## Verification
 

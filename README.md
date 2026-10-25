@@ -1,249 +1,154 @@
-# QORE · Quantum Operating & Research Environment
+# QORE
 
-> **A local, evidence-driven quantum development OS & IDE.**
-> *AI proposes. Verification checks. Experiments provide the immutable evidence.*
+**A quantum workspace for writing circuits, exploring states, and keeping the evidence.**
 
-QORE is a focused quantum development environment for writing circuits, proving transformations, and inspecting results. It opens empty by design: users create their own files and projects, then run them through a bounded compiler, isolated simulator, visual laboratory, and immutable experiment ledger.
+[Open QORE](https://qore-bmh1.onrender.com/) · [Documentation](https://qoredocs.vercel.app/) · [Manual sources](docs/README.md) · [Report an issue](https://github.com/ganeshkumarchalla/Qore/issues)
 
-The welcome now opens automatically. **Get Started** creates a single editable three-qubit circuit on request. Hosted accounts use verified email/Google sessions and owner-scoped cloud records. See the [production setup guide](docs/PRODUCTION.md) for provider activation, Render environment settings, security boundaries, and the acceptance checks required before release.
+QORE brings an editor, quantum simulator, visual laboratory, compiler workbench, and research ledger into one consistent glass interface. Write a circuit in the supported Qiskit Python subset or OpenQASM 2. Inspect actual simulator output, compare a compiler candidate, and preserve the source and evidence behind an experiment.
 
-The **Assistant** now opens in its own secondary sidebar beside your current view. It receives the active circuit and attached results, clears stale answers as context changes, and keeps source changes under your control. The editor runtime loads on demand after a file is opened.
+The workspace starts empty. **Get Started** creates a three-qubit learning circuit only when requested. Sign in with email to keep files in your private database workspace. Saved files have no automatic expiry; deleted files and folders remain recoverable for **48 hours** through Undo and Trash.
 
-[Daily engineering reviews](docs/AUTOMATED_REVIEWS.md) cover eight dedicated areas, from quantum correctness and private records to secrets, scalability, and public-page SEO. A repeatable local baseline and repository quality workflow combine frontend checks, backend regression tests, real circuit acceptance, and redacted security reports.
+![QORE workflow: author, compile, simulate, inspect, optimize, verify, preserve](docs/assets/animations/workflow.gif)
 
-## About QORE
+These illustrations explain the product with representative values. Counts, timings, validation, and save status come from your actual execution. The images are animated GIF files that work in GitHub's README renderer. [Static posters and SVG sources](docs/assets/BRAND_ASSETS.md) are also available.
 
-QORE is a research-grade quantum workspace designed to make experimental computing understandable, reproducible, and reviewable. It gives a developer one calm surface for authoring a circuit, compiling it into a typed intermediate representation, running controlled simulations, exploring quantum state evidence, optimizing transformations, and preserving the complete result as an immutable experiment.
+## A complete circuit workflow
 
-The project is built for quantum learners, algorithm engineers, research teams, and hackathon builders who need more than a code editor and more than a chart. QORE connects the source, execution settings, measurements, visual state, optimization proof, and historical record so that every result can be inspected and repeated.
+### Studio — your workspace, your source
 
-### What makes it different
+![Animated QORE Studio illustration](docs/assets/animations/studio.gif)
 
-- **Evidence over guesswork:** simulation results include ideal probabilities, measured counts, state amplitudes, Bloch vectors, metrics, and total variation distance.
-- **Safe by construction:** circuit source is parsed through a constrained AST pipeline and executed in bounded worker processes; arbitrary Python execution is not permitted.
-- **Proof-aware optimization:** candidate circuits are accepted only when unitary behavior and terminal measurement mappings remain equivalent within tolerance.
-- **A clean starting point:** the IDE opens as an empty workspace, so user-created files and experiments remain the center of the product.
-- **Visual understanding:** the Lab combines classic scientific views with an interactive 3D State World that makes probability and measurement behavior tangible.
+Create, rename, edit, and organize files and folders in Explorer. Monaco provides the code-editing surface; the current file path stays visible. The fixed graphite theme, readable typography, glass panels, and responsive layout carry across the workbench. Explorer can close to give Lab and Forge more room. The welcome logo animates and closes automatically.
 
-### The QORE workflow
+[Studio guide](docs/features/studio.md) · [Files and recovery](docs/guides/workspace-files.md)
+
+### Quantum Lab — understand the output
+
+![Animated Lab distribution and Bloch sphere illustration](docs/assets/animations/lab.gif)
+
+Run supported circuits through Qiskit Aer with explicit shots, seed, simulator method, and optional modeled noise. Compare sampled counts with ideal probabilities, explore State World, rotate focused or multi-qubit Bloch views, and inspect amplitudes, circuit diagrams, and unitary matrices within their display limits. Execution metadata and classical-bit mapping remain attached to the result.
+
+[Quantum Lab](docs/features/quantum-lab.md) · [Bloch spheres](docs/quantum/bloch-spheres.md) · [Measurement ordering](docs/quantum/measurement.md)
+
+### Forge — inspect a proposed transformation
+
+![Animated Forge resource comparison illustration](docs/assets/animations/forge.gif)
+
+Generate a compiler candidate at optimization levels 0–3. Compare gate counts, depth, and two-qubit operations. For up to six qubits, QORE compares complete operators up to global phase at a numerical tolerance of `1e-9`, and checks the exact terminal measurement mapping. Applying a candidate is an explicit action. Compilation alone is not an equivalence guarantee.
+
+[Forge workflow](docs/features/forge.md) · [Equivalence reference](docs/quantum/equivalence.md)
+
+### Research Ledger — preserve the context
+
+![Animated immutable research snapshot illustration](docs/assets/animations/ledger.gif)
+
+Keep immutable experiment snapshots containing source, source hash, circuit IR, settings, dependency versions, and referenced execution results. Reopen historical evidence without silently changing it. Editing source clears stale live results, so an earlier histogram is never presented as the output of newly edited code.
+
+[Research Ledger](docs/features/research-ledger.md) · [Reproducibility](docs/quantum/reproducibility.md)
+
+### Assistant — ask beside the circuit
+
+![Animated secondary assistant sidebar illustration](docs/assets/animations/assistant.gif)
+
+QORE Intelligence has a dedicated secondary sidebar beside the active view. It receives the current circuit and source-matched results, explains available evidence, and proposes ideas for review. It cannot execute code, edit source, or approve candidates. Optional provider credentials remain on the server; Studio, Lab, Forge, and Research work independently of AI availability.
+
+[Assistant scope and privacy](docs/features/assistant.md)
+
+### Private files — persistent and recoverable
+
+![Animated persistent workspace and 48-hour Trash illustration](docs/assets/animations/workspace.gif)
+
+Verified email sessions identify the owner of every workspace request. Files and folders live in the database, with version checks protecting concurrent edits. Account-specific browser caches preserve pending local changes during interruptions. Undo restores the last deleted batch; Trash restores other eligible entries. Folder recovery restores the batch together, with conflict checks before any write.
+
+The workspace allows **1,000 entries including Trash**, **16 MiB of aggregate source**, and **32 KiB per file**. Deleted content becomes unavailable at exactly 48 hours; scheduled cleanup removes expired source rows every five minutes. Database backups follow the operator's separate retention policy.
+
+[Email accounts](docs/guides/email-account.md) · [Workspace API](docs/reference/workspace-api.md)
+
+### Quality and operations — a reviewable release
+
+![Animated identity, data, runtime and quality checks illustration](docs/assets/animations/operations.gif)
+
+Repeatable checks cover backend behavior, real Aer execution, frontend types/build, secrets, owner isolation, and immutable evidence. Daily specialist scopes cover Studio, quantum correctness, Forge, identity and records, the assistant, security, organization and scalability, and public-page SEO. Reports do not automatically promote unreviewed edits to production.
+
+[Automated reviews](docs/AUTOMATED_REVIEWS.md) · [Testing](docs/operations/testing.md) · [Security](docs/operations/security.md)
+
+## Technology and build surface
+
+![Animated build-tool marquee with authentic marks including Render and Docker](docs/assets/animations/build-surface.gif)
+
+The build surface identifies the design and engineering tools used around QORE: ChatGPT, Antigravity, Canva, Figma, Supabase, GitHub, Render, Docker, PowerShell, and Codex Security. They have different roles; they are not all runtime dependencies or endorsements. Original marks, source URLs, and license notes are recorded in [asset provenance](docs/assets/BRAND_ASSETS.md).
+
+| Layer | Technology | Role |
+| --- | --- | --- |
+| Workbench | React 18, TypeScript, Vite, Monaco | Responsive editor and application state |
+| Interface | CSS, SVG, canvas and 3D views | Circuit diagrams, state inspection, glass surfaces |
+| API | Python 3.11–3.13, FastAPI, Pydantic, Uvicorn | Validated requests and orchestration |
+| Quantum runtime | Qiskit 2, Qiskit Aer | Construction, simulation, transpilation, operator analysis |
+| Hosted identity and data | Supabase Auth and Postgres | Email sessions, private files and research records |
+| Local data | SQLite | Development workspace and ledger persistence |
+| Delivery | Docker, Render, GitHub Actions | Container hosting and review checks |
+| Optional assistant | Server-side model-provider API | Circuit and result explanations |
+
+## Run locally
+
+Install Python 3.11–3.13, a Node.js release compatible with the pinned package manager, and pnpm. From the repository root:
+
+```powershell
+py -3.12 -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install -e ".[test,docs]"
+Set-Location frontend
+pnpm install --frozen-lockfile
+pnpm build
+Set-Location ..
+& .\scripts\start.ps1
+```
+
+Open `http://127.0.0.1:8000`. Local development can use SQLite; hosted email identity requires server configuration. For hot reload, run `scripts/start.ps1 -Dev` and `pnpm dev` in separate terminals. See [local development](docs/guides/local-development.md) and [production setup](docs/PRODUCTION.md) for Render, confirmation email, migrations, and configuration.
+
+## Execution scope
+
+QORE supports its documented Qiskit circuit-building subset and OpenQASM 2, up to **10 qubits**, **10 classical bits**, **500 operations**, **32 KiB of source**, and **100,000 shots**. Bloch vectors and ideal amplitude displays are available up to six qubits; matrix display is available up to four. The command console exposes supported QORE actions and real attached results.
+
+Arbitrary Python, unrestricted imports, operating-system shell commands, dynamic mid-circuit control, and hardware submission are outside this runtime. Optional SDK packages do not expand the public editor allowlist. [Compatibility and limits](docs/reference/limits.md)
+
+## Documentation
+
+The [manual](docs/README.md) contains separate user guides, product manuals, quantum lessons, API references, and operational playbooks. Start with:
+
+- [Your first experiment](docs/guides/first-experiment.md): run and interpret a three-qubit GHZ circuit.
+- [Quantum foundations](docs/quantum/foundations.md): amplitudes, interference, and useful limitations.
+- [QAOA and graph cuts](docs/quantum/qaoa.md): inspect a four-qubit optimization experiment.
+- [API](docs/reference/api.md): fields, result semantics, errors, and authorization.
+- [Architecture](docs/reference/architecture.md): modules and data boundaries.
+- [Operations](docs/operations/deployment.md): delivery, monitoring, recovery, and scaling.
+
+## Verify a change
+
+```powershell
+& .\.venv\Scripts\python.exe -m pytest backend/tests -q
+& .\.venv\Scripts\python.exe scripts/production_acceptance.py
+& .\.venv\Scripts\python.exe scripts/security_checker.py --check
+& .\.venv\Scripts\python.exe scripts/frontend_auditor.py
+```
+
+Run `pnpm test:ui` in `frontend` for browser interaction checks. The complete baseline is `scripts/daily_quality_report.py`. Reports distinguish mocked provider/browser checks from real numerical simulation and human email-delivery checks. Generated evidence stays under the ignored `evidence/` directory.
+
+## Repository structure
 
 ```text
-Author → Compile → Simulate → Inspect → Optimize → Prove → Archive
+backend/qore/          API, identity, bounded quantum engine, private stores
+backend/tests/         Regression and data-boundary tests
+frontend/src/          Editor, Lab, Forge, Ledger, assistant
+frontend/public/       Application icons and public product information
+supabase/migrations/  Database and access-control migrations
+scripts/              Startup, audits, acceptance, documentation build
+docs/guides/          Task-oriented user guides
+docs/features/        Individual product manuals
+docs/quantum/         Original concepts and worked lessons
+docs/reference/       API, configuration, language, limits, data model
+docs/operations/      Deployment, security, testing, scaling, recovery
+docs/assets/          Animation sources and attributed logos
+.github/workflows/    Repository quality checks
 ```
 
-QORE is intentionally local-first, transparent, and extensible. A local SQLite ledger provides dependable development and offline work, while the authenticated cloud boundary can add owner-scoped identity and persistence without exposing secrets to the browser.
-
-![QORE workspace](docs/qore-workspace.svg)
-
-<p align="center"><a href="https://github.com/ganeshkumarchalla/Qore/tree/main">Explore the source</a> · <a href="https://github.com/ganeshkumarchalla/Qore/issues">Report an issue</a> · <a href="docs/QUANTUM.md">Read the quantum model</a></p>
-
-## Product tour
-
-![QORE animated product tour](docs/qore-product-tour.svg)
-
-The visual tour maps the complete journey: author → compile → simulate → inspect → optimize → prove → archive. The animation is intentionally self-contained, with no remote image or tracking dependency.
-
-### Build surface
-
-![QORE technology stack](docs/qore-stack-icons.svg)
-
-The stack marquee shows the tools and services used to build and ship QORE: ChatGPT, Antigravity, Canva, Figma, Supabase, GitHub, Render, PowerShell, and the Codex Security plugin. Each pill includes a visible tool mark. QORE’s runtime remains first-party and server-side; these tools are represented as the engineering workflow, not runtime dependencies.
-
----
-
-## Quickstart & Running the Application
-
-### 1. Start the Backend & Production Frontend
-In PowerShell from the repository root:
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn qore.main:app --host 127.0.0.1 --port 8000
-```
-
-Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in any modern browser. FastAPI serves the compiled Vite frontend production bundle directly from `frontend/dist/`.
-
-### 2. Frontend Development Mode (Hot Reload)
-To develop the React frontend with instant Vite HMR:
-```powershell
-# In terminal 1 (FastAPI backend):
-.\.venv\Scripts\python.exe -m uvicorn qore.main:app --host 127.0.0.1 --port 8000
-
-# In terminal 2 (Vite dev server):
-cd frontend
-pnpm dev
-```
-Vite runs on **`http://127.0.0.1:5173`** and proxies `/api` calls to port `8000`.
-
-### 3. Building Frontend for Production
-```powershell
-cd frontend
-cmd.exe /c corepack.cmd pnpm build
-```
-*(Outputs minified bundle into `frontend/dist/`)*
-
-### 4. Running Verification Test Suite
-```powershell
-# Run backend pytest suite
-.\.venv\Scripts\python.exe -m pytest
-
-# Run end-to-end acceptance script
-.\.venv\Scripts\python.exe scripts\acceptance.py
-```
-
----
-
-## Project Directory & Architecture Map
-
-```
-QORE/
-├── backend/
-│   ├── qore/
-│   │   ├── __init__.py        # Package initialization & version definitions
-│   │   ├── main.py            # FastAPI app, API route contracts, RequestGuard, CORS
-│   │   ├── quantum.py         # Constrained Python AST parser, QORE-IR conversion, Aer simulation, transpiler, operator equivalence proof
-│   │   ├── runtime.py         # Subprocess worker execution pool, timeout guards, memory limits
-│   │   ├── worker.py          # Standalone isolated worker process executing quantum routines
-│   │   ├── store.py           # SQLite transactional repository (projects, runs, experiments)
-│   │   └── telemetry.py       # Performance timers, gate counting, bit ordering helpers
-│   ├── tests/                 # Comprehensive Pytest test cases
-│   └── data/
-├── data/
-│   └── qore.sqlite3           # Active SQLite database file
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx            # Main IDE shell, layout controller, state orchestrator
-│   │   ├── Explorer.tsx       # QORE file tree, circuit files, and context menus
-│   │   ├── Terminal.tsx       # Integrated interactive terminal, problems/diagnostics analyzer, CLI commands
-│   │   ├── Circuit.tsx        # SVG quantum circuit wire renderer, metric cards
-│   │   ├── QuantumVisuals.tsx # 3D Bloch spheres (focused/grid), unitary matrix heatmap, QASM viewer
-│   │   ├── Panels.tsx         # Lab (simulation histogram/flux bars), Forge (optimization), Research (ledger), Intelligence
-│   │   ├── WelcomeModal.tsx   # Gradient animated QORE entry screen
-│   │   ├── AuthModal.tsx      # Managed QORE identity sign-in surface
-│   │   ├── SettingsModal.tsx  # QORE preferences, noise models, and simulation defaults
-│   │   ├── CommandPalette.tsx # Quick-open command palette (Ctrl+K / Ctrl+Shift+P)
-│   │   ├── Icons.tsx          # QORE SVG icon registry
-│   │   ├── types.ts           # Shared TypeScript interfaces (IR, Metrics, Simulation, Optimization, Project)
-│   │   └── styles.css         # IDE styling, animations, and theme variables
-│   ├── package.json           # Frontend dependencies (React 18, Monaco, Lucide, Vite)
-│   └── vite.config.ts         # Vite build configuration, dev proxy, chunking options
-├── docs/                      # Formal engineering specs, IR grammar, security invariants
-├── scripts/                   # PowerShell & Python launch and acceptance scripts
-└── requirements-lock.txt      # Python dependencies lockfile (Qiskit 2.x, Qiskit Aer, FastAPI, Uvicorn)
-```
-
----
-
-## Core System Architecture & Subsystems
-
-```mermaid
-flowchart TD
-    %%{init: {'theme':'base','themeVariables': {'primaryColor':'#19232e','primaryTextColor':'#eef2f6','primaryBorderColor':'#6ea8d8','lineColor':'#6ea8d8','secondaryColor':'#202a36','tertiaryColor':'#111821'}}}%%
-    User["Developer UI (Monaco + React)"]
-    API["FastAPI Orchestrator (qore.main)"]
-    AST["Constrained AST Compiler (qore.quantum)"]
-    IR["QORE-IR 1.0 Data Structure"]
-    Worker["Subprocess Worker Pool (qore.runtime)"]
-    Aer["Qiskit AerSimulator Engine"]
-    Transpiler["Qiskit Transpiler Passes"]
-    Equiv["Operator Matrix Equivalence Proof"]
-    DB[("SQLite Ledger (data/qore.sqlite3)")]
-
-    User -->|POST /api/parse| API
-    User -->|POST /api/simulate| API
-    User -->|POST /api/optimize| API
-    API --> AST
-    AST -->|Syntax & Semantic Check| IR
-    API --> Worker
-    Worker --> Aer
-    Worker --> Transpiler
-    Transpiler --> Equiv
-    Aer -->|Counts & Bloch Vectors| API
-    API --> DB
-    API -->|JSON Evidence| User
-```
-
-![Animated QORE architecture flow](docs/qore-architecture.svg)
-
-### 1. Monaco Editor & Constrained AST Compiler
-- **Strict Bounded Python AST**: QORE does **NOT** execute arbitrary Python code via `eval()` or `exec()`. Instead, [`backend/qore/quantum.py`](file:///c:/Users/ganes/OneDrive/QORE/backend/qore/quantum.py) parses the code into Python's Abstract Syntax Tree (`ast.parse`) and inspects statements against a strict whitelist of quantum operations:
-  - Allowed gates: `h`, `x`, `y`, `z`, `s`, `sdg`, `t`, `tdg`, `rx`, `ry`, `rz`, `p`, `u`, `cx`, `cy`, `cz`, `ch`, `swap`, `ccx`, `cp`, `rxx`, `ryy`, `rzz`, `barrier`, `measure`, `measure_all`.
-  - **Deferred Measurement Invariant**: The compiler strictly enforces terminal measurements (`NON_TERMINAL_MEASUREMENT`). No quantum unitary gates may follow a measurement instruction. Quantum teleportation and feedforward protocols must be formatted via the deferred measurement principle (`qc.cx` / `qc.cz` controlled unitary operations before measurement).
-- **Multi-File Monaco Integration**: Editor language dynamically adjusts:
-  - `.py` files $\rightarrow$ `python`
-  - `.qasm` files $\rightarrow$ `c`
-  - `.md` files $\rightarrow$ `markdown`
-  - `.json` files $\rightarrow$ `json`
-  - Non-Python files bypass circuit compilation to prevent syntax parse errors.
-
-### 2. AerSimulator Execution Worker (`qore.runtime` & `qore.worker`)
-- Simulation executes in an isolated worker subprocess with CPU and memory limits.
-- **Outputs**:
-  - `counts`: Observed bitstring histogram (little-endian format: $c[n-1]\dots c[0]$).
-  - `probabilities`: Normalized empirical measurement probabilities.
-  - `theoretical_probabilities`: Analytical statevector reference probabilities.
-  - `bloch_vectors`: Single-qubit Bloch sphere coordinates $(x, y, z)$ with purity $\mathcal{P} = \sqrt{x^2+y^2+z^2}$ and spherical coordinates $(\theta, \phi)$.
-  - `statevector_amplitudes`: Complex statevector amplitudes $(\alpha_i + i\beta_i)$ for all $2^n$ basis states.
-  - `tvd`: Total Variation Distance divergence from ideal output.
-- **Hardware Noise Models**: Optional depolarizing quantum noise ($p \in [0, 0.5]$) and readout bit-flip error rates ($p_{\text{ro}} \in [0, 0.5]$).
-
-### 3. Transpiler Forge & Formal Operator Equivalence Proof
-- **Optimization Levels**: Level 0 (None), Level 1 (Light peephole), Level 2 (Default SABRE coupling), Level 3 (Heavy synthesis).
-- **Operator Equivalence**: [`validate_ir()`](file:///c:/Users/ganes/OneDrive/QORE/backend/qore/quantum.py) calculates the full unitary operator matrices $\mathcal{U}_{\text{orig}}$ and $\mathcal{U}_{\text{cand}}$ using `qiskit.quantum_info.Operator`. It checks if:
-  $$\frac{|\mathrm{Tr}(\mathcal{U}_{\text{orig}}^\dagger \mathcal{U}_{\text{cand}})|}{2^n} = 1.0 \pm 10^{-7}$$
-  Terminal measurement mappings are strictly checked. If valid, the UI awards **Semantically Validated**.
-
-### 4. Interactive Terminal & Real-Time Diagnostics
-- **Production Problems Tab**: Real-time static AST analyzer (`analyzeWorkspaceProblems()`) identifies compiler errors, unclosed parentheses, and out-of-bounds qubit registers. Clicking any diagnostic row focuses Monaco on the exact line and column.
-- **QORE-first branding**: Terminal output and product surfaces use QORE terminology (`[KERNEL]`, `[COMPILER]`, `[RESOURCE]`, `[CLOUD]`).
-- **Supported Terminal Commands**:
-  - `qiskit [run|compile|transpile|backends|statevector|unitary|metrics]`
-  - `az quantum [workspace|jobs|target list|execute|status]`
-  - `qsharp [run|estimate|build]`
-  - `simulate`, `transpile`, `metrics`, `statevector`, `ast`, `status`, `help`, `clear`, `cat`, `whoami`, `uname`, `date`.
-
-### 5. Advanced Visualizations
-- **3D Bloch Spheres**:
-  - *Focused Mode*: Single interactive qubit with spherical coordinate readouts and continuous orbit animations.
-  - *Multi-Qubit Grid Mode*: Parallel 3D rendering of every qubit in the register with animated coordinate axes and purity indicators.
-- **Dynamic Lab Flux Bars**: Basis state probability histogram features CSS animated flux bars (`.animated-flux-bar`) and dominant state pulse badges.
-
-### 6. QORE Gradient Entry Screen
-- High-performance, full-viewport entry overlay featuring **ONLY**:
-  **`Welcome to Qore`**
-- Floating cosmic gradient auroras (`aura-cyan`, `aura-purple`, `aura-magenta`), rotating quantum orbital rings, glowing nucleus photon, and smooth scale/fade dismissal.
-- Remembers user preference in `localStorage` (`qore_welcome_dismissed`) and can be replayed anytime via `Help -> Welcome to Qore`.
-
-### 7. Authentication boundary
-- **Activity Bar Bottom Pinning**: The Account icon (`<Icon name="account" size={20} />`) and Settings icon (`<Icon name="gear" size={20} />`) are strictly pinned at the bottom of the left sidebar activity bar. They are excluded from the top bar to maintain a clean layout.
-- **Managed identity**: Email and Google sign-in are designed to be provided by the connected authentication service. QORE does not fabricate users, store passwords, or persist bearer tokens in browser storage.
-
----
-
-## Database Schema
-
-The persistent SQLite database is located at `data/qore.sqlite3` (overridable via `QORE_DB_PATH`).
-
-### Tables
-1. **`projects`**: Mutable user projects (`id`, `name`, `source`, `created_at`, `updated_at`).
-2. **`runs`**: Immutable execution log of every simulation and optimization (`id`, `kind`, `source`, `source_hash`, `project_id`, `configuration`, `result`, `error`, `created_at`).
-3. **`experiments`**: Saved scientific snapshots linking circuit source, simulation results, optimization evidence, and compiler telemetry.
-
-The workspace starts without user files or seeded projects. Optional circuit examples are available only through an explicit user action and are never injected into the editor on startup.
-
----
-
-## Critical Invariants & Rules for Next Updates
-
-When building upon or modifying QORE, ensure the following constraints are preserved:
-
-1. **Terminal Measurement Invariant**: Quantum circuits must use terminal measurements. No gates are allowed after a measurement instruction.
-2. **Left Sidebar Pinning**: The Account and Settings icons must remain exclusively at the bottom of the left Activity Bar. Do not place them back on the top bar.
-3. **Viewport Dimension Locking**: `.vscode-root` is strictly pinned with `position: absolute; inset: 0;` and `.vscode-statusbar` is locked to `flex: 0 0 24px !important; height: 24px !important;`. The terminal dock is locked to `flex: 0 0 240px !important; height: 240px !important;` to prevent layout jumps between Forge, Lab, and Studio.
-4. **Zero Vendor Promotional References**: Maintain first-party QORE Quantum OS branding (`[KERNEL]`, `[CLOUD]`, etc.) across all terminal outputs and UI banners.
-5. **Security Request Guard**: The backend `RequestGuard` middleware restricts write methods (`POST`, `PUT`, `DELETE`) to authorized local loopback origins (`http://localhost:8000`, `http://127.0.0.1:8000`, `http://localhost:5173`, `http://127.0.0.1:5173`).
-6. **No Arbitrary Python Execution**: Never introduce `exec()` or `eval()` for circuit parsing. Always process quantum sources through AST traversal in `quantum.py`.
-
----
-
-## Release discipline
-
-- Changes are developed on `editing`, verified, promoted to `production`, and then fast-forwarded to `main` for deployment.
+Credentials, environment files, databases, dependency trees, browser profiles, temporary reports, build caches, and promotional recordings stay outside published source. Backend secrets never belong in frontend bundles. Read the [security guide](docs/operations/security.md) before configuring a hosted instance.

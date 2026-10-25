@@ -1,10 +1,7 @@
 """Authentication boundary tests use an isolated mocked identity provider."""
 import asyncio
-import base64
-import hashlib
 import json
 import secrets
-from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
@@ -12,13 +9,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from qore.auth import (
-    ACCESS_COOKIE, REFRESH_COOKIE, STATE_COOKIE, VERIFIER_COOKIE,
+    ACCESS_COOKIE, REFRESH_COOKIE,
     AuthSettings, current_identity, register_auth,
 )
 
 USER_ID = "c7f73659-f339-4cb5-9b31-3fb384279718"
 USER = {"id": USER_ID, "email": "member@example.test", "user_metadata": {"full_name": "Qore Member"}}
-SETTINGS = AuthSettings("https://identity.example.test", "publishable-test-value", "https://qore.example.test", True, enable_google=True)
+SETTINGS = AuthSettings("https://identity.example.test", "publishable-test-value", "https://qore.example.test", True)
 TOKENS = {"access_token": "test-access-verified", "refresh_token": "test-refresh-verified", "expires_in": 3600}
 
 
@@ -54,7 +51,7 @@ def test_production_fails_closed_without_credentials_but_health_stays_public():
     app, _service = auth_app(normal_provider, AuthSettings(require_auth=True))
     with TestClient(app, base_url="https://qore.example.test") as client:
         config = client.get("/api/auth/config")
-        assert config.json() == {"configured": False, "required": True, "google_enabled": False, "email_enabled": False}
+        assert config.json() == {"configured": False, "required": True, "email_enabled": False}
         assert config.headers["cache-control"] == "no-store"
         assert client.get("/api/private").status_code == 503
         assert client.get("/api/health").status_code == 200
@@ -114,105 +111,23 @@ def test_invalid_signup_password_is_not_echoed_in_validation_error():
         assert "tiny" not in response.text
 
 
-def test_google_redirect_has_pkce_and_request_bound_state():
-    app, _service = auth_app(normal_provider)
-    with TestClient(app, base_url="https://qore.example.test", follow_redirects=False) as client:
-        response = client.get("/api/auth/google")
-        assert response.status_code == 303
-        target = urlsplit(response.headers["location"])
-        assert target.scheme == "https" and target.netloc == "identity.example.test"
-        query = parse_qs(target.query)
-        assert query["provider"] == ["google"] and query["code_challenge_method"] == ["s256"]
-        expected = base64.urlsafe_b64encode(hashlib.sha256(client.cookies[VERIFIER_COOKIE].encode()).digest()).decode().rstrip("=")
-        assert query["code_challenge"] == [expected]
-        callback = urlsplit(query["redirect_to"][0])
-        assert callback.netloc == "qore.example.test" and callback.path == "/api/auth/callback"
-        assert parse_qs(callback.query)["state"] == [client.cookies[STATE_COOKIE]]
-        for header in response.headers.get_list("set-cookie"):
-            assert "HttpOnly" in header and "Secure" in header and "Max-Age=600" in header
-
-
-def test_callback_requires_matching_state_and_verifier_without_provider_call():
-    called = []
-    def provider(request):
-        called.append(request.url.path)
-        return normal_provider(request)
-    app, _service = auth_app(provider)
-    with TestClient(app, base_url="https://qore.example.test", follow_redirects=False) as client:
-        client.get("/api/auth/google")
-        called.clear()
-        response = client.get("/api/auth/callback?code=one-use-code&state=attacker-state")
-        assert response.headers["location"] == "/?auth_error=signin_failed"
-        assert called == []
-        assert STATE_COOKIE not in client.cookies and VERIFIER_COOKIE not in client.cookies
-
-
-def test_unicode_callback_state_is_rejected_without_an_internal_error():
-    app, _service = auth_app(normal_provider)
-    with TestClient(app, base_url="https://qore.example.test", follow_redirects=False) as client:
-        client.get("/api/auth/google")
-        response = client.get("/api/auth/callback", params={"code": "one-use-code", "state": "é" * 43})
-        assert response.status_code == 303
-        assert response.headers["location"] == "/?auth_error=signin_failed"
-
-
-def test_callback_query_is_removed_from_the_server_logging_scope():
-    seen = []
-    app, _service = auth_app(normal_provider)
-
-    class ObserveLogScope:
-        def __init__(self, wrapped):
-            self.wrapped = wrapped
-        async def __call__(self, scope, receive, send):
-            await self.wrapped(scope, receive, send)
-            seen.append(scope.get("query_string"))
-
-    with TestClient(ObserveLogScope(app), base_url="https://qore.example.test", follow_redirects=False) as client:
-        client.get("/api/auth/callback?code=one-use-code&state=invalid")
-        assert seen[-1] == b""
-
-
-def test_pkce_callback_exchanges_only_with_the_bound_server_verifier():
+def test_signup_enforces_twelve_character_boundary_without_exposing_password():
     calls = []
-    def provider(request):
-        if request.url.path.endswith("/token"):
-            calls.append((request.url.params["grant_type"], json.loads(request.content)))
-        return normal_provider(request)
-    app, _service = auth_app(provider)
-    with TestClient(app, base_url="https://qore.example.test", follow_redirects=False) as client:
-        client.get("/api/auth/google")
-        state, verifier = client.cookies[STATE_COOKIE], client.cookies[VERIFIER_COOKIE]
-        response = client.get("/api/auth/callback", params={"code": "one-use-code", "state": state})
-        assert response.status_code == 303 and response.headers["location"] == "/"
-        assert calls == [("pkce", {"auth_code": "one-use-code", "code_verifier": verifier})]
-        assert client.get("/api/private").json()["owner_id"] == USER_ID
-        assert STATE_COOKIE not in client.cookies and VERIFIER_COOKIE not in client.cookies
 
-
-def test_query_stripped_callback_still_requires_browser_bound_oauth_cookies():
-    app, _service = auth_app(normal_provider)
-    with TestClient(app, base_url="https://qore.example.test", follow_redirects=False) as client:
-        client.get("/api/auth/google")
-        # The provider may omit the redirect query. PKCE and the initiation
-        # cookie still bind this response to this same browser's login attempt.
-        response = client.get("/api/auth/callback", params={"code": "one-use-code"})
-        assert response.headers["location"] == "/"
-        assert client.get("/api/private").json()["owner_id"] == USER_ID
-
-
-def test_callback_rejects_missing_initiation_cookie_and_hides_provider_error():
-    calls = []
     def provider(request):
         calls.append(request.url.path)
-        return normal_provider(request)
+        return httpx.Response(200, json={"id": USER_ID})
+
     app, _service = auth_app(provider)
-    with TestClient(app, base_url="https://qore.example.test", follow_redirects=False) as client:
-        client.cookies.set(VERIFIER_COOKIE, "v" * 64)
-        response = client.get("/api/auth/callback", params={"code": "one-use-code"})
-        assert response.headers["location"] == "/?auth_error=signin_failed"
+    with TestClient(app, base_url="https://qore.example.test") as client:
+        body = {"email": USER["email"], "name": "Qore Member", "password": "a" * 11}
+        rejected = client.post("/api/auth/signup", json=body)
+        assert rejected.status_code == 422
+        assert body["password"] not in rejected.text
         assert calls == []
-        response = client.get("/api/auth/callback", params={"error": "provider-internal-detail"})
-        assert response.headers["location"] == "/?auth_error=signin_failed"
+        accepted = client.post("/api/auth/signup", json={**body, "password": "a" * 12})
+        assert accepted.status_code == 200
+        assert calls == ["/auth/v1/signup"]
 
 
 def test_expired_access_token_is_refreshed_and_cookies_rotated():
@@ -270,15 +185,6 @@ def test_identity_provider_outage_fails_closed_without_leaking_details():
         assert "transport configuration" not in response.text
 
 
-def test_google_disabled_is_reported_honestly_and_not_redirected():
-    def disabled_provider(_request):
-        return httpx.Response(200, json={"external": {"google": False, "email": True}})
-    app, _service = auth_app(disabled_provider)
-    with TestClient(app, base_url="https://qore.example.test") as client:
-        assert client.get("/api/auth/config").json()["google_enabled"] is False
-        assert client.get("/api/auth/google").status_code == 503
-
-
 def test_signout_clears_sessions_even_when_provider_is_unavailable():
     def offline_provider(request):
         raise httpx.ConnectError("offline", request=request)
@@ -310,4 +216,37 @@ def test_deployed_environment_defaults_to_required_auth(monkeypatch):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("RENDER", "true")
     assert AuthSettings.from_env().require_auth is True
+
+
+def test_email_only_config_and_retired_provider_has_no_route():
+    app, _service = auth_app(normal_provider)
+    with TestClient(app, base_url="https://qore.example.test") as client:
+        assert client.get("/api/auth/config").json() == {"configured": True, "required": True, "email_enabled": True}
+        assert "/api/auth/google" not in client.get("/openapi.json").json()["paths"]
+
+
+def test_confirmation_resend_uses_server_redirect_and_generic_message():
+    sent = []
+    def provider(request):
+        assert request.url.path.endswith("/resend")
+        sent.append((dict(request.url.params), json.loads(request.content)))
+        return httpx.Response(200, json={})
+    app, _service = auth_app(provider)
+    with TestClient(app, base_url="https://qore.example.test") as client:
+        result = client.post("/api/auth/resend", json={"email": USER["email"]})
+        assert result.status_code == 200
+        assert result.json()["message"].startswith("If this address has a pending account")
+        assert sent == [({"redirect_to": "https://qore.example.test/?email_confirmation=opened"}, {"email": USER["email"], "type": "signup"})]
+        assert client.post("/api/auth/resend", json={"email": USER["email"], "redirect_to": "https://attacker.example"}).status_code == 422
+
+
+def test_unverified_email_receives_actionable_safe_error():
+    def provider(_request):
+        return httpx.Response(400, json={"error_code": "email_not_confirmed", "msg": "provider private detail"})
+    app, _service = auth_app(provider)
+    with TestClient(app, base_url="https://qore.example.test") as client:
+        result = client.post("/api/auth/signin", json={"email": USER["email"], "password": "fixture-password"})
+        assert result.status_code == 401
+        assert result.json()["error"]["code"] == "email_confirmation_required"
+        assert "provider private detail" not in result.text
 

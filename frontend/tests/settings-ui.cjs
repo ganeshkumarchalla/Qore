@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { workspaceFixture } = require('./workspace-fixture.cjs');
 const ROOT = path.resolve(__dirname, '../..');
 const EVIDENCE = path.join(ROOT, 'evidence');
 fs.mkdirSync(EVIDENCE, { recursive: true });
@@ -16,8 +17,10 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, reducedMotion: 'reduce' });
     page.setDefaultTimeout(15000);
     const errors = [];
+    const workspace = workspaceFixture();
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', async route => {
+      if (await workspace.handle(route)) return;
       const pathname = new URL(route.request().url()).pathname;
       const body = pathname === '/api/auth/session' ? { user: { id: 'ui-settings-member', name: 'UI Member',
         email: 'member@example.test', avatarInitials: 'UM', role: 'Member', tier: 'Personal workspace' }, configured: true, required: true }

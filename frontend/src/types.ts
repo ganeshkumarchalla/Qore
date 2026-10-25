@@ -70,6 +70,18 @@ export type ExperimentSummary = { id: string; name: string; project_id?: string;
 export type Experiment = ExperimentSummary & { source: string; ir_version: string; ir?: IR; metrics?: Metrics; versions: Record<string, string>; simulation: Simulation | null; optimization: Optimization | null };
 export type Health = { status: string; versions: Record<string, string>; ai_available: boolean; limits: Record<string, unknown> };
 
+export type WorkspaceEntry = {
+  id: string; path: string; name: string; type: 'file' | 'folder';
+  source: string; kind: 'python' | 'qasm' | 'json' | 'markdown' | null;
+  version: number; created_at: string; updated_at: string;
+  deleted_at: string | null; expires_at: string | null;
+};
+export type WorkspaceSnapshot = {
+  files: WorkspaceEntry[]; folders: WorkspaceEntry[]; trash: WorkspaceEntry[];
+  active_file_id: string | null; last_deleted_id: string | null;
+  retention_hours: number; server_time: string;
+};
+
 export type Theme =
   | 'obsidian-void'
   | 'hyperion-cyan'

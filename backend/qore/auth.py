@@ -1,7 +1,7 @@
 """Supabase authentication with server-only tokens and verified request identity.
 
 Browser JavaScript receives a public profile, never access or refresh tokens.
-The provider owns passwords and Google identity; QORE owns the HTTP-only cookie
+The provider owns email credentials; QORE owns the HTTP-only cookie
 boundary and verifies each authenticated identity with the provider's user API.
 """
 from __future__ import annotations
@@ -12,14 +12,13 @@ import hashlib
 import json
 import os
 import re
-import secrets
 import time
 from collections import OrderedDict, deque
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from http.cookies import CookieError, SimpleCookie
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import urlencode, urlsplit
 from uuid import UUID
 
 import httpx
@@ -37,8 +36,7 @@ VERIFIER_COOKIE = "qore_pkce"
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9._~+/=-]{8,8192}$")
 PUBLIC_PATHS = {
     "/api/health", "/api/examples", "/api/auth/config", "/api/auth/session",
-    "/api/auth/google", "/api/auth/callback", "/api/auth/signin",
-    "/api/auth/signup", "/api/auth/signout",
+    "/api/auth/signin", "/api/auth/signup", "/api/auth/signout", "/api/auth/resend",
 }
 
 
@@ -81,7 +79,6 @@ class AuthSettings:
     public_url: str = "http://127.0.0.1:8000"
     require_auth: bool = False
     service_role_key: str = field(default="", repr=False)
-    enable_google: bool = False
 
     @classmethod
     def from_env(cls) -> "AuthSettings":
@@ -92,8 +89,7 @@ class AuthSettings:
         production = bool(os.environ.get("RENDER")) or os.environ.get("QORE_ENV", "").lower() == "production"
         configured = bool(url and key and public and not _privileged_key(key))
         required = production or configured or os.environ.get("QORE_REQUIRE_AUTH", "").lower() in {"1", "true", "yes"}
-        enable_google = os.environ.get("QORE_ENABLE_GOOGLE", "").lower() in {"1", "true", "yes"}
-        return cls(url, key, public, required, service_key, enable_google)
+        return cls(url, key, public, required, service_key)
 
     @property
     def configured(self) -> bool:
@@ -105,10 +101,9 @@ class AuthSettings:
         return self.public_url.startswith("https://")
 
 
-class SignInInput(BaseModel):
+class EmailInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     email: str = Field(min_length=3, max_length=254)
-    password: str = Field(min_length=1, max_length=512, repr=False)
 
     @field_validator("email")
     @classmethod
@@ -119,9 +114,13 @@ class SignInInput(BaseModel):
         return value
 
 
+class SignInInput(EmailInput):
+    password: str = Field(min_length=1, max_length=512, repr=False)
+
+
 class SignUpInput(SignInInput):
     name: str = Field(min_length=1, max_length=80)
-    password: str = Field(min_length=8, max_length=128, repr=False)
+    password: str = Field(min_length=12, max_length=128, repr=False)
 
     @field_validator("name")
     @classmethod
@@ -202,9 +201,7 @@ class AuthService:
 
     async def providers(self) -> dict[str, bool]:
         if not self.settings.configured:
-            return {"google_enabled": False, "email_enabled": False}
-        if not self.settings.enable_google:
-            return {"google_enabled": False, "email_enabled": True}
+            return {"email_enabled": False}
         now = time.monotonic()
         if self._providers and now - self._providers[0] < 30:
             return self._providers[1]
@@ -214,8 +211,7 @@ class AuthService:
         external = data.get("external") or {}
         if not isinstance(external, dict):
             raise AuthError("auth_provider_unavailable", "The sign-in service is temporarily unavailable.", 503)
-        values = {"google_enabled": external.get("google") is True,
-                  "email_enabled": external.get("email", True) is True}
+        values = {"email_enabled": external.get("email", True) is True}
         self._providers = now, values
         return values
 
@@ -235,6 +231,8 @@ class AuthService:
             raise AuthError("auth_rate_limited", "Too many sign-in attempts. Try again shortly.", 429)
         if status >= 500:
             raise AuthError("auth_provider_unavailable", "The sign-in service is temporarily unavailable.", 503)
+        if data.get("error_code") == "email_not_confirmed":
+            raise AuthError("email_confirmation_required", "Confirm your email before signing in. You can resend the confirmation email.")
         if status != 200 or not isinstance(data.get("access_token"), str) or not isinstance(data.get("refresh_token"), str):
             raise AuthError("signin_failed", "Sign-in could not be completed. Check your details and try again.")
         if not TOKEN_PATTERN.fullmatch(data["refresh_token"]):
@@ -288,7 +286,7 @@ class AuthService:
         for name in (ACCESS_COOKIE, REFRESH_COOKIE):
             response.delete_cookie(name, path="/", secure=self.settings.secure, httponly=True, samesite="lax")
 
-    def clear_oauth(self, response: Response) -> None:
+    def clear_legacy_cookies(self, response: Response) -> None:
         for name in (STATE_COOKIE, VERIFIER_COOKIE):
             response.delete_cookie(name, path="/api/auth", secure=self.settings.secure, httponly=True, samesite="lax")
 
@@ -309,16 +307,6 @@ class SessionMiddleware:
         scope["state"].update(user=None, owner_id=None, access_token=None)
         resolved = ResolvedSession()
         path = scope.get("path", "")
-        if path == "/api/auth/callback":
-            # Uvicorn logs the ASGI query string after the response starts.
-            # Move one-use codes out of that logged scope before routing.
-            raw_query = scope.get("query_string", b"")
-            try:
-                params = parse_qs(raw_query.decode("utf-8"), keep_blank_values=True, max_num_fields=8) if len(raw_query) <= 8192 else {}
-            except (UnicodeError, ValueError):
-                params = {}
-            scope["state"]["auth_callback_params"] = {key: values[0] for key, values in params.items() if len(values) == 1}
-            scope["query_string"] = b""
         token = current_identity.set(None)
         try:
             if path.startswith("/api/") and path not in PUBLIC_PATHS:
@@ -378,7 +366,7 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
     @router.get("/config")
     async def config():
         result = {"configured": service.settings.configured, "required": service.settings.require_auth,
-                  "google_enabled": False, "email_enabled": False}
+                  "email_enabled": False}
         try:
             result.update(await service.providers())
         except AuthError:
@@ -396,69 +384,6 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
             service.clear_session(response)
         return response
 
-    @router.get("/google")
-    async def google(request: Request):
-        service.ensure_configured()
-        service.rate_limit(request)
-        if not (await service.providers())["google_enabled"]:
-            raise AuthError("google_not_enabled", "Google sign-in is not enabled for this project yet.", 503)
-        state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
-        callback_url = service.settings.public_url + "/api/auth/callback?" + urlencode({"state": state})
-        url = service.settings.supabase_url + "/auth/v1/authorize?" + urlencode({
-            "provider": "google", "redirect_to": callback_url,
-            "code_challenge": challenge, "code_challenge_method": "s256"})
-        response = RedirectResponse(url, status_code=303, headers={"Cache-Control": "no-store"})
-        for name, value in ((STATE_COOKIE, state), (VERIFIER_COOKIE, verifier)):
-            response.set_cookie(name, value, max_age=600, path="/api/auth", httponly=True,
-                                secure=service.settings.secure, samesite="lax")
-        return response
-
-    @router.get("/callback")
-    async def callback(request: Request):
-        service.ensure_configured()
-        params = getattr(request.state, "auth_callback_params", {})
-        query_dict = dict(request.query_params)
-        merged = {**query_dict, **params}
-
-        code = (merged.get("code") or "").strip()
-        state = (merged.get("state") or "").strip()
-        error = (merged.get("error") or "").strip()
-
-        stored = (request.cookies.get(STATE_COOKIE) or "").strip()
-        verifier = (request.cookies.get(VERIFIER_COOKIE) or "").strip()
-
-        response = RedirectResponse("/", status_code=303, headers={"Cache-Control": "no-store"})
-        service.clear_oauth(response)
-
-        if error:
-            response.headers["location"] = "/?auth_error=signin_failed"
-            return response
-
-        # Validate ASCII pattern for state if present
-        if state and not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", state):
-            response.headers["location"] = "/?auth_error=signin_failed"
-            return response
-
-        if not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", stored):
-            response.headers["location"] = "/?auth_error=signin_failed"
-            return response
-
-        # If state was echoed back and stored state is present, verify CSRF match
-        if state and stored and not secrets.compare_digest(state, stored):
-            response.headers["location"] = "/?auth_error=signin_failed"
-            return response
-
-        if not code or not verifier or not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", verifier) or len(code) > 2048:
-            response.headers["location"] = "/?auth_error=signin_failed"
-            return response
-
-        try:
-            tokens, _user = await service.token_exchange("pkce", {"auth_code": code, "code_verifier": verifier})
-            service.set_session(response, tokens)
-        except AuthError as err:
-            response.headers["location"] = "/?auth_error=signin_failed"
-        return response
 
     @router.post("/signin")
     async def signin(payload: SignInInput, request: Request):
@@ -473,17 +398,24 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
     async def signup(payload: SignUpInput, request: Request):
         service.ensure_configured()
         service.rate_limit(request)
+
         if service.settings.service_role_key:
-            headers = {"apikey": service.settings.service_role_key,
-                       "Authorization": f"Bearer {service.settings.service_role_key}",
-                       "Content-Type": "application/json"}
+            headers = {
+                "apikey": service.settings.service_role_key,
+                "Authorization": f"Bearer {service.settings.service_role_key}",
+                "Content-Type": "application/json"
+            }
             try:
                 async with httpx.AsyncClient(timeout=8, trust_env=False) as client:
                     res = await client.post(
                         f"{service.settings.supabase_url}/auth/v1/admin/users",
                         headers=headers,
-                        json={"email": payload.email, "password": payload.password,
-                              "email_confirm": True, "user_metadata": {"full_name": payload.name}}
+                        json={
+                            "email": payload.email,
+                            "password": payload.password,
+                            "email_confirm": True,
+                            "user_metadata": {"full_name": payload.name}
+                        }
                     )
                     if res.status_code == 422:
                         raise AuthError("signup_failed", "An account with this email address already exists. Sign in instead.", 400)
@@ -498,7 +430,8 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
             service.set_session(response, tokens)
             return response
 
-        status, data = await service.upstream("POST", "/signup", payload={"email": payload.email,
+        redirect = service.settings.public_url + "/?email_confirmation=opened"
+        status, data = await service.upstream("POST", "/signup?" + urlencode({"redirect_to": redirect}), payload={"email": payload.email,
                                            "password": payload.password, "data": {"full_name": payload.name}})
         if status == 429:
             raise AuthError("auth_rate_limited", "Too many sign-in attempts. Try again shortly.", 429)
@@ -514,6 +447,20 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
             service.set_session(response, data)
         return response
 
+    @router.post("/resend")
+    async def resend(payload: EmailInput, request: Request):
+        service.ensure_configured()
+        service.rate_limit(request)
+        redirect = service.settings.public_url + "/?email_confirmation=opened"
+        status, _data = await service.upstream("POST", "/resend?" + urlencode({"redirect_to": redirect}),
+                                             payload={"email": payload.email, "type": "signup"})
+        if status == 429:
+            raise AuthError("auth_rate_limited", "Please wait before requesting another confirmation email.", 429)
+        if status >= 500:
+            raise AuthError("auth_provider_unavailable", "The email service is temporarily unavailable.", 503)
+        return JSONResponse({"message": "If this address has a pending account, a confirmation email has been sent. Check your inbox and spam folder."},
+                            headers={"Cache-Control": "no-store"})
+
     @router.post("/signout")
     async def signout(request: Request):
         access = request.cookies.get(ACCESS_COOKIE, "")
@@ -524,7 +471,7 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
                 pass
         response = JSONResponse({"user": None}, headers={"Cache-Control": "no-store"})
         service.clear_session(response)
-        service.clear_oauth(response)
+        service.clear_legacy_cookies(response)
         return response
 
     application.include_router(router)

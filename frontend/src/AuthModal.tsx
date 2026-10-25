@@ -14,7 +14,6 @@ export interface AuthUser {
 export interface AuthConfig {
   configured: boolean;
   required: boolean;
-  google_enabled: boolean;
   email_enabled: boolean;
   message?: string;
 }
@@ -45,20 +44,12 @@ function errorMessage(error: unknown): string {
     : message;
 }
 
-function GoogleMark() {
-  return <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-    <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z" />
-    <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.59A10 10 0 0 0 12 22Z" />
-    <path fill="#FBBC05" d="M6.41 13.92a6 6 0 0 1 0-3.84V7.49H3.06a10 10 0 0 0 0 9.02l3.35-2.59Z" />
-    <path fill="#EA4335" d="M12 5.96c1.47 0 2.79.51 3.82 1.51l2.86-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.94 5.49l3.35 2.59A5.89 5.89 0 0 1 12 5.96Z" />
-  </svg>;
-}
 
 export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogout }: AuthModalProps) {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [config, setConfig] = useState<AuthConfig | null>(null);
   const [checking, setChecking] = useState(false);
-  const [pending, setPending] = useState<'signin' | 'signup' | 'google' | 'signout' | null>(null);
+  const [pending, setPending] = useState<'signin' | 'signup' | 'resend' | 'signout' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -83,14 +74,22 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
     setConfig(null);
     setError('');
     setNotice('');
+    const query = new URLSearchParams(window.location.search);
+    if (query.has('email_confirmation')) {
+      setNotice('After confirming your email, sign in below with the password you chose.');
+      query.delete('email_confirmation');
+      const rest = query.toString();
+      window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash);
+    }
     void Promise.allSettled([api<AuthConfig>('/auth/config'), loadAuthSession()])
       .then(([configuration, session]) => {
         if (cancelled) return;
         if (configuration.status === 'fulfilled') setConfig(configuration.value);
         else setError(errorMessage(configuration.reason));
         if (session.status === 'fulfilled') {
-          if (session.value.user && session.value.user.id !== currentUser?.id) callbacks.current.onLoginSuccess(session.value.user);
-          else if (currentUser) void callbacks.current.onLogout();
+          if (session.value.user) {
+            if (session.value.user.id !== currentUser?.id) callbacks.current.onLoginSuccess(session.value.user);
+          } else if (currentUser) void callbacks.current.onLogout();
         } else {
           setError(errorMessage(session.reason));
         }
@@ -185,11 +184,19 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
     catch (reason) { setError(errorMessage(reason)); }
     finally { setChecking(false); }
   };
-  const googleAvailable = Boolean(config?.configured && config.google_enabled);
+  const resendConfirmation = async () => {
+    if (busy || !email.trim()) { setError('Enter your email address first.'); return; }
+    setPending('resend'); setError(''); setNotice('');
+    try {
+      const result = await api<{ message: string }>('/auth/resend', { email: email.trim() });
+      setNotice(result.message);
+    } catch (reason) { setError(errorMessage(reason)); }
+    finally { setPending(null); }
+  };
   const emailAvailable = Boolean(config?.configured && config.email_enabled);
   const providerMessage = checking ? 'Checking sign-in availability…'
     : !config?.configured ? 'Secure sign-in is being configured for this workspace.'
-    : config.message ?? (!config.google_enabled ? 'Google sign-in is not enabled for this workspace yet.' : 'Your sign-in session is protected by the QORE backend.');
+    : config.message ?? (config.email_enabled ? 'Sign in with your verified email and password.' : 'Email sign-in is unavailable. Please retry shortly.');
 
   return (
     <div className="modal-overlay glass-backdrop auth-modal-overlay"
@@ -238,15 +245,9 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
               </div>
 
               <div className="auth-form-body">
-                <button type="button" className="clean-button secondary full-width guest-btn"
-                  disabled={checking || busy || !googleAvailable} aria-describedby="qore-auth-provider-status"
-                  onClick={() => { if (googleAvailable) { setPending('google'); window.location.assign('/api/auth/google'); } }}>
-                  <GoogleMark /><span>{pending === 'google' ? 'Opening Google…' : 'Continue with Google'}</span>
-                </button>
                 <p id="qore-auth-provider-status" className="help" role="status" style={{ margin: 0 }}>{providerMessage}</p>
-                {!checking && !googleAvailable && <button type="button" className="clean-button secondary small" disabled={busy} onClick={() => void checkAvailability()}>Check sign-in availability</button>}
+                {!checking && !emailAvailable && <button type="button" className="clean-button secondary small" disabled={busy} onClick={() => void checkAvailability()}>Retry sign-in availability</button>}
               </div>
-              {emailAvailable && <div className="auth-divider"><span>OR USE EMAIL</span></div>}
               <form onSubmit={event => void submit(event)} className="auth-form-body">
                 {mode === 'signup' && (
                   <div className="auth-form-field">
@@ -320,6 +321,9 @@ export function AuthModal({ isOpen, onClose, currentUser, onLoginSuccess, onLogo
                 <button type="submit" className="clean-button primary full-width auth-submit-btn" disabled={busy || checking || !emailAvailable}>
                   {pending === 'signin' ? 'Signing in…' : pending === 'signup' ? 'Creating your account…' : mode === 'signup' ? 'Create Account' : 'Sign In to QORE'}
                 </button>
+                {mode === 'signin' && <button type="button" className="clean-button secondary full-width" disabled={busy || checking || !emailAvailable || !email.trim()} onClick={() => void resendConfirmation()}>
+                  {pending === 'resend' ? 'Sending confirmation…' : 'Resend verification email'}
+                </button>}
               </form>
 
               <div style={{ textAlign: 'center', padding: '0 20px 18px' }}>

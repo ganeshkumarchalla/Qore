@@ -16,6 +16,9 @@ Pictures
 media
 temp_edge_profile
 website_captures
+frontend/dist/captures
+frontend/dist/intro-video.html
+frontend/dist/*.mp4
 *.pem
 *.key
 credentials.json

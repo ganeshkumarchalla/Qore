@@ -3,9 +3,11 @@ import { Icon } from './Icons';
 import { formatDate, type ExperimentSummary, type Project } from './types';
 import {
   deleteWorkspaceFolder,
+  deleteWorkspaceFile,
   getWorkspaceStorageKey,
   loadWorkspaceFiles,
   loadWorkspaceFolders,
+  newWorkspaceId,
   renameWorkspaceFolder,
   saveWorkspaceFiles,
   saveWorkspaceFolders,
@@ -23,6 +25,9 @@ export interface WorkspaceFile {
   readOnly?: boolean;
   projectId?: string;
   experimentId?: string;
+  version?: number;
+  updated_at?: string;
+  syncState?: 'local' | 'pending' | 'saved' | 'error' | 'conflict';
 }
 
 interface ExplorerProps {
@@ -91,6 +96,7 @@ export function Explorer({
   const [customFiles, setCustomFiles] = useState<WorkspaceFile[]>(loadWorkspaceFiles);
   const [fileError, setFileError] = useState('');
   const [noticeMessage, setNoticeMessage] = useState('');
+  const folderMutation = useRef(false);
 
   // Synchronize with workspace events
   useEffect(() => {
@@ -254,7 +260,8 @@ export function Explorer({
     setNoticeMessage(`Folder "${raw}" created.`);
   };
 
-  const handleRenameFolderCommit = () => {
+  const handleRenameFolderCommit = async () => {
+    if (folderMutation.current) return;
     if (!renamingFolder || !renameFolderValue.trim()) {
       setRenamingFolder(null);
       return;
@@ -268,15 +275,17 @@ export function Explorer({
       setFileError(`Folder "${newName}" already exists.`);
       return;
     }
-    renameWorkspaceFolder(renamingFolder, newName);
+    folderMutation.current = true;
+    try { await renameWorkspaceFolder(renamingFolder, newName); }
+    catch (reason) { setFileError(reason instanceof Error ? reason.message : 'Folder could not be renamed.'); return; }
+    finally { folderMutation.current = false; }
     setFolders(loadWorkspaceFolders());
     const updatedFiles = loadWorkspaceFiles();
     setCustomFiles(updatedFiles);
 
     // Update active file reference if it lived in renamed folder
-    if (activeFileId.startsWith(`${renamingFolder}/`)) {
-      const newActiveId = `${newName}/${activeFileId.slice(renamingFolder.length + 1)}`;
-      const activeFile = updatedFiles.find((f) => f.id === newActiveId);
+    if (customFiles.find(file => file.id === activeFileId)?.path.startsWith(`${renamingFolder}/`)) {
+      const activeFile = updatedFiles.find((f) => f.id === activeFileId);
       if (activeFile) onFileRenamed?.(activeFileId, activeFile);
     }
 
@@ -290,15 +299,16 @@ export function Explorer({
     setNoticeMessage(`Renamed folder to "${newName}".`);
   };
 
-  const handleDeleteFolder = (folderName: string) => {
+  const handleDeleteFolder = async (folderName: string) => {
     const filesInFolder = customFiles.filter((f) => f.path.startsWith(`${folderName}/`));
     const confirmMsg = filesInFolder.length > 0
       ? `Delete folder "${folderName}" and all ${filesInFolder.length} file(s) inside it?`
       : `Delete empty folder "${folderName}"?`;
     if (!window.confirm(confirmMsg)) return;
 
+    try { await deleteWorkspaceFolder(folderName); }
+    catch (reason) { setFileError(reason instanceof Error ? reason.message : 'Folder could not be deleted.'); return; }
     filesInFolder.forEach((f) => onFileDeleted?.(f.id));
-    deleteWorkspaceFolder(folderName);
     setFolders(loadWorkspaceFolders());
     setCustomFiles(loadWorkspaceFiles());
     setNoticeMessage(`Deleted folder "${folderName}".`);
@@ -316,8 +326,10 @@ export function Explorer({
       const newPath = `${copyName}/${rest}`;
       return {
         ...f,
-        id: newPath,
+        id: newWorkspaceId(),
         path: newPath,
+        version: 0,
+        syncState: 'pending',
       };
     });
     saveWorkspaceFolders([...folders, copyName]);
@@ -353,16 +365,10 @@ export function Explorer({
       return;
     }
 
-    const defaultSource = isQasm
-      ? `OPENQASM 3.0;\ninclude "stdgates.inc";\n\nqubit[2] q;\nbit[2] c;\n\nh q[0];\ncx q[0], q[1];\nc = measure q;\n`
-      : isJson
-      ? `{\n  "version": "1.0",\n  "qubits": 2,\n  "operations": []\n}\n`
-      : isMd
-      ? `# ${fileName.replace(/\.md$/, '')}\n\nQuantum documentation notes.\n`
-      : `from qiskit import QuantumCircuit\n\nqc = QuantumCircuit(2, 2)\nqc.h(0)\nqc.cx(0, 1)\nqc.measure([0, 1], [0, 1])\n`;
+    const defaultSource = '';
 
     const newFile: WorkspaceFile = {
-      id: path,
+      id: newWorkspaceId(),
       name: fileName,
       path,
       type: 'file',
@@ -406,25 +412,26 @@ export function Explorer({
         const isJson = newName.endsWith('.json');
         const isMd = newName.endsWith('.md');
         const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
-        return { ...f, id: newPath, name: newName, path: newPath, kind };
+        return { ...f, name: newName, path: newPath, kind };
       }
       return f;
     });
     if (!saveCustomFiles(updated)) return;
-    const renamed = updated.find((file) => file.id === newPath);
+    const renamed = updated.find((file) => file.id === renamingId);
     if (renamed) onFileRenamed?.(renamingId, renamed);
     setRenamingId(null);
-    setNoticeMessage(`Renamed to ${newName}`);
+    setNoticeMessage(`Rename queued: ${newName}`);
   };
 
-  const handleDeleteFile = (id: string) => {
+  const handleDeleteFile = async (id: string) => {
     const file = customFiles.find((item) => item.id === id);
-    if (!file || !window.confirm(`Delete "${file.name}"?${activeFileId === id && dirty ? ' Unsaved edits will also be discarded.' : ''}`)) return;
-    const updated = customFiles.filter((f) => f.id !== id);
-    if (saveCustomFiles(updated)) {
+    if (!file || !window.confirm(`Move "${file.name}" to Trash? Signed-in files can be restored for 48 hours.`)) return;
+    try {
+      await deleteWorkspaceFile(id);
       onFileDeleted?.(id);
-      setNoticeMessage(`Deleted ${file.name}`);
-    }
+      setCustomFiles(loadWorkspaceFiles());
+      setNoticeMessage(`Moved ${file.name} to Trash.`);
+    } catch (reason) { setFileError(reason instanceof Error ? reason.message : 'The file could not be deleted.'); }
   };
 
   const handleDuplicateFile = (file: WorkspaceFile) => {
@@ -441,9 +448,11 @@ export function Explorer({
 
     const newFile: WorkspaceFile = {
       ...file,
-      id: copyPath,
+      id: newWorkspaceId(),
       name: copyName,
       path: copyPath,
+      version: 0,
+      syncState: 'pending',
     };
 
     if (!saveCustomFiles([newFile, ...customFiles])) return;
@@ -469,12 +478,12 @@ export function Explorer({
     }
     const updated = customFiles.map((f) => {
       if (f.id === movingFile.id) {
-        return { ...f, id: newPath, path: newPath };
+        return { ...f, path: newPath };
       }
       return f;
     });
     if (saveCustomFiles(updated)) {
-      const moved = updated.find((f) => f.id === newPath);
+      const moved = updated.find((f) => f.id === movingFile.id);
       if (moved) onFileRenamed?.(movingFile.id, moved);
       setNoticeMessage(`Moved "${movingFile.name}" to "${cleanFolder}/"`);
     }
@@ -547,14 +556,21 @@ export function Explorer({
       const reader = new FileReader();
       reader.onload = (e) => {
         const source = String(e.target?.result || '');
-        const name = file.name;
-        const path = `${folder}/${name}`;
+        let name = file.name;
+        let path = `${folder}/${name}`;
+        let suffix = 2;
+        const stem = name.replace(/(\.[^.]+)$/, '');
+        const extension = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
+        while ([...customFiles, ...loadedFiles].some(entry => entry.path === path)) {
+          name = `${stem}_import_${suffix++}${extension}`;
+          path = `${folder}/${name}`;
+        }
         const isQasm = name.endsWith('.qasm');
         const isJson = name.endsWith('.json');
         const isMd = name.endsWith('.md');
         const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
         const newFile: WorkspaceFile = {
-          id: path,
+          id: newWorkspaceId(),
           name,
           path,
           type: 'file',
@@ -564,7 +580,7 @@ export function Explorer({
         loadedFiles.push(newFile);
 
         if (loadedFiles.length === files.length) {
-          const nextFiles = [...loadedFiles, ...customFiles.filter((cf) => !loadedFiles.some((lf) => lf.path === cf.path))];
+          const nextFiles = [...loadedFiles, ...customFiles];
           saveCustomFiles(nextFiles);
           if (loadedFiles[0]) onOpenFile(loadedFiles[0]);
           setNoticeMessage(`Imported ${loadedFiles.length} file(s) into "${folder}/".`);

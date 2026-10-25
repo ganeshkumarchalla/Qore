@@ -6407,6 +6407,24 @@ input:focus, select:focus, textarea:focus {
   .bloch-viewer-card .bloch-grid-card { min-height: 230px !important; }
 }
 
+.qore-workspace-save { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 7px 13px; min-width: 0; border-bottom: 1px solid rgba(138, 180, 214, .13); background: rgba(73, 127, 166, .055); color: #a8bed1; font-size: 11px; }
+.qore-workspace-save > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.qore-workspace-save.has-error { color: #f2c48c; background: rgba(183, 119, 40, .07); }
+.qore-workspace-save button { border: 1px solid rgba(138, 180, 214, .3); border-radius: 7px; padding: 3px 8px; color: #e6f2ff; white-space: nowrap; background: rgba(138, 180, 214, .08); }
+.qore-trash-panel { display: flex; flex-direction: column; gap: 15px; width: min(740px, 96vw); max-height: 84dvh; min-height: 0; padding: 23px; border: 1px solid rgba(164, 199, 228, .24); border-radius: 23px; background: linear-gradient(140deg, rgba(30, 44, 61, .97), rgba(14, 22, 35, .97)); color: #e7f1fd; box-shadow: 0 24px 90px rgba(0, 0, 0, .45); }
+.qore-trash-panel header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.qore-trash-panel h2 { display: flex; align-items: center; gap: 9px; margin: 5px 0 0; font-size: 22px; font-weight: 700; }
+.qore-trash-panel > .help { font-size: 12px; line-height: 1.75; color: #adc1d6; margin: 0; }
+.qore-trash-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 9px; }
+.qore-trash-entry { display: flex; align-items: center; gap: 12px; padding: 15px; border-radius: 13px; border: 1px solid rgba(164, 199, 228, .15); background: rgba(164, 199, 228, .04); }
+.qore-trash-entry > div { flex: 1; min-width: 0; }
+.qore-trash-entry strong { display: block; overflow-wrap: anywhere; font-size: 12px; }
+.qore-trash-entry span { display: block; font-size: 10px; color: #a0b6cf; margin-top: 7px; line-height: 1.6; }
+.qore-trash-entry > button { flex-shrink: 0; }
+.qore-trash-empty { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 45px 20px; color: #a0b6cf; text-align: center; font-size: 12px; }
+.qore-trash-empty strong { color: #e7f1fd; font-size: 17px; }
+@media (max-width: 520px) { .qore-trash-panel { padding: 17px; } .qore-trash-entry { flex-wrap: wrap; } .qore-trash-entry > button { margin-left: auto; } }
+
 /* The assistant is a secondary surface; the selected workspace stays in place. */
 .qore-assistant-toggle {
   width: auto;

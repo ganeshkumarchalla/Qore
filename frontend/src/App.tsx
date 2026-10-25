@@ -10,7 +10,10 @@ import { Terminal } from './Terminal';
 import { ErrorBoundary } from './ErrorBoundary';
 import { WelcomeModal } from './WelcomeModal';
 import { GettingStarted } from './GettingStarted';
-import { addBlankFile, addStarterFile, loadWorkspaceFiles, saveWorkspaceFiles, setWorkspaceOwner } from './workspace';
+import { addBlankFile, addStarterFile, flushWorkspaceChanges, getActiveWorkspaceFile, getWorkspaceStatus,
+  initializeWorkspace, keepWorkspaceDraftAsCopy, loadWorkspaceFiles, newWorkspaceId, retryWorkspaceSync, saveWorkspaceFiles,
+  setActiveWorkspaceFile, setWorkspaceOwner, undoWorkspaceDeletion, updateWorkspaceBuffer, WORKSPACE_CHANGED_EVENT } from './workspace';
+import { TrashPanel } from './TrashPanel';
 import { AuthModal, type AuthUser, loadStoredUser } from './AuthModal';
 import {
   api,
@@ -83,6 +86,10 @@ export default function App() {
   const [isHudOpen, setIsHudOpen] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [isTrashOpen, setIsTrashOpen] = useState(false);
+  const [workspaceStatus, setWorkspaceStatus] = useState(getWorkspaceStatus);
+  const [workspaceAction, setWorkspaceAction] = useState(false);
+  const restoredOwner = useRef<string | null>(null);
   // The entry screen is a page-load experience, not a permanent preference:
   // every refresh starts with the QORE welcome surface again.
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(true);
@@ -116,6 +123,32 @@ export default function App() {
     setSimulation(null);
     setOptimization(null);
   }, []);
+
+  useEffect(() => {
+    const synchronize = () => setWorkspaceStatus(getWorkspaceStatus());
+    window.addEventListener(WORKSPACE_CHANGED_EVENT, synchronize);
+    const online = () => { void retryWorkspaceSync().catch(() => undefined); };
+    window.addEventListener('online', online);
+    return () => {
+      window.removeEventListener(WORKSPACE_CHANGED_EVENT, synchronize);
+      window.removeEventListener('online', online);
+    };
+  }, []);
+
+  useEffect(() => {
+    const owner = currentUser?.id ?? 'guest';
+    if (!workspaceStatus.ready || workspaceStatus.owner !== (currentUser?.id ?? null) || restoredOwner.current === owner) return;
+    restoredOwner.current = owner;
+    const file = getActiveWorkspaceFile();
+    if (file && !activeFileId && !sourceRef.current) void loadSource(file.source, file.name, null, file.id);
+  }, [currentUser?.id, workspaceStatus.ready, workspaceStatus.owner]);
+
+  useEffect(() => {
+    const file = loadWorkspaceFiles().find(item => item.id === activeFileId);
+    if (file && file.source === source && (file.syncState === 'saved' || file.syncState === 'local')) {
+      setBaseline(source); setBaselineName(name);
+    }
+  }, [workspaceStatus, activeFileId, source, name]);
 
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
@@ -158,6 +191,8 @@ export default function App() {
       invalidateApiRequests();
       ownerRef.current = owner;
       setWorkspaceOwner(owner);
+      restoredOwner.current = null;
+      setIsTrashOpen(false);
       setSource('');
       sourceRef.current = '';
       setActiveFileId('');
@@ -192,6 +227,8 @@ export default function App() {
       setHealth(nextHealth);
       setAuthRequired(session.required);
       applyIdentity(session.user);
+      await initializeWorkspace(session.user?.id ?? null);
+      if (requestId !== initializationRequest.current) return;
       const epoch = identityEpoch.current;
       if (session.user || !session.required) {
         const [nextProjects, nextExperiments] = await Promise.all([
@@ -265,6 +302,10 @@ export default function App() {
 
   function safeSwitch(action: () => void) {
     if (busy || saving) return;
+    if (loadWorkspaceFiles().some(file => file.id === activeFileId)) {
+      void flushWorkspaceChanges().then(action, action);
+      return;
+    }
     if (dirty) showModal('discard', name, action);
     else action();
   }
@@ -291,6 +332,7 @@ export default function App() {
   function closeWorkspaceFile(id: string) {
     if (id !== activeFileId) return;
     setActiveFileId('');
+    setActiveWorkspaceFile(null);
     setSource('');
     sourceRef.current = '';
     setName('Untitled project');
@@ -302,8 +344,10 @@ export default function App() {
   }
 
   async function loadSource(nextSource: string, nextName: string, id: string | null, customFileId?: string) {
+    const epoch = identityEpoch.current;
     const fileId = customFileId || (id ? id : nextName.includes('.') ? `circuits/${nextName}` : `circuits/${nextName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.py`);
     setActiveFileId(fileId);
+    setActiveWorkspaceFile(loadWorkspaceFiles().some(file => file.id === fileId) ? fileId : null);
     setSource(nextSource);
     sourceRef.current = nextSource;
     setName(nextName);
@@ -317,14 +361,15 @@ export default function App() {
     setError('');
 
     // Only invoke quantum compiler parser on Python quantum circuit code
-    if ((!authRequired || currentUser) && (nextSource.includes('QuantumCircuit') || nextSource.trimStart().startsWith('OPENQASM')) && !fileId.endsWith('.md') && !fileId.endsWith('.json') && !fileId.endsWith('.txt')) {
+    if ((!authRequired || currentUser) && (nextSource.includes('QuantumCircuit') || nextSource.trimStart().startsWith('OPENQASM')) && !nextName.endsWith('.md') && !nextName.endsWith('.json') && !nextName.endsWith('.txt')) {
       setBusy('Parsing');
       try {
-        setParsed(await api<Parsed>('/parse', { source: nextSource }));
+        const result = await api<Parsed>('/parse', { source: nextSource });
+        if (epoch === identityEpoch.current && sourceRef.current === nextSource) setParsed(result);
       } catch (err) {
-        setError((err as Error).message);
+        if (epoch === identityEpoch.current) setError((err as Error).message);
       } finally {
-        setBusy('');
+        if (epoch === identityEpoch.current) setBusy('');
       }
     } else {
       // Non-Python workspace files are still fully editable; they simply do
@@ -430,9 +475,11 @@ export default function App() {
     if (next === source || historical) return;
     setSource(next);
     sourceRef.current = next;
+    setError('');
+    try { updateWorkspaceBuffer(activeFileId, next); }
+    catch { setError('Your draft remains in the editor, but this device could not preserve its recovery copy. Export it before leaving.'); }
     clearResults();
     setSelectedExperiment(null);
-    setError('');
   }
 
   function insertSnippet(code: string) {
@@ -541,9 +588,9 @@ export default function App() {
       if (files.some((file) => file.id === activeFileId)) {
         try {
           saveWorkspaceFiles(files.map((file) => file.id === activeFileId ? { ...file, source } : file));
-          setBaseline(source);
-          setBaselineName(name);
-          setNotice('File saved in this browser workspace.');
+          const confirmed = await flushWorkspaceChanges();
+          if (confirmed) { setBaseline(source); setBaselineName(name); }
+          setNotice(currentUser ? confirmed ? 'File saved to your account.' : 'Draft retained on this device. Cloud save is pending; use Retry when connected.' : 'Draft retained in this browser. Sign in to keep files in your account.');
         } catch (error) {
           setError(error instanceof Error ? error.message : 'The file could not be saved. Your editor contents are unchanged.');
         }
@@ -560,7 +607,7 @@ export default function App() {
           const isJson = fileName.endsWith('.json');
           const isMd = fileName.endsWith('.md');
           const newFile: WorkspaceFile = {
-            id: path,
+            id: newWorkspaceId(),
             name: fileName,
             path,
             type: 'file',
@@ -569,7 +616,8 @@ export default function App() {
           };
           const nextFiles = [newFile, ...loadWorkspaceFiles().filter((f) => f.id !== path)];
           saveWorkspaceFiles(nextFiles);
-          setActiveFileId(path);
+          setActiveFileId(newFile.id);
+          setActiveWorkspaceFile(newFile.id);
           setName(fileName);
           setBaseline(source);
           setBaselineName(fileName);
@@ -661,7 +709,7 @@ export default function App() {
           const isJson = fileName.endsWith('.json');
           const isMd = fileName.endsWith('.md');
           const newFile: WorkspaceFile = {
-            id: path,
+            id: newWorkspaceId(),
             name: fileName,
             path,
             type: 'file',
@@ -670,7 +718,8 @@ export default function App() {
           };
           const nextFiles = [newFile, ...loadWorkspaceFiles().filter((f) => f.id !== path)];
           saveWorkspaceFiles(nextFiles);
-          setActiveFileId(path);
+          setActiveFileId(newFile.id);
+          setActiveWorkspaceFile(newFile.id);
           setName(fileName);
           setBaseline(source);
           setBaselineName(fileName);
@@ -1532,6 +1581,17 @@ export default function App() {
 
           {/* Sleek Utility Actions */}
           <div className="topbar-util-actions">
+            <button type="button" className="topbar-util-btn" aria-label="Undo last file deletion"
+              title="Undo last file deletion" disabled={!currentUser || !workspaceStatus.lastDeletedId || workspaceAction}
+              onClick={() => {
+                const epoch = identityEpoch.current;
+                setWorkspaceAction(true);
+                void undoWorkspaceDeletion().catch(reason => { if (epoch === identityEpoch.current) setError((reason as Error).message); })
+                  .finally(() => { if (epoch === identityEpoch.current) setWorkspaceAction(false); });
+              }}><Icon name="undo" size={16} /></button>
+            <button type="button" className={`topbar-util-btn ${isTrashOpen ? 'active' : ''}`}
+              aria-label="Open recently deleted files" aria-expanded={isTrashOpen} title="Recently deleted · restore for 48 hours"
+              disabled={!currentUser} onClick={() => setIsTrashOpen(true)}><Icon name="restore" size={16} /></button>
             <button
               type="button"
               id="qore-assistant-toggle"
@@ -1653,6 +1713,22 @@ export default function App() {
 
         {/* 3. Main Workspace Area */}
         <main className="vscode-main">
+        {(loadWorkspaceFiles().some(file => file.id === activeFileId) || workspaceStatus.error || workspaceStatus.pending > 0) && <div className={`qore-workspace-save ${workspaceStatus.error ? 'has-error' : ''}`} role="status">
+          <Icon name={workspaceStatus.error ? 'info' : workspaceStatus.saving ? 'refresh' : 'save'} size={13} />
+          <span>{!currentUser ? 'Local draft · sign in for account storage' : !workspaceStatus.ready ? 'Cloud workspace unavailable · drafts preserved on this device'
+            : workspaceStatus.error ? workspaceStatus.error : workspaceStatus.saving ? 'Saving to your account…' : workspaceStatus.pending ? 'Save pending · recovery copy on this device' : 'Saved to your account'}</span>
+          {currentUser && (workspaceStatus.error || !workspaceStatus.ready) && <button type="button" disabled={workspaceStatus.saving}
+            onClick={() => void retryWorkspaceSync().catch(() => undefined)}>Retry sync</button>}
+          {currentUser && loadWorkspaceFiles().find(file => file.id === activeFileId)?.syncState === 'conflict' && <button type="button" disabled={workspaceAction}
+            onClick={() => {
+              const epoch = identityEpoch.current;
+              setWorkspaceAction(true);
+              void keepWorkspaceDraftAsCopy(activeFileId).then(file => {
+                if (epoch === identityEpoch.current) void loadSource(file.source, file.name, null, file.id);
+              }).catch(reason => { if (epoch === identityEpoch.current) setError((reason as Error).message); })
+                .finally(() => { if (epoch === identityEpoch.current) setWorkspaceAction(false); });
+            }}>Keep draft as new file</button>}
+        </div>}
           {/* Notifications & Banners */}
         {historical && (
           <div className="workbench-banner historical">
@@ -1821,7 +1897,7 @@ export default function App() {
                     <Suspense fallback={<div className="editor-loading"><span className="spinner" /> Loading editor…</div>}>
                     <Editor
                     height="100%"
-                    language={activeFileId.endsWith('.md') ? 'markdown' : activeFileId.endsWith('.json') ? 'json' : activeFileId.endsWith('.qasm') ? 'c' : 'python'}
+                      language={name.endsWith('.md') ? 'markdown' : name.endsWith('.json') ? 'json' : name.endsWith('.qasm') ? 'c' : 'python'}
                     theme="qore"
                     value={source}
                     onMount={(editor) => { editorRef.current = editor; }}
@@ -1847,7 +1923,7 @@ export default function App() {
                       smoothScrolling: true,
                       guides: { bracketPairs: true, indentation: true },
                       bracketPairColorization: { enabled: settings.bracketPairColorization },
-                      readOnly: !!historical,
+                      readOnly: !!historical || workspaceStatus.lockedFiles.includes(activeFileId),
                       renderLineHighlight: 'all',
                       overviewRulerBorder: false,
                       folding: true,
@@ -2095,6 +2171,8 @@ export default function App() {
           void initialize();
         }}
       />
+      <TrashPanel key={`trash-${currentUser?.id ?? 'guest'}`} isOpen={isTrashOpen} onClose={() => setIsTrashOpen(false)}
+        onRestored={id => { const file = loadWorkspaceFiles().find(item => item.id === id); if (file) void loadSource(file.source, file.name, null, file.id); }} />
 
       {/* Settings Modal Dialog */}
       {isSettingsOpen && (

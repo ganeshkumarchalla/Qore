@@ -4,10 +4,10 @@ QORE has an active Codex daily review coordinator scheduled for **09:00 in Asia/
 
 | Dedicated review agent | Responsibility |
 | --- | --- |
-| Studio and Explorer | Editing, files/folders, onboarding, responsive layout, accessibility, browser cache preservation |
+| Studio and Explorer | Editing, database autosave, refresh/offline recovery, folder operations, 48-hour Trash and Undo, layout and accessibility |
 | Quantum Lab and Qiskit | Analytic reference circuits, probabilities, noise, Bloch purity, matrices, supported syntax and bounds |
 | Forge | Compiler candidates, operator equivalence, source hashes, measurement mapping and approval |
-| Identity and Ledger | Google/email availability, verified sessions, account separation, RLS and immutable restoration |
+| Identity and Ledger | Email confirmation and availability, verified sessions, account separation, RLS and immutable restoration |
 | AI Assistant | Secondary sidebar, grounded circuit/results context, stale-response prevention and safe failures |
 | Security and Secrets | Source/configuration scanning, credentials, Docker boundaries, dependency advisories and IDE safety |
 | Organization and Scalability | Module boundaries, types, containers, persistence, worker budgets, concurrency and performance |
