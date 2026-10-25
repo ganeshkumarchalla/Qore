@@ -22,13 +22,15 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await page.route('**/api/**', async route => {
       if (await workspace.handle(route)) return;
       const pathname = new URL(route.request().url()).pathname;
-      const body = pathname === '/api/auth/session' ? { user: { id: 'ui-settings-member', name: 'UI Member',
-        email: 'member@example.test', avatarInitials: 'UM', role: 'Member', tier: 'Personal workspace' }, configured: true, required: true }
-        : pathname === '/api/health' ? { status: 'ok', ai_available: false, versions: {}, limits: { max_qubits: 10 } } : [];
+      const body = pathname === '/api/health' ? { status: 'ok', ai_available: false, auth_required: false, storage: 'sqlite', versions: {}, limits: { max_qubits: 10 } } : [];
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     });
     await page.goto(base);
     await page.getByRole('status', { name: 'Welcome to qubit' }).waitFor({ state: 'hidden' });
+    await page.locator('.quantum-onboarding-overlay').waitFor({ state: 'visible' });
+    await page.getByRole('radio', { name: /Quantum Superposition/ }).click();
+    await page.getByRole('button', { name: /Initialize Quantum Experience/ }).click();
+    await page.locator('.quantum-onboarding-overlay').waitFor({ state: 'hidden', timeout: 30000 });
     const trigger = page.getByRole('button', { name: 'Open Settings', exact: true });
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: 'Settings & Preferences' }); await dialog.waitFor();

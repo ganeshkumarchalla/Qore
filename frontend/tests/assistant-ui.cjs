@@ -78,8 +78,6 @@ async function main() {
     assert.equal(requested.some(url => /QuantumEditor|monaco-editor|\/monaco[.-]/i.test(url)), false, 'Monaco must be deferred on an empty workspace');
     checks.push('Empty welcome/workspace does not request Monaco');
     await page.getByRole('button', { name: 'Get Started', exact: true }).click();
-    await page.waitForTimeout(500);
-    console.log('DEBUG_AFTER_GET_STARTED', (await page.locator('body').innerText()).slice(0, 1200));
     await page.locator('.monaco-editor').first().waitFor();
     await page.waitForFunction(() => document.querySelector('.monaco-editor .view-lines')?.textContent.includes('QuantumCircuit'), null, { timeout: 15000 });
     assert(requested.some(url => /QuantumEditor|monaco-editor|\/monaco[.-]/i.test(url)));
@@ -143,7 +141,7 @@ async function main() {
     await page.getByLabel('Ask QI Assistant').fill('open lab');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await page.getByText('Done — open lab.', { exact: true }).waitFor();
-    await page.getByRole('heading', { name: /Simulation/ }).first().waitFor();
+    await page.locator('.lab-view-shell').waitFor();
     assert.equal(requested.some(url => url.includes('/api/auth/')), false);
     checks.push('QI command opens Lab without any authentication request');
     assert.deepEqual(runtimeErrors, []);

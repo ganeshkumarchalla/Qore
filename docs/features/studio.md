@@ -28,7 +28,7 @@ Source edits invalidate attached live parse, simulation, and optimization contex
 
 ## Save confirmation and concurrent editing
 
-The account database is the authority for saved workspace records. Browser caches and an account-scoped outbox retain pending work during connection interruptions, but pending is not the same as committed. Wait for the visible saved state before closing a tab or switching accounts.
+Browser storage is the authority for editable Explorer source in the account-free release. The server workspace API separately protects versioned records and evidence. Wait for visible saved state before closing a tab, and export important source before clearing site data or moving to another browser profile.
 
 Each stored entry has an integer version. A changed write to an existing entry must match the server version; otherwise it returns a conflict. An identical retry is idempotent, so a connection retry does not create a duplicate edit. A trashed identifier cannot be resurrected through an ordinary save; use restore within the recovery window.
 

@@ -31,7 +31,7 @@ The script performs four sequential stages:
 | --- | --- | ---: |
 | Security and secret exposure | Source/configuration credentials, Dockerfiles, environment variants, Git exposure, ignore rules, IDE settings, configuration heuristics | 120 seconds |
 | Frontend health | TypeScript, production build, frontend secret isolation, structural checks and API contract heuristics | 180 seconds |
-| Backend regression suite | All tests in `backend/tests`, including authentication and private workspace boundaries | 600 seconds |
+| Backend regression suite | All tests in `backend/tests`, including anonymous browser isolation and workspace boundaries | 600 seconds |
 | Quantum and ledger acceptance | Real API/worker/Aer execution, reference comparisons, noise, matrices, Forge equivalence and immutable evidence restoration | 180 seconds |
 
 Every stage runs even if an earlier stage fails, so the resulting report identifies independent problems. The script exits with a nonzero status if a stage fails, times out, or does not produce a fresh valid report. Timed-out process trees are terminated.

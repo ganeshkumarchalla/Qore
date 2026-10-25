@@ -376,7 +376,7 @@ def create_app(db_path=None):
             }
         ]
 
-        if key:
+        if key and re.fullmatch(r"[a-zA-Z0-9_.-]{1,100}", model):
             prompt = (
                 "Generate an engaging, creative multiple-choice question testing fundamental quantum computing concepts "
                 "(such as superposition, entanglement, Hadamard / CNOT / Pauli gates, Bloch sphere, phase kickback, or measurement). "
@@ -389,7 +389,10 @@ def create_app(db_path=None):
                 "]} "
                 "Exactly one option must have correct: true."
             )
+            acquired = False
             try:
+                await asyncio.wait_for(application.state.ai_slots.acquire(), timeout=2)
+                acquired = True
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.post(
                         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
@@ -402,10 +405,18 @@ def create_app(db_path=None):
                     if resp.status_code == 200:
                         text = resp.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
                         data = json.loads(text)
-                        if data.get("question") and len(data.get("options", [])) == 4:
+                        options = data.get("options", [])
+                        if (isinstance(data.get("question"), str) and len(data["question"]) <= 1000
+                                and isinstance(options, list) and len(options) == 4
+                                and sum(item.get("correct") is True for item in options if isinstance(item, dict)) == 1
+                                and all(isinstance(item, dict) and isinstance(item.get("text"), str)
+                                        and isinstance(item.get("explanation"), str) for item in options)):
                             return data
             except Exception:
                 pass
+            finally:
+                if acquired:
+                    application.state.ai_slots.release()
 
         import random
         return random.choice(fallback_pool)
@@ -523,19 +534,19 @@ def create_app(db_path=None):
         except asyncio.TimeoutError:
             raise JobError("assistant_busy", "The assistant is busy. Please retry shortly.", status=429)
         try:
-            async with httpx.AsyncClient(timeout=25) as client:
+            async with httpx.AsyncClient(timeout=60) as client:
                 response = await client.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                     headers={"x-goog-api-key": key}, json={
                         "systemInstruction": {"parts": [{"text": instruction}]},
                         "contents": [{"role": "user", "parts": [{"text": json.dumps({"context": context, "question": body.question})}]}],
-                        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1600},
+                        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 900},
                     })
                 if response.status_code == 404 and model != "gemini-3.5-flash":
                     response = await client.post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent",
                         headers={"x-goog-api-key": key}, json={
                             "systemInstruction": {"parts": [{"text": instruction}]},
                             "contents": [{"role": "user", "parts": [{"text": json.dumps({"context": context, "question": body.question})}]}],
-                            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1600},
+                            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 900},
                         })
                     model = "gemini-3.5-flash"
                 response.raise_for_status()
