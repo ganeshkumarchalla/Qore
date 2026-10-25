@@ -1618,12 +1618,19 @@ export default function App() {
         </div>
       </header>
 
-      {/* Slow-motion animated authentication success banner floating below the top bar */}
+      {/* Slow-motion animated authentication success in the middle on the quantum theme */}
       {authSuccessState && (
         <AuthSuccessBanner
           user={authSuccessState.user}
           isNewUser={authSuccessState.isNewUser}
-          onDismiss={() => setAuthSuccessState(null)}
+          onDismiss={() => {
+            const wasNewUser = authSuccessState.isNewUser;
+            const userName = authSuccessState.user.name;
+            setAuthSuccessState(null);
+            if (wasNewUser) {
+              setOnboardingState({ name: userName });
+            }
+          }}
         />
       )}
 
@@ -2185,9 +2192,7 @@ export default function App() {
           applyIdentity(user);
           void initialize();
           setAuthSuccessState({ user, isNewUser: Boolean(isNewUser) });
-          if (isNewUser) {
-            setOnboardingState({ name: user.name });
-          } else {
+          if (!isNewUser) {
             setNotice(`Welcome back, ${user.name}. Your private workspace is ready.`);
           }
         }}
