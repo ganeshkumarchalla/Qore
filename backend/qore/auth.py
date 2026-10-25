@@ -412,21 +412,46 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
     async def callback(request: Request):
         service.ensure_configured()
         params = getattr(request.state, "auth_callback_params", {})
-        state, stored = params.get("state", ""), request.cookies.get(STATE_COOKIE, "")
-        verifier, code = request.cookies.get(VERIFIER_COOKIE, ""), params.get("code", "")
+        query_dict = dict(request.query_params)
+        merged = {**query_dict, **params}
+
+        code = (merged.get("code") or "").strip()
+        state = (merged.get("state") or "").strip()
+        error = (merged.get("error") or "").strip()
+
+        stored = (request.cookies.get(STATE_COOKIE) or "").strip()
+        verifier = (request.cookies.get(VERIFIER_COOKIE) or "").strip()
+
         response = RedirectResponse("/", status_code=303, headers={"Cache-Control": "no-store"})
         service.clear_oauth(response)
-        if (params.get("error") or not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", state)
-                or not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", stored)
-                or not secrets.compare_digest(state, stored) or not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", verifier)
-                or not code or len(code) > 2048):
+
+        if error:
+            response.headers["location"] = f"/?auth_error={error}"
+            return response
+
+        # Validate ASCII pattern for state if present
+        if state and not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", state):
             response.headers["location"] = "/?auth_error=signin_failed"
             return response
+
+        if stored and not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", stored):
+            response.headers["location"] = "/?auth_error=signin_failed"
+            return response
+
+        # If state was echoed back and stored state is present, verify CSRF match
+        if state and stored and not secrets.compare_digest(state, stored):
+            response.headers["location"] = "/?auth_error=signin_failed"
+            return response
+
+        if not code or not verifier or not re.fullmatch(r"[A-Za-z0-9_-]{43,128}", verifier) or len(code) > 2048:
+            response.headers["location"] = "/?auth_error=signin_failed"
+            return response
+
         try:
             tokens, _user = await service.token_exchange("pkce", {"auth_code": code, "code_verifier": verifier})
             service.set_session(response, tokens)
-        except AuthError:
-            response.headers["location"] = "/?auth_error=signin_failed"
+        except AuthError as err:
+            response.headers["location"] = f"/?auth_error={err.code}"
         return response
 
     @router.post("/signin")
