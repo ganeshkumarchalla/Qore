@@ -104,17 +104,31 @@ export function AuthModal({
   onLogout,
   onUpdateUser,
 }: AuthModalProps) {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
-  const [accountTab, setAccountTab] = useState<'profile' | 'personal' | 'mfa' | 'sessions'>('profile');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  const [accountTab, setAccountTab] = useState<'profile' | 'personal' | 'mfa' | 'password' | 'sessions'>('profile');
   const [config, setConfig] = useState<AuthConfig | null>(null);
   const [checking, setChecking] = useState(false);
-  const [pending, setPending] = useState<'signin' | 'signup' | 'resend' | 'signout' | 'save_profile' | null>(null);
+  const [pending, setPending] = useState<'signin' | 'signup' | 'resend' | 'signout' | 'save_profile' | 'send_otp' | 'verify_otp' | 'change_password' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  // Password Recovery / Verification OTP state
+  const [forgotStep, setForgotStep] = useState<'request_otp' | 'verify_otp'>('request_otp');
+  const [otpCode, setOtpCode] = useState('');
+  const [recoveryPassword, setRecoveryPassword] = useState('');
+  const [confirmRecoveryPassword, setConfirmRecoveryPassword] = useState('');
+  const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
+
+  // Change Password for Logged-In User state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newAccountPassword, setNewAccountPassword] = useState('');
+  const [confirmAccountPassword, setConfirmAccountPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewAccountPassword, setShowNewAccountPassword] = useState(false);
 
   // Extended Profile State for Logged-In User
   const [title, setTitle] = useState('');
@@ -227,17 +241,111 @@ export function AuthModal({
 
   if (!isOpen) return null;
 
-  const switchMode = (next: 'signin' | 'signup') => {
+  const switchMode = (next: 'signin' | 'signup' | 'forgot') => {
     setMode(next);
     setPassword('');
     setError('');
     setNotice('');
     setShowPassword(false);
+    if (next === 'forgot') {
+      setForgotStep('request_otp');
+      setOtpCode('');
+      setRecoveryPassword('');
+      setConfirmRecoveryPassword('');
+    }
+  };
+
+  const handleSendRecoveryOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!email.trim() || busy) return;
+    setError('');
+    setNotice('');
+    setPending('send_otp');
+    try {
+      const res = await api<{ message: string }>('/auth/otp/send-recovery', { email: email.trim() });
+      setNotice(res.message || `Verification code (OTP) sent to ${email.trim()}. Please check your email.`);
+      setForgotStep('verify_otp');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const handleVerifyOtpAndReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (recoveryPassword.length < 12) {
+      setError('New password must be at least 12 characters.');
+      return;
+    }
+    if (recoveryPassword !== confirmRecoveryPassword) {
+      setError('Passwords do not match. Please re-enter.');
+      return;
+    }
+    if (!otpCode.trim()) {
+      setError('Please enter the 6-digit verification OTP code.');
+      return;
+    }
+    setError('');
+    setNotice('');
+    setPending('verify_otp');
+    try {
+      const result = await api<{ user: AuthUser; message: string }>('/auth/otp/verify-reset', {
+        email: email.trim(),
+        otp: otpCode.trim(),
+        password: recoveryPassword,
+      });
+      if (result.user) {
+        const ext = getExtendedProfile(result.user.id);
+        const mergedUser: AuthUser = { ...result.user, ...ext };
+        saveStoredUser(mergedUser);
+        onLoginSuccess(mergedUser, false);
+        onClose();
+      } else {
+        setNotice(result.message || 'Password reset successfully. Please sign in with your new password.');
+        switchMode('signin');
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || busy) return;
+    if (newAccountPassword.length < 12) {
+      setError('New password must be at least 12 characters.');
+      return;
+    }
+    if (newAccountPassword !== confirmAccountPassword) {
+      setError('New passwords do not match. Please re-enter.');
+      return;
+    }
+    setError('');
+    setNotice('');
+    setPending('change_password');
+    try {
+      const res = await api<{ message: string }>('/auth/change-password', {
+        current_password: currentPassword || undefined,
+        new_password: newAccountPassword,
+      });
+      setNotice(res.message || 'Password changed successfully.');
+      setCurrentPassword('');
+      setNewAccountPassword('');
+      setConfirmAccountPassword('');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setPending(null);
+    }
   };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (busy || !config?.configured || !config.email_enabled) return;
+    if (busy || !config?.configured || !config.email_enabled || mode === 'forgot') return;
     setError('');
     setNotice('');
     setPending(mode);
@@ -425,7 +533,20 @@ export function AuthModal({
           {error && (
             <div className="auth-error-banner" role="alert">
               <Icon name="info" size={14} />
-              <span>{error}</span>
+              <div style={{ flex: 1 }}>
+                <span>{error}</span>
+                {mode === 'signin' && (
+                  <div style={{ marginTop: '6px' }}>
+                    <button
+                      type="button"
+                      className="auth-reset-inline-btn"
+                      onClick={() => switchMode('forgot')}
+                    >
+                      Reset Password via Email OTP &rarr;
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {notice && (
@@ -482,6 +603,20 @@ export function AuthModal({
                   <Icon name="gear" size={14} />
                   <span>Security & MFA</span>
                   {mfaEnabled && <span className="mfa-active-dot" title="2FA Active" />}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={accountTab === 'password'}
+                  className={`account-subtab-btn ${accountTab === 'password' ? 'active' : ''}`}
+                  onClick={() => {
+                    setAccountTab('password');
+                    setError('');
+                    setNotice('');
+                  }}
+                >
+                  <Icon name="edit" size={14} />
+                  <span>Change Password</span>
                 </button>
               </div>
 
@@ -833,7 +968,275 @@ export function AuthModal({
                   </div>
                 </div>
               )}
+
+              {/* TAB 4: Change Password */}
+              {accountTab === 'password' && (
+                <form onSubmit={handleChangePassword} className="account-tab-panel">
+                  <div className="account-settings-intro">
+                    <h4 className="account-panel-title">Change Account Password</h4>
+                    <p className="account-panel-desc">
+                      Update your quantum workspace password. Passwords must be at least 12 characters and include letters, numbers, or symbols.
+                    </p>
+                  </div>
+
+                  <div className="auth-form-field">
+                    <label htmlFor="qore-current-pwd">Current Password</label>
+                    <div className="auth-password-wrap">
+                      <input
+                        id="qore-current-pwd"
+                        className="auth-input"
+                        type={showCurrentPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        placeholder="Enter current password"
+                        disabled={busy}
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="auth-pwd-toggle"
+                        onClick={() => setShowCurrentPassword((v) => !v)}
+                        aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <Icon name={showCurrentPassword ? 'eyeOff' : 'eye'} size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="auth-form-field">
+                    <label htmlFor="qore-new-pwd">New Password (min 12 characters)</label>
+                    <div className="auth-password-wrap">
+                      <input
+                        id="qore-new-pwd"
+                        className="auth-input"
+                        type={showNewAccountPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        required
+                        minLength={12}
+                        maxLength={128}
+                        placeholder="Enter new strong password"
+                        disabled={busy}
+                        value={newAccountPassword}
+                        onChange={(e) => setNewAccountPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="auth-pwd-toggle"
+                        onClick={() => setShowNewAccountPassword((v) => !v)}
+                        aria-label={showNewAccountPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <Icon name={showNewAccountPassword ? 'eyeOff' : 'eye'} size={14} />
+                      </button>
+                    </div>
+                    {newAccountPassword && newAccountPassword.length < 12 && (
+                      <span className="auth-pwd-hint error">Needs at least 12 characters ({newAccountPassword.length}/12)</span>
+                    )}
+                  </div>
+
+                  <div className="auth-form-field">
+                    <label htmlFor="qore-confirm-new-pwd">Confirm New Password</label>
+                    <input
+                      id="qore-confirm-new-pwd"
+                      className="auth-input"
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      minLength={12}
+                      maxLength={128}
+                      placeholder="Re-enter new password"
+                      disabled={busy}
+                      value={confirmAccountPassword}
+                      onChange={(e) => setConfirmAccountPassword(e.target.value)}
+                    />
+                    {confirmAccountPassword && newAccountPassword !== confirmAccountPassword && (
+                      <span className="auth-pwd-hint error">Passwords do not match</span>
+                    )}
+                  </div>
+
+                  <div className="account-action-footer">
+                    <button
+                      type="submit"
+                      className="clean-button primary"
+                      disabled={busy || newAccountPassword.length < 12 || newAccountPassword !== confirmAccountPassword}
+                    >
+                      {pending === 'change_password' ? 'Updating Password…' : 'Update Account Password'}
+                    </button>
+                  </div>
+
+                  <div className="account-panel-hint-box" style={{ marginTop: '12px' }}>
+                    <Icon name="info" size={14} />
+                    <span>
+                      Don&apos;t remember current password?{' '}
+                      <button
+                        type="button"
+                        className="auth-inline-link-btn"
+                        onClick={() => {
+                          setEmail(currentUser.email);
+                          switchMode('forgot');
+                          void handleSendRecoveryOtp();
+                        }}
+                      >
+                        Send verification OTP to {currentUser.email}
+                      </button>
+                    </span>
+                  </div>
+                </form>
+              )}
             </div>
+          ) : mode === 'forgot' ? (
+            /* LOGGED OUT: Password Recovery via Email Verification OTP */
+            <>
+              <div className="auth-tabs-bar" role="group" aria-label="Account action">
+                <button
+                  type="button"
+                  className="auth-tab-btn"
+                  onClick={() => switchMode('signin')}
+                  disabled={busy}
+                >
+                  &larr; Back to Sign In
+                </button>
+                <button
+                  type="button"
+                  className="auth-tab-btn active"
+                  disabled
+                >
+                  Password Recovery (OTP)
+                </button>
+              </div>
+
+              {forgotStep === 'request_otp' ? (
+                <form onSubmit={handleSendRecoveryOtp} className="auth-form-body">
+                  <div className="auth-form-intro">
+                    <h4 className="auth-step-title">Reset Password via Email OTP</h4>
+                    <p className="auth-step-desc">
+                      Enter your account email. We will send a 6-digit verification code (OTP) to your inbox to reset your password.
+                    </p>
+                  </div>
+
+                  <div className="auth-form-field">
+                    <label htmlFor="qore-recovery-email">Account Email Address</label>
+                    <input
+                      id="qore-recovery-email"
+                      className="auth-input"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      disabled={busy}
+                      placeholder="name@quantum-lab.org"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="clean-button primary full-width auth-submit-btn"
+                    disabled={busy || !email.trim()}
+                  >
+                    {pending === 'send_otp' ? 'Sending Verification OTP…' : 'Send Verification OTP to Email'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtpAndReset} className="auth-form-body">
+                  <div className="auth-form-intro">
+                    <h4 className="auth-step-title">Enter Verification OTP & New Password</h4>
+                    <p className="auth-step-desc">
+                      Enter the 6-digit OTP code sent to <strong style={{ color: '#38bdf8' }}>{email}</strong> and set your new password.
+                    </p>
+                  </div>
+
+                  <div className="auth-form-field">
+                    <label htmlFor="qore-recovery-otp">6-Digit Verification OTP Code</label>
+                    <input
+                      id="qore-recovery-otp"
+                      className="auth-input auth-otp-code-input"
+                      type="text"
+                      autoComplete="one-time-code"
+                      required
+                      maxLength={12}
+                      disabled={busy}
+                      placeholder="e.g. 123456"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="auth-form-field">
+                    <label htmlFor="qore-new-recovery-pwd">New Password (min 12 characters)</label>
+                    <div className="auth-password-wrap">
+                      <input
+                        id="qore-new-recovery-pwd"
+                        className="auth-input"
+                        type={showRecoveryPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        required
+                        minLength={12}
+                        maxLength={128}
+                        placeholder="At least 12 characters"
+                        disabled={busy}
+                        value={recoveryPassword}
+                        onChange={(e) => setRecoveryPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="auth-pwd-toggle"
+                        onClick={() => setShowRecoveryPassword((v) => !v)}
+                        aria-label={showRecoveryPassword ? 'Hide password' : 'Show password'}
+                      >
+                        <Icon name={showRecoveryPassword ? 'eyeOff' : 'eye'} size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="auth-form-field">
+                    <label htmlFor="qore-confirm-recovery-pwd">Confirm New Password</label>
+                    <input
+                      id="qore-confirm-recovery-pwd"
+                      className="auth-input"
+                      type="password"
+                      autoComplete="new-password"
+                      required
+                      minLength={12}
+                      maxLength={128}
+                      placeholder="Re-enter your new password"
+                      disabled={busy}
+                      value={confirmRecoveryPassword}
+                      onChange={(e) => setConfirmRecoveryPassword(e.target.value)}
+                    />
+                    {confirmRecoveryPassword && recoveryPassword !== confirmRecoveryPassword && (
+                      <span className="auth-pwd-hint error">Passwords do not match</span>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="clean-button primary full-width auth-submit-btn"
+                    disabled={busy || !otpCode.trim() || recoveryPassword.length < 12 || recoveryPassword !== confirmRecoveryPassword}
+                  >
+                    {pending === 'verify_otp' ? 'Verifying & Updating…' : 'Verify OTP & Reset Password'}
+                  </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="auth-link-btn"
+                      onClick={() => setForgotStep('request_otp')}
+                      disabled={busy}
+                    >
+                      Change Email
+                    </button>
+                    <button
+                      type="button"
+                      className="auth-link-btn"
+                      onClick={() => void handleSendRecoveryOtp()}
+                      disabled={busy}
+                    >
+                      Resend OTP Code
+                    </button>
+                  </div>
+                </form>
+              )}
+            </>
           ) : (
             /* LOGGED OUT: Sign In / Create Account with Animated Quantum Gradient */
             <>
@@ -894,7 +1297,18 @@ export function AuthModal({
                 </div>
 
                 <div className="auth-form-field">
-                  <label htmlFor="qore-auth-password">Password</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label htmlFor="qore-auth-password" style={{ margin: 0 }}>Password</label>
+                    {mode === 'signin' && (
+                      <button
+                        type="button"
+                        className="auth-forgot-link-btn"
+                        onClick={() => switchMode('forgot')}
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
                   <div className="auth-password-wrap">
                     <input
                       id="qore-auth-password"

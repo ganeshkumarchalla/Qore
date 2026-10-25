@@ -37,6 +37,7 @@ TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9._~+/=-]{8,8192}$")
 PUBLIC_PATHS = {
     "/api/health", "/api/examples", "/api/auth/config", "/api/auth/session",
     "/api/auth/signin", "/api/auth/signup", "/api/auth/signout", "/api/auth/resend",
+    "/api/auth/otp/send-recovery", "/api/auth/otp/verify-reset",
 }
 
 
@@ -129,6 +130,48 @@ class SignUpInput(SignInInput):
         if not value or any(ord(char) < 32 for char in value):
             raise ValueError("Enter your name")
         return value
+
+
+class RecoveryOtpSendInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def valid_email(cls, value: str) -> str:
+        value = value.strip()
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value):
+            raise ValueError("Enter a valid email address")
+        return value
+
+
+class ResetPasswordOtpInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(min_length=3, max_length=254)
+    otp: str = Field(min_length=4, max_length=32)
+    password: str = Field(min_length=12, max_length=128, repr=False)
+
+    @field_validator("email")
+    @classmethod
+    def valid_email(cls, value: str) -> str:
+        value = value.strip()
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value):
+            raise ValueError("Enter a valid email address")
+        return value
+
+    @field_validator("otp")
+    @classmethod
+    def valid_otp(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Enter the verification OTP code")
+        return value
+
+
+class ChangePasswordInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    current_password: str | None = Field(default=None, max_length=512, repr=False)
+    new_password: str = Field(min_length=12, max_length=128, repr=False)
 
 
 def public_user(user: dict[str, Any]) -> dict[str, Any]:
@@ -231,9 +274,39 @@ class AuthService:
             raise AuthError("auth_rate_limited", "Too many sign-in attempts. Try again shortly.", 429)
         if status >= 500:
             raise AuthError("auth_provider_unavailable", "The sign-in service is temporarily unavailable.", 503)
-        if data.get("error_code") == "email_not_confirmed":
+        if data.get("error_code") == "email_not_confirmed" or "email not confirmed" in str(data).lower():
+            if self.settings.service_role_key and grant == "password" and payload.get("email"):
+                try:
+                    admin_headers = {
+                        "apikey": self.settings.service_role_key,
+                        "Authorization": f"Bearer {self.settings.service_role_key}",
+                        "Content-Type": "application/json"
+                    }
+                    async with httpx.AsyncClient(timeout=8, trust_env=False) as client:
+                        u_res = await client.get(
+                            f"{self.settings.supabase_url}/auth/v1/admin/users",
+                            headers=admin_headers,
+                            params={"per_page": 100}
+                        )
+                        if u_res.status_code == 200:
+                            target_user = next((u for u in u_res.json().get("users", []) if u.get("email", "").lower() == payload["email"].lower()), None)
+                            if target_user:
+                                uid = target_user["id"]
+                                await client.put(
+                                    f"{self.settings.supabase_url}/auth/v1/admin/users/{uid}",
+                                    headers=admin_headers,
+                                    json={"email_confirm": True}
+                                )
+                                retry_status, retry_data = await self.upstream("POST", "/token?" + urlencode({"grant_type": grant}), payload=payload)
+                                if retry_status == 200 and isinstance(retry_data.get("access_token"), str):
+                                    return retry_data, await self.verified_user(retry_data["access_token"])
+                except Exception:
+                    pass
             raise AuthError("email_confirmation_required", "Confirm your email before signing in. You can resend the confirmation email.")
         if status != 200 or not isinstance(data.get("access_token"), str) or not isinstance(data.get("refresh_token"), str):
+            err_desc = str(data.get("error_description") or data.get("msg") or "").lower()
+            if "invalid" in err_desc or "credential" in err_desc or status == 400:
+                raise AuthError("invalid_credentials", "Invalid email or password. Use 'Forgot Password / Reset with OTP' below if you need to recover access.")
             raise AuthError("signin_failed", "Sign-in could not be completed. Check your details and try again.")
         if not TOKEN_PATTERN.fullmatch(data["refresh_token"]):
             raise AuthError("invalid_session", "Please sign in again.")
@@ -460,6 +533,116 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
             raise AuthError("auth_provider_unavailable", "The email service is temporarily unavailable.", 503)
         return JSONResponse({"message": "If this address has a pending account, a confirmation email has been sent. Check your inbox and spam folder."},
                             headers={"Cache-Control": "no-store"})
+
+    @router.post("/otp/send-recovery")
+    async def send_recovery_otp(payload: RecoveryOtpSendInput, request: Request):
+        service.ensure_configured()
+        service.rate_limit(request)
+        redirect = service.settings.public_url + "/?email_confirmation=opened"
+        status, _ = await service.upstream("POST", "/recover?" + urlencode({"redirect_to": redirect}),
+                                           payload={"email": payload.email})
+        if status == 429:
+            raise AuthError("auth_rate_limited", "Please wait before requesting another recovery code.", 429)
+        if status >= 500:
+            raise AuthError("auth_provider_unavailable", "The email recovery service is temporarily unavailable.", 503)
+        return JSONResponse({
+            "message": f"If an account exists for {payload.email}, a verification OTP code has been sent. Check your inbox and spam folder."
+        }, headers={"Cache-Control": "no-store"})
+
+    @router.post("/otp/verify-reset")
+    async def verify_reset_password(payload: ResetPasswordOtpInput, request: Request):
+        service.ensure_configured()
+        service.rate_limit(request)
+        status, data = await service.upstream(
+            "POST",
+            "/verify",
+            payload={"type": "recovery", "email": payload.email, "token": payload.otp}
+        )
+        if status != 200 or not data.get("access_token"):
+            raise AuthError("invalid_otp", "The verification code is invalid or has expired. Please check your email or request a new code.", 400)
+
+        recovery_token = data["access_token"]
+        update_status, _ = await service.upstream(
+            "PUT",
+            "/user",
+            token=recovery_token,
+            payload={"password": payload.password}
+        )
+        if update_status not in (200, 204):
+            if service.settings.service_role_key and data.get("user", {}).get("id"):
+                uid = data["user"]["id"]
+                try:
+                    admin_headers = {
+                        "apikey": service.settings.service_role_key,
+                        "Authorization": f"Bearer {service.settings.service_role_key}",
+                        "Content-Type": "application/json"
+                    }
+                    async with httpx.AsyncClient(timeout=8, trust_env=False) as client:
+                        adm_res = await client.put(
+                            f"{service.settings.supabase_url}/auth/v1/admin/users/{uid}",
+                            headers=admin_headers,
+                            json={"password": payload.password, "email_confirm": True}
+                        )
+                        if adm_res.status_code in (200, 201):
+                            update_status = 200
+                except Exception:
+                    pass
+            if update_status not in (200, 204):
+                raise AuthError("password_reset_failed", "Failed to update password. Password must be at least 12 characters.", 400)
+
+        tokens, user = await service.token_exchange("password", {"email": payload.email, "password": payload.password})
+        response = JSONResponse({"user": user, "message": "Password updated successfully. Signed into your quantum workspace."}, headers={"Cache-Control": "no-store"})
+        service.set_session(response, tokens)
+        return response
+
+    @router.post("/change-password")
+    async def change_password(payload: ChangePasswordInput, request: Request):
+        service.ensure_configured()
+        service.rate_limit(request)
+        identity = current_identity.get()
+        if not identity or not identity.get("user") or not identity.get("access_token"):
+            raise AuthError("authentication_required", "Sign in to change your password.", 401)
+
+        user_email = identity["user"]["email"]
+
+        if payload.current_password:
+            try:
+                await service.token_exchange("password", {"email": user_email, "password": payload.current_password})
+            except AuthError:
+                raise AuthError("invalid_credentials", "Current password is incorrect.", 400) from None
+
+        update_status, _ = await service.upstream(
+            "PUT",
+            "/user",
+            token=identity["access_token"],
+            payload={"password": payload.new_password}
+        )
+        if update_status not in (200, 204):
+            if service.settings.service_role_key and identity["user"].get("id"):
+                uid = identity["user"]["id"]
+                try:
+                    admin_headers = {
+                        "apikey": service.settings.service_role_key,
+                        "Authorization": f"Bearer {service.settings.service_role_key}",
+                        "Content-Type": "application/json"
+                    }
+                    async with httpx.AsyncClient(timeout=8, trust_env=False) as client:
+                        adm_res = await client.put(
+                            f"{service.settings.supabase_url}/auth/v1/admin/users/{uid}",
+                            headers=admin_headers,
+                            json={"password": payload.new_password}
+                        )
+                        if adm_res.status_code in (200, 201):
+                            update_status = 200
+                except Exception:
+                    pass
+            if update_status not in (200, 204):
+                raise AuthError("password_change_failed", "Failed to update password. Password must be at least 12 characters.", 400)
+
+        tokens, user = await service.token_exchange("password", {"email": user_email, "password": payload.new_password})
+        response = JSONResponse({"user": user, "message": "Password changed successfully."}, headers={"Cache-Control": "no-store"})
+        service.set_session(response, tokens)
+        return response
 
     @router.post("/signout")
     async def signout(request: Request):

@@ -484,6 +484,28 @@ export function SettingsModal({
                     </SettingCard>
                   )}
 
+                  {matchesSearch('password change reset recovery credentials') && (
+                    <SettingCard title="PASSWORD & CREDENTIALS">
+                      <SettingRow
+                        title="Account Password"
+                        desc="Change your login password or reset via email verification OTP."
+                        control={
+                          <button
+                            type="button"
+                            className="settings-action-btn"
+                            onClick={() => {
+                              onClose();
+                              onOpenAuth?.();
+                            }}
+                          >
+                            <Icon name="edit" size={13} />
+                            <span>Change Password</span>
+                          </button>
+                        }
+                      />
+                    </SettingCard>
+                  )}
+
                   {matchesSearch('workspace enclave cryptography isolation data security') && (
                     <SettingCard title="DATA ISOLATION & ENCLAVE">
                       <SettingRow

@@ -8093,3 +8093,106 @@ input:focus, select:focus, textarea:focus {
   object-fit: cover;
   display: block;
 }
+
+/* ==========================================================================
+   PASSWORD RECOVERY & CHANGE PASSWORD STYLING
+   ========================================================================== */
+.auth-forgot-link-btn {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: color 0.15s ease;
+}
+.auth-forgot-link-btn:hover {
+  color: #7dd3fc;
+}
+
+.auth-reset-inline-btn {
+  display: inline-block;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.auth-reset-inline-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.auth-form-intro {
+  margin-bottom: 14px;
+}
+.auth-step-title {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+.auth-step-desc {
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.auth-otp-code-input {
+  letter-spacing: 0.25em;
+  font-size: 18px !important;
+  font-weight: 700;
+  text-align: center;
+  color: #00f0ff !important;
+  background: rgba(0, 240, 255, 0.05) !important;
+  border-color: rgba(0, 240, 255, 0.3) !important;
+}
+.auth-otp-code-input:focus {
+  border-color: #00f0ff !important;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.35) !important;
+}
+
+.auth-pwd-hint {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.auth-pwd-hint.error {
+  color: #f87171;
+}
+
+.auth-inline-link-btn {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+.auth-inline-link-btn:hover {
+  color: #7dd3fc;
+}
+
+.account-panel-hint-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(14, 23, 42, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #94a3b8;
+}
+.account-panel-hint-box svg {
+  color: #38bdf8;
+  flex-shrink: 0;
+}

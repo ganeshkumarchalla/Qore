@@ -250,3 +250,77 @@ def test_unverified_email_receives_actionable_safe_error():
         assert result.json()["error"]["code"] == "email_confirmation_required"
         assert "provider private detail" not in result.text
 
+
+
+def test_recovery_otp_flow():
+    def provider(request):
+        if request.url.path.endswith("/recover"):
+            return httpx.Response(200, json={})
+        if request.url.path.endswith("/verify"):
+            data = json.loads(request.content)
+            if data.get("token") == "123456":
+                return httpx.Response(200, json={"access_token": "verified-token", "user": USER})
+            return httpx.Response(400, json={"error": "invalid_grant"})
+        if request.url.path.endswith("/user") and request.method == "PUT":
+            return httpx.Response(200, json=USER)
+        if request.url.path.endswith("/token"):
+            return httpx.Response(200, json=TOKENS)
+        if request.url.path.endswith("/user") and request.method == "GET":
+            return httpx.Response(200, json=USER)
+        return httpx.Response(404, json={})
+
+    app, _service = auth_app(provider)
+    with TestClient(app, base_url="https://qore.example.test") as client:
+        # 1. Request recovery OTP
+        send_res = client.post("/api/auth/otp/send-recovery", json={"email": USER["email"]})
+        assert send_res.status_code == 200
+        assert "OTP" in send_res.json()["message"]
+
+        # 2. Invalid OTP fails
+        bad_res = client.post("/api/auth/otp/verify-reset", json={
+            "email": USER["email"],
+            "otp": "999999",
+            "password": "brand-new-quantum-password-123"
+        })
+        assert bad_res.status_code == 400
+        assert bad_res.json()["error"]["code"] == "invalid_otp"
+
+        # 3. Valid OTP resets password and logs in
+        good_res = client.post("/api/auth/otp/verify-reset", json={
+            "email": USER["email"],
+            "otp": "123456",
+            "password": "brand-new-quantum-password-123"
+        })
+        assert good_res.status_code == 200
+        assert good_res.json()["user"]["email"] == USER["email"]
+        assert any("qore_access" in cookie for cookie in good_res.headers.get_list("set-cookie"))
+
+
+def test_change_password_flow():
+    def provider(request):
+        if request.url.path.endswith("/token"):
+            return httpx.Response(200, json=TOKENS)
+        if request.url.path.endswith("/user") and request.method == "GET":
+            return httpx.Response(200, json=USER)
+        if request.url.path.endswith("/user") and request.method == "PUT":
+            return httpx.Response(200, json=USER)
+        return httpx.Response(404, json={})
+
+    app, _service = auth_app(provider)
+    with TestClient(app, base_url="https://qore.example.test") as client:
+        # Unauthenticated cannot change password
+        assert client.post("/api/auth/change-password", json={
+            "current_password": "current-fixture-password",
+            "new_password": "new-fixture-password-123"
+        }).status_code == 401
+
+        # Authenticate first
+        client.post("/api/auth/signin", json={"email": USER["email"], "password": "fixture-password"})
+
+        # Authenticated can change password
+        res = client.post("/api/auth/change-password", json={
+            "current_password": "fixture-password",
+            "new_password": "new-fixture-password-123"
+        })
+        assert res.status_code == 200
+        assert "Password changed successfully" in res.json()["message"]
