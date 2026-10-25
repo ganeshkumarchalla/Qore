@@ -175,6 +175,8 @@ def create_app(db_path=None):
     # that accepts every host.
     configured_hosts = os.environ.get("QORE_ALLOWED_HOSTS", "")
     allowed_hosts = ["localhost", "127.0.0.1", "[::1]", "testserver", "*.onrender.com"]
+    if os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
+        allowed_hosts.append(os.environ["RENDER_EXTERNAL_HOSTNAME"].strip())
     allowed_hosts.extend(host.strip() for host in configured_hosts.split(",") if host.strip())
     application.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 

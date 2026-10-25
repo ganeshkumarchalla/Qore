@@ -22,6 +22,13 @@ Controlled gates use qubits in framework order (controls then targets); no indep
 Support constrained AST parsing, never exec/eval. Terminal measurements only, up to 10 qubits, 10 classical bits, 500 operations, 32 KiB source, 100000 shots. Equivalence full operator up to global phase <=6 qubits; larger cases honestly unavailable. Preserve global phase in IR/source or equivalence up to global phase. Enforce mapping comparison.
 
 ## API
+- Authenticated deployments require a verified server session for private `/api` routes.
+- GET `/auth/config` -> `{configured,required,google_enabled,email_enabled,message?}` (public availability only).
+- GET `/auth/session` -> `{user:null|{id,email,name,avatarInitials,role,tier},configured,required}`.
+- GET `/auth/google` -> provider redirect using one-use state and PKCE cookies; GET `/auth/callback` exchanges the code server-side.
+- POST `/auth/signin` `{email,password}` and `/auth/signup` `{name,email,password}` -> public profile or email-confirmation message.
+- POST `/auth/signout` -> clears the current session. Tokens are HTTP-only cookies and never JSON profile fields.
+- The verified owner scopes every project, run, and experiment. Hosted storage uses user-token Supabase RLS; local SQLite retains legacy work under a separate `local` identity.
 - GET `/health` -> `{status,versions,ai_available,limits}`
 - GET `/examples` -> `[{id,name,description,source}]`
 - GET `/projects` -> project summaries (including source acceptable)
@@ -39,3 +46,5 @@ Run `{id,kind:"simulation",created_at,project_id,source,...simulate result}`; pe
 - POST `/assistant` body `{question,source,simulation_id?:string,optimization_id?:string}` -> `{available:boolean,answer:string,model?:string}`. Optional provider unavailable is an honest response.
 
 UI must clear live results on code edit; reopen restores source and immutable historical snapshots visibly labeled historical; source actions leave read-only historical mode on new parse/run. Save experiment references backend run IDs and must match source hashes. Approve candidate is explicit source replacement; original remains in immutable optimization record. Do not silently save edits on project switch; in-app discard confirmation.
+
+Welcome animates and dismisses automatically. A new workspace contains no seeded files. Get Started explicitly creates one editable three-qubit GHZ circuit. Browser files are cached under the verified account's namespace, with the original guest cache retained separately. Identity changes cancel outstanding browser requests, clear editor/results/private lists, and reset terminal state.

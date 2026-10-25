@@ -6046,6 +6046,72 @@ textarea {
   }
 }
 
+/* A calm, automatic introduction that shares the workbench's classical palette. */
+.qore-entry-screen.classical-entry {
+  background: radial-gradient(ellipse at 50% 32%, #243a52 0%, #121d2c 38%, #090e17 77%) !important;
+  color: #f6f9ff;
+  isolation: isolate;
+}
+.classical-entry-light {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(125deg, transparent 25%, #b7cee80a 48%, transparent 68%);
+}
+.classical-entry .qore-entry-content { gap: 0; text-align: center; padding: 24px; }
+.classical-entry-logo { position: relative; width: 148px; height: 148px; margin: 0 auto 25px; display: grid; place-items: center; }
+.classical-entry-symbol { display: flex; filter: drop-shadow(0 0 18px #9fbddb44); animation: classicalLogoTurn 18s linear infinite; }
+.classical-orbit { position: absolute; inset: 7px; border: 1px solid #a6c6e12b; border-radius: 50%; }
+.classical-orbit.orbit-one { animation: classicalOrbitTurn 8s linear infinite; border-top-color: #b8d7f4a8; }
+.classical-orbit.orbit-two { inset: 17px; border-style: dashed; animation: classicalOrbitTurn 16s linear reverse infinite; opacity: .55; }
+.classical-orbit.orbit-three { inset: 29px; border-color: #c7d7ec20; }
+.classical-entry-brand { display: block; margin-bottom: 13px; color: #9bb7d3; font-size: 12px; font-weight: 700; letter-spacing: .28em; }
+.classical-entry h1 { margin: 0; font-size: clamp(30px, 4.2vw, 57px); font-weight: 650; letter-spacing: -.045em; line-height: 1.15; color: #f4f8ff; }
+.classical-entry p { margin: 17px 0 0; color: #aebdce; font-size: clamp(14px, 1.5vw, 17px); font-weight: 450; }
+.classical-entry-progress { width: 128px; height: 2px; margin: 32px auto 14px; border-radius: 2px; background: #c5d8ee1a; overflow: hidden; }
+.classical-entry-progress span { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: #a9c9e5; animation: classicalEntryProgress 1.6s ease-out forwards; }
+.classical-entry-status { color: #879cb1; font-size: 11px; letter-spacing: .045em; }
+@keyframes classicalOrbitTurn { to { transform: rotate(360deg); } }
+@keyframes classicalLogoTurn { to { transform: rotate(360deg); } }
+@keyframes classicalEntryProgress { to { transform: scaleX(1); } }
+
+.workspace-start { width: 100%; height: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; align-items: center; justify-content: center; padding: clamp(24px, 4vw, 76px); background: radial-gradient(ellipse at 72% 18%, #31466124, transparent 58%), var(--vscode-bg); }
+.workspace-start-inner { width: min(100%, 920px); margin: auto; }
+.workspace-start-kicker { color: #9bb8d5; font-size: 11px; letter-spacing: .19em; font-weight: 700; }
+.workspace-start h1 { margin: 21px 0 20px; color: #f4f8fd; font-size: clamp(34px, 4.4vw, 62px); font-weight: 650; letter-spacing: -.055em; line-height: 1.1; }
+.workspace-start-lead { max-width: 600px; color: #b6c3d3; font-size: clamp(14px, 1.35vw, 17px); line-height: 1.75; }
+.workspace-start-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 27px 0 35px; }
+.workspace-start-actions .button { min-height: 44px; padding: 0 20px; font-size: 13px; font-weight: 650; border-radius: 12px; }
+.workspace-first-circuit { display: flex; align-items: flex-start; gap: 18px; padding: 23px; border: 1px solid #97b2d126; border-radius: 18px; background: linear-gradient(135deg, #2434497d, #1c253341); box-shadow: inset 0 1px 0 #ffffff05; }
+.workspace-first-mark { display: grid; place-items: center; width: 46px; height: 46px; flex: 0 0 46px; border: 1px solid #9dbedf29; border-radius: 12px; background: #8fb8dc0d; color: #b0cce5; }
+.workspace-first-circuit h2 { margin: 0 0 8px; font-size: 16px; font-weight: 650; letter-spacing: -.02em; color: #eaf2fc; }
+.workspace-first-circuit p { max-width: 625px; margin: 0; line-height: 1.7; font-size: 13px; color: #a5b6ca; }
+.workspace-first-circuit code { color: #d7e9f9; background: #afcce711; border-radius: 4px; padding: 1px 4px; font-size: 12px; }
+.workspace-three-qubit-badge { flex: 0 0 auto; margin-left: auto; color: #b4cee6; font-size: 9px; font-weight: 700; letter-spacing: .08em; padding: 7px 9px; border: 1px solid #a6c5e129; border-radius: 7px; white-space: nowrap; }
+.workspace-start-steps { list-style: none; padding: 0; margin: 28px 0 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.workspace-start-steps li { display: flex; gap: 12px; min-width: 0; }
+.workspace-start-steps li > span { flex: 0 0 auto; color: #849fbd; font-size: 11px; font-weight: 700; padding-top: 2px; }
+.workspace-start-steps strong { color: #dce7f5; font-size: 13px; font-weight: 650; }
+.workspace-start-steps p { margin: 7px 0 0; color: #879eb7; font-size: 12px; line-height: 1.6; }
+.workspace-start-note { color: #758ba4; font-size: 11px; line-height: 1.65; }
+.vs-workspace-error { margin: 8px 10px; padding: 9px; border: 1px solid #e6a38545; border-radius: 6px; color: #eac1aa; background: #c56b4510; font-size: 11px; line-height: 1.5; }
+.vs-file-row:focus-visible { outline: 1px solid #9cbfe4; outline-offset: -2px; }
+@media (max-width: 900px) {
+  .workspace-start { padding: 28px; align-items: flex-start; }
+  .workspace-start-inner { margin: auto; }
+  .workspace-start h1 { font-size: 40px; }
+  .workspace-three-qubit-badge { display: none; }
+}
+@media (max-width: 600px) {
+  .workspace-start { padding: 24px 18px; }
+  .workspace-start h1 { font-size: 34px; }
+  .workspace-first-circuit { padding: 18px; gap: 12px; }
+  .workspace-first-mark { display: none; }
+  .workspace-start-steps { grid-template-columns: 1fr; gap: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .classical-entry-symbol, .classical-orbit, .classical-entry-progress span { animation: none !important; }
+  .classical-entry-progress span { transform: scaleX(1); }
+}
+
 .documentation-view { height: 100%; overflow: auto; padding: clamp(24px, 4vw, 64px); background: radial-gradient(circle at 75% 8%, rgba(110,168,216,.14), transparent 34%), var(--vscode-bg); animation: workspaceViewIn .35s ease both; }
 .documentation-hero, .documentation-content { width: min(100%, 1080px); margin: 0 auto; }
 .documentation-hero h1 { max-width: 760px; margin: 10px 0 14px; font-size: clamp(30px, 4vw, 58px); line-height: 1.03; letter-spacing: -.045em; color: #f6fbff; }

@@ -127,11 +127,19 @@ export type Settings = {
   resourceErrorBudget?: '0.001' | '0.0001' | '0.01';
   precisionMode?: 'fp64' | 'fp32';
 };
+let apiRequests = new AbortController();
+export function invalidateApiRequests() {
+  apiRequests.abort();
+  apiRequests = new AbortController();
+}
 export async function api<T>(path: string, body?: unknown, method?: string): Promise<T> {
   let response: Response;
-  try { response = await fetch(`/api${path}`, { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); }
-  catch { throw new Error('Cannot connect to the QORE backend. Check that the local server is running, then retry.'); }
+  const signal = apiRequests.signal;
+  try { response = await fetch(`/api${path}`, { method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'same-origin', signal, headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); }
+  catch { throw new Error(signal.aborted ? 'The workspace changed. Please retry in the current account.' : 'Cannot connect to the QORE backend. Check your connection, then retry.'); }
   const data = await response.json().catch(() => null);
+  if (signal.aborted) throw new Error('The workspace changed. Please retry in the current account.');
+  if (response.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('qore:session-expired'));
   if (!response.ok) { const detail = data?.error?.details; throw new Error(`${data?.error?.message ?? data?.detail?.[0]?.msg ?? (typeof data?.detail === 'string' ? data.detail : `Request failed (${response.status})`)}${detail ? ` · ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`); }
   return data as T;
 }

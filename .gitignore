@@ -2,7 +2,6 @@
 .venv/
 .tmp/
 node_modules/
-frontend/dist/
 evidence/
 scripts/capture_*.js
 scripts/check_*.js
@@ -18,10 +17,12 @@ frontend/*.tsbuildinfo
 # Application Data & Databases
 data/
 Pictures/
+media/
 backend/~*/
 *.sqlite
 *.sqlite3
 *.db
+*.sqlite*
 
 # Secrets & Environment Configurations (CRITICAL)
 .env
@@ -36,6 +37,8 @@ credentials.json
 service_account*.json
 id_rsa
 id_ed25519
+temp_edge_profile/
+website_captures/
 
 # Logs & Diagnostics
 *.log

@@ -11,8 +11,9 @@
     "**/CVS": true,
     "**/.DS_Store": true,
     "**/Thumbs.db": true,
-    "**/.venv": false,
-    "**/.env": false,
+    "**/.venv": true,
+    "**/.env*": true,
+    "**/credentials*": true,
     "**/*.pem": true,
     "**/*.key": true
   },
@@ -27,7 +28,9 @@
     "**/*.key": true,
     "**/*.pfx": true,
     "**/*.sqlite3": true,
-    "**/data/*.sqlite3": true
+    "**/data/*.sqlite3": true,
+    "**/credentials*": true,
+    "**/*.sqlite*": true
   },
   "files.watcherExclude": {
     "**/.git/objects/**": true,
@@ -38,7 +41,9 @@
     "**/.env*": true,
     "**/data/**": true,
     "**/*.pem": true,
-    "**/*.key": true
+    "**/*.key": true,
+    "**/credentials*/**": true,
+    "**/*.sqlite*": true
   },
   "git.confirmSync": true,
   "git.autofetch": false
