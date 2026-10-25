@@ -47,6 +47,52 @@ class AuthError(Exception):
         super().__init__(message)
 
 
+def send_smtp_email(to_email: str, subject: str, otp_code: str) -> bool:
+    smtp_host = os.environ.get("SMTP_HOST")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    smtp_user = os.environ.get("SMTP_USER")
+    smtp_pass = os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS")
+    smtp_from = os.environ.get("SMTP_FROM") or smtp_user or "no-reply@qore-quantum.com"
+    if not (smtp_host and smtp_user and smtp_pass):
+        return False
+    try:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"QORE Quantum Studio <{smtp_from}>"
+        msg["To"] = to_email
+
+        text_content = f"Your QORE verification OTP is: {otp_code}\n\nUse this code to reset your password in QORE Quantum Studio.\n"
+        html_content = f"""
+        <div style="background-color: #030712; color: #f8fafc; font-family: sans-serif; padding: 32px 20px; max-width: 540px; margin: 0 auto; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.3);">
+            <h2 style="color: #38bdf8; margin: 0 0 16px;">QORE QUANTUM STUDIO</h2>
+            <p style="color: #cbd5e1; font-size: 14px; margin: 0 0 16px;">Your 6-digit password verification code (OTP) is:</p>
+            <div style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #00f0ff; background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.4); padding: 12px 24px; border-radius: 8px; display: inline-block; margin-bottom: 16px;">
+                {otp_code}
+            </div>
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">This code expires in 15 minutes. If you did not request this code, no action is needed.</p>
+        </div>
+        """
+        msg.attach(MIMEText(text_content, "plain"))
+        msg.attach(MIMEText(html_content, "html"))
+
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10.0) as server:
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10.0) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+        return True
+    except Exception:
+        return False
+
+
 def _origin(value: str) -> str:
     try:
         parsed = urlsplit(value)
@@ -557,6 +603,13 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
             except Exception:
                 pass
 
+        smtp_sent = False
+        if otp_code:
+            try:
+                smtp_sent = send_smtp_email(payload.email, f"Your QORE Quantum Verification Code: {otp_code}", otp_code)
+            except Exception:
+                pass
+
         redirect = service.settings.public_url + "/?email_confirmation=opened"
         try:
             await service.upstream("POST", "/recover?" + urlencode({"redirect_to": redirect}),
@@ -564,12 +617,14 @@ def register_auth(application: FastAPI, *, settings: AuthSettings | None = None,
         except Exception:
             pass
 
-        msg = (
-            f"Verification OTP generated for {payload.email}! Check your email or use the instant code below."
-            if otp_code else
-            f"If an account exists for {payload.email}, a verification OTP code has been sent. Check your inbox and spam folder."
-        )
-        body: dict[str, Any] = {"message": msg, "email": payload.email}
+        if smtp_sent:
+            msg = f"Verification OTP code sent to your email inbox {payload.email}!"
+        elif otp_code:
+            msg = f"Official verification OTP code generated for {payload.email}. Use the instant code on screen below."
+        else:
+            msg = f"If an account exists for {payload.email}, a verification OTP code has been sent."
+
+        body: dict[str, Any] = {"message": msg, "email": payload.email, "smtp_delivered": smtp_sent}
         if otp_code:
             body["otp_code"] = otp_code
         return JSONResponse(body, headers={"Cache-Control": "no-store"})

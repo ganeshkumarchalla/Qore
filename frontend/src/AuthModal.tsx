@@ -1147,11 +1147,14 @@ export function AuthModal({
                     <div className="auth-instant-otp-box">
                       <div className="auth-instant-otp-badge">
                         <Icon name="check" size={14} />
-                        <span>QUANTUM VERIFICATION OTP READY</span>
+                        <span>QUANTUM VERIFICATION OTP READY (USE ON-SCREEN CODE)</span>
                       </div>
                       <div className="auth-instant-otp-code-display">{instantOtp}</div>
-                      <p className="auth-instant-otp-note">
-                        Your verification code was auto-filled below. No waiting for email delivery required!
+                      <p className="auth-instant-otp-note" style={{ fontSize: '12px', lineHeight: '1.5' }}>
+                        <strong style={{ color: '#38bdf8' }}>Notice:</strong> Supabase email delivery is rate-limited on free projects. Your official 6-digit recovery code is generated above and was <strong>automatically filled into the box below</strong>.
+                      </p>
+                      <p className="auth-instant-otp-note" style={{ marginTop: '4px', color: '#a5f3fc' }}>
+                        Simply enter your new password below and click <strong>"Verify OTP &amp; Reset Password"</strong>!
                       </p>
                     </div>
                   ) : (
