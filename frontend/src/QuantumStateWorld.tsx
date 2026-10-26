@@ -1,59 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icons';
 import type { Simulation } from './types';
-
-type Node3D = {
-  state: string;
-  probability: number;
-  measured: number;
-  x: number;
-  y: number;
-  z: number;
-  phase: number;
-};
+import { buildStateWorldNodes, hammingWeight } from './QuantumStateWorldModel';
 
 const TAU = Math.PI * 2;
-
-function hammingWeight(state: string) {
-  return [...state].reduce((weight, bit) => weight + (bit === '1' ? 1 : 0), 0);
-}
-
-function buildNodes(run: Simulation): Node3D[] {
-  const amplitudes = new Map((run.statevector_amplitudes ?? []).map((item) => [item.state, item]));
-  const states = [...new Set([
-    ...Object.keys(run.theoretical_probabilities),
-    ...Object.keys(run.probabilities),
-  ])];
-  const byWeight = new Map<number, string[]>();
-  for (const state of states) {
-    const weight = hammingWeight(state);
-    const group = byWeight.get(weight) ?? [];
-    group.push(state);
-    byWeight.set(weight, group);
-  }
-  for (const group of byWeight.values()) group.sort();
-  const n = Math.max(1, ...states.map((state) => state.length));
-  return states
-    .map((state) => {
-      const weight = hammingWeight(state);
-      const group = byWeight.get(weight) ?? [state];
-      const index = Math.max(0, group.indexOf(state));
-      const azimuth = group.length === 1 ? 0 : (TAU * index) / group.length;
-      const polar = n <= 1 ? 0 : Math.PI * (weight / n);
-      const amplitude = amplitudes.get(state);
-      return {
-        state,
-        probability: run.theoretical_probabilities[state] ?? 0,
-        measured: run.probabilities[state] ?? 0,
-        x: Math.sin(polar) * Math.cos(azimuth),
-        y: Math.sin(polar) * Math.sin(azimuth),
-        z: Math.cos(polar),
-        phase: amplitude?.phase ?? 0,
-      };
-    })
-    .filter((node) => node.probability > 1e-8 || node.measured > 0)
-    .sort((a, b) => b.probability - a.probability);
-}
 
 export function QuantumStateWorld({ run }: { run: Simulation }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -62,7 +12,10 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
   const dragRef = useRef<{ x: number; angle: number } | null>(null);
   const [orbiting, setOrbiting] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
-  const nodes = useMemo(() => buildNodes(run), [run]);
+  const [showAccessibleData, setShowAccessibleData] = useState(false);
+  const nodes = useMemo(() => buildStateWorldNodes(run), [run]);
+  const visibleNodes = useMemo(() => nodes.slice(0, 96), [nodes]);
+  const phaseAvailable = nodes.some(node => node.phase !== null);
   const dominant = nodes[0];
 
   useEffect(() => {
@@ -123,7 +76,7 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
       }
       context.restore();
 
-      const projected = nodes.map((node) => {
+      const projected = visibleNodes.map((node) => {
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
         const rx = node.x * cos - node.z * sin;
@@ -135,7 +88,7 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
         return { ...node, px: cx + rx * radius, py: cy + ry * radius, depth, scale };
       }).sort((a, b) => a.depth - b.depth);
 
-      const active = projected.filter((node) => node.probability > 0.015);
+      const active = projected.filter((node) => node.probability > 0.015).slice(0, 32);
       for (let first = 0; first < active.length; first += 1) {
         for (let second = first + 1; second < active.length; second += 1) {
           const a = active[first];
@@ -154,12 +107,13 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
       }
 
       projected.forEach((node) => {
-        const pulse = reducedMotion ? 0 : Math.sin(elapsed * 0.0022 + node.phase) * 1.6;
-        const size = (5 + Math.sqrt(Math.max(node.probability, node.measured)) * 22 + pulse) * node.scale;
-        const hue = ((node.phase / TAU) * 360 + 220 + 360) % 360;
+        const pulse = reducedMotion ? 0 : Math.sin(elapsed * 0.0022 + (node.phase ?? 0)) * 1.6;
+        const size = (5 + Math.sqrt(node.probability) * 22 + pulse) * node.scale;
+        const hue = node.phase === null ? 205 : ((node.phase / TAU) * 360 + 220 + 360) % 360;
         const glow = context.createRadialGradient(node.px, node.py, 0, node.px, node.py, size * 2.9);
-        glow.addColorStop(0, `hsla(${hue}, 95%, 72%, 0.7)`);
-        glow.addColorStop(0.32, `hsla(${hue}, 90%, 58%, 0.22)`);
+        const glowStrength = Math.sqrt(node.measured);
+        glow.addColorStop(0, `hsla(${hue}, 95%, 72%, ${0.15 + glowStrength * 0.7})`);
+        glow.addColorStop(0.32, `hsla(${hue}, 90%, 58%, ${0.04 + glowStrength * 0.28})`);
         glow.addColorStop(1, `hsla(${hue}, 90%, 55%, 0)`);
         context.fillStyle = glow;
         context.beginPath();
@@ -178,7 +132,7 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
           context.font = `${selected === node.state ? 700 : 600} 11px Inter, sans-serif`;
           context.fillStyle = 'rgba(242, 248, 255, 0.92)';
           context.textAlign = 'center';
-          context.fillText(`|${node.state}⟩`, node.px, node.py - size - 9);
+          context.fillText(`c=${node.state}`, node.px, node.py - size - 9);
         }
       });
       frameRef.current = requestAnimationFrame(render);
@@ -189,17 +143,17 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
       observer.disconnect();
       motion.removeEventListener('change', onMotion);
     };
-  }, [nodes, orbiting, selected]);
+  }, [visibleNodes, orbiting, selected]);
 
   const selectAt = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
-    if (!canvas || nodes.length === 0) return;
+    if (!canvas || visibleNodes.length === 0) return;
     const rect = canvas.getBoundingClientRect();
     const cx = rect.width / 2;
     const cy = rect.height * 0.5;
     const radius = Math.min(rect.width * 0.33, rect.height * 0.38, 240);
     const angle = angleRef.current;
-    const closest = nodes.reduce<{ state: string; distance: number } | null>((best, node) => {
+    const closest = visibleNodes.reduce<{ state: string; distance: number } | null>((best, node) => {
       const rx = node.x * Math.cos(angle) - node.z * Math.sin(angle);
       const rz = node.x * Math.sin(angle) + node.z * Math.cos(angle);
       const ry = node.y * Math.cos(0.34) - rz * Math.sin(0.34);
@@ -215,11 +169,13 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
       <div className="quantum-world-head">
         <div>
           <span className="eyebrow">SIMULATION STATE WORLD</span>
-          <h3>Computational-basis orbital shells</h3>
+          <h3>Measurement outcome orbital shells</h3>
           <p>
-            Latitude is Hamming weight (|00…0⟩ at the north pole, |11…1⟩ at the south). Node size is the ideal
-            mapped probability; hue is statevector phase; glow follows finite-shot frequency. This layout is a
-            basis-state orbital diagram, not a Hilbert-space embedding.
+            Latitude follows outcome Hamming weight (all zeros north, all ones south). Node size is ideal mapped
+            probability; glow follows sampled frequency. {phaseAvailable
+              ? 'Hue shows ideal phase relative to the dominant basis amplitude after the measurement map.'
+              : 'Phase is unavailable for partial measurement or circuits beyond the statevector display limit.'}
+            {' '}Orbit axes describe this layout, not Bloch coordinates.
           </p>
         </div>
         <button type="button" className={`matrix-toggle-btn ${orbiting ? 'active' : ''}`} onClick={() => setOrbiting((value) => !value)} aria-pressed={orbiting}>
@@ -231,7 +187,7 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
         <canvas
           ref={canvasRef}
           className="quantum-world-canvas"
-          aria-label={`Interactive three-dimensional measurement world with ${nodes.length} visible basis states`}
+          aria-label={`Interactive three-dimensional measurement world with ${visibleNodes.length} visible outcomes`}
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId);
             dragRef.current = { x: event.clientX, angle: angleRef.current };
@@ -250,26 +206,27 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
         <div className="quantum-world-axis" aria-hidden="true"><span>X</span><span>Y</span><span>Z</span></div>
       </div>
       <div className="quantum-world-readout">
-        <span>SELECTED BASIS STATE</span>
-        <strong>|{selectedNode?.state ?? '—'}⟩</strong>
+        <span>SELECTED MEASUREMENT OUTCOME</span>
+        <strong>c = {selectedNode?.state ?? '—'}</strong>
         <dl>
           <div><dt>Ideal</dt><dd>{((selectedNode?.probability ?? 0) * 100).toFixed(6)}%</dd></div>
           <div><dt>Measured</dt><dd>{((selectedNode?.measured ?? 0) * 100).toFixed(6)}%</dd></div>
           <div><dt>Shots</dt><dd>{run.counts[selectedNode?.state ?? ''] ?? 0}</dd></div>
           <div><dt>Weight</dt><dd>{selectedNode ? hammingWeight(selectedNode.state) : '—'}</dd></div>
-          <div><dt>Phase</dt><dd>{selectedNode ? `${(selectedNode.phase / Math.PI).toFixed(4)}π` : '—'}</dd></div>
+          <div><dt>Relative phase</dt><dd>{selectedNode?.phase !== null && selectedNode?.phase !== undefined ? `${(selectedNode.phase / Math.PI).toFixed(4)}π` : '—'}</dd></div>
         </dl>
       </div>
       <div className="quantum-world-footer">
-        <span><i className="world-dot ideal" />Ideal statevector probability</span>
-        <span><i className="world-line" />Co-present outcome relationship</span>
+        <span><i className="world-dot ideal" />Ideal mapped probability</span>
+        <span><i className="world-line" />Visual outcome connection</span>
+        {nodes.length > visibleNodes.length && <span>Showing {visibleNodes.length} of {nodes.length} outcomes; full data below</span>}
         <span>Drag to orbit · click a node to inspect</span>
       </div>
-      <details className="world-accessible-data">
+      <details className="world-accessible-data" onToggle={event => setShowAccessibleData(event.currentTarget.open)}>
         <summary>Accessible state-world data</summary>
-        <table><thead><tr><th>Basis state</th><th>Ideal</th><th>Measured</th><th>Counts</th></tr></thead><tbody>
-          {nodes.map((node) => <tr key={node.state}><td>|{node.state}⟩</td><td>{(node.probability * 100).toFixed(4)}%</td><td>{(node.measured * 100).toFixed(4)}%</td><td>{run.counts[node.state] ?? 0}</td></tr>)}
-        </tbody></table>
+        {showAccessibleData && <table><thead><tr><th>Classical outcome</th><th>Ideal</th><th>Measured</th><th>Counts</th></tr></thead><tbody>
+          {nodes.map((node) => <tr key={node.state}><td>c = {node.state}</td><td>{(node.probability * 100).toFixed(4)}%</td><td>{(node.measured * 100).toFixed(4)}%</td><td>{run.counts[node.state] ?? 0}</td></tr>)}
+        </tbody></table>}
       </details>
     </div>
   );

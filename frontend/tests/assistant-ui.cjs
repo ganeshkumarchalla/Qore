@@ -139,6 +139,12 @@ async function main() {
     await page.getByRole('button', { name: 'Run Kernel', exact: true }).evaluate(button => { button.click(); button.click(); });
     await page.locator('.workbench-banner.notice').getByText('Simulation complete', { exact: false }).waitFor();
     assert.equal(runCount, 1, 'A rapid repeated Run click must dispatch only one quantum job');
+    await page.getByRole('heading', { name: 'Measurement outcome orbital shells' }).waitFor();
+    await page.getByText('SELECTED MEASUREMENT OUTCOME', { exact: true }).waitFor();
+    await page.getByText('Phase is unavailable for partial measurement or circuits beyond the statevector display limit.', { exact: false }).waitFor();
+    await page.getByText('Accessible state-world data', { exact: true }).click();
+    await page.getByRole('cell', { name: 'c = 000', exact: true }).waitFor();
+    checks.push('State World labels classical outcomes and withholds phase when no complete amplitude map is available');
     await page.locator('.topbar-util-btn').filter({ has: page.locator('svg') }).last().click();
     const consoleInput = page.getByRole('textbox', { name: 'QORE console command' });
     if (!await consoleInput.isVisible()) await page.locator('.topbar-util-btn').last().click();
