@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icons';
-import type { Settings, Theme } from './types';
+import { runtimeLabel, type Settings, type Theme } from './types';
 
 export const defaultSettings: Settings = {
   theme: 'obsidian-void',
@@ -175,10 +175,12 @@ function SettingCard({
 
 export function SettingsModal({
   settings,
+  versions,
   onSave,
   onClose,
 }: {
   settings: Settings;
+  versions?: Record<string, string> | null;
   onSave: (next: Settings) => void;
   onClose: () => void;
 }) {
@@ -359,7 +361,7 @@ export function SettingsModal({
               <div className="settings-sidebar-spacer" />
 
               <div className="settings-sidebar-footer-tip">
-                <span>Qiskit Aer 0.18</span>
+                <span>{runtimeLabel(versions)}</span>
                 <span>QORE Quantum OS</span>
               </div>
             </aside>

@@ -65,6 +65,12 @@ def test_real_bell_simulation_preserves_shots_seed_and_probability_evidence(bell
     support = set(first["probabilities"]) | set(first["theoretical_probabilities"])
     expected_tvd = 0.5 * sum(abs(first["probabilities"].get(k, 0) - first["theoretical_probabilities"].get(k, 0)) for k in support)
     assert first["tvd"] == pytest.approx(expected_tvd)
+    assert first["classical_fidelity"] == pytest.approx(
+        (sum((first["probabilities"][k] * first["theoretical_probabilities"][k]) ** 0.5 for k in support)) ** 2
+    )
+    assert first["hellinger_distance"] == pytest.approx((1 - first["classical_fidelity"] ** 0.5) ** 0.5)
+    assert first["auto_measured"] is False
+    assert first["unitarity"]["is_unitary"] is True
     assert first["backend"] and first["versions"] and first["bit_ordering"]
     assert first["execution_ms"] >= 0
 
@@ -144,6 +150,20 @@ def test_validation_is_honestly_unavailable_above_full_operator_limit():
     assert result["details"]
 
 
+def test_math_atan2_and_hypot_are_available_for_gate_angles():
+    source = (
+        "from qiskit import QuantumCircuit\n"
+        "from math import atan2, hypot, pi\n"
+        "qc = QuantumCircuit(1, 1)\n"
+        "qc.ry(atan2(1, 1), 0)\n"
+        "qc.rz(hypot(0, pi / 2), 0)\n"
+        "qc.measure(0, 0)\n"
+    )
+    parsed = parse_source(source)
+    assert parsed["ir"]["operations"][0]["params"][0] == pytest.approx(math.pi / 4)
+    assert parsed["ir"]["operations"][1]["params"][0] == pytest.approx(math.pi / 2)
+
+
 def test_runtime_versions_report_framework_and_simulator():
     reported = versions()
     assert reported
@@ -219,4 +239,10 @@ def test_unitary_only_source_is_auto_measured_for_shot_simulation():
     assert sum(result["counts"].values()) == 128
     assert set(result["counts"]) <= {"0", "1"}
     assert "q[0] → c[0]" in result["bit_ordering"]
+    assert result["auto_measured"] is True
+    assert result["theoretical_probabilities"]["0"] == pytest.approx(0.5)
+    assert result["theoretical_probabilities"]["1"] == pytest.approx(0.5)
+    assert result["classical_fidelity"] == pytest.approx(
+        (result["probabilities"].get("0", 0) ** 0.5 * 0.5 ** 0.5 + result["probabilities"].get("1", 0) ** 0.5 * 0.5 ** 0.5) ** 2
+    )
 

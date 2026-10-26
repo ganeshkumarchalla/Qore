@@ -35,6 +35,15 @@ MAX_AST_DEPTH = 64
 MAX_STATEMENT_STEPS = 2_000
 MAX_ABSOLUTE_NUMBER = 1e12
 EQUIVALENCE_TOLERANCE = 1e-9
+UNITARITY_TOLERANCE = 1e-8
+DISPLAY_DIGITS = 8
+PAULI_X = np.array([[0, 1], [1, 0]], dtype=complex)
+PAULI_Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
+PAULI_Z = np.array([[1, 0], [0, -1]], dtype=complex)
+NUMERIC_MATH_NAMES = (
+    "pi", "tau", "e", "sin", "cos", "tan", "sqrt", "exp", "abs", "asin", "acos", "atan",
+    "atan2", "hypot", "radians", "degrees", "log", "log2", "log10", "floor", "ceil", "pow",
+)
 
 # Supported standard gate classes from qiskit.circuit.library
 SUPPORTED_GATE_CLASSES: dict[str, type] = {
@@ -100,6 +109,9 @@ GATES: dict[str, tuple[int, int]] = {
     "cswap": (0, 3),
 }
 ALIASES = {"cnot": "cx", "toffoli": "ccx", "i": "id", "u3": "u", "u2": "u", "u1": "p", "cu1": "cp", "cu3": "cu"}
+ONE_QUBIT_NOISE_GATES = [name for name, (_params, qubits) in GATES.items() if qubits == 1]
+TWO_QUBIT_NOISE_GATES = [name for name, (_params, qubits) in GATES.items() if qubits == 2]
+THREE_QUBIT_NOISE_GATES = [name for name, (_params, qubits) in GATES.items() if qubits == 3]
 METRIC_DEFINITION = (
     "Gate count and gate types count unitary operations only; measurements and "
     "barriers are excluded. Two-qubit gate count counts unitary instructions on "
@@ -178,7 +190,8 @@ def capabilities() -> dict[str, Any]:
         "circuit_methods": ["barrier", "measure", "measure_all", "draw", "depth", "size", "width"],
         "workflows": [
             "parse and validate", "shot simulation", "ideal probabilities", "Bloch vectors and purity",
-            "statevector amplitudes", "unitary matrix", "noise simulation", "Forge transpilation and equivalence",
+            "statevector amplitudes", "unitary matrix with U†U residual", "noise simulation",
+            "classical fidelity and Hellinger distance", "Forge transpilation and equivalence",
             "OpenQASM 2.0 import and export", "immutable Ledger evidence",
         ],
         "simulation_methods": ["statevector", "matrix_product_state", "stabilizer"],
@@ -416,10 +429,12 @@ class _SourceInterpreter:
                     )
             elif node.module in ("math", "numpy"):
                 if item.name == "*":
-                    for fn in ("pi", "tau", "e", "sin", "cos", "tan", "sqrt", "exp", "abs", "asin", "acos", "atan"):
-                        self.values[fn] = getattr(math, fn)
+                    for fn in NUMERIC_MATH_NAMES:
+                        if node.module == "numpy" and fn == "tau":
+                            continue
+                        self.values[fn] = getattr(math, fn if fn != "abs" else "fabs")
                         self.constants.add(fn)
-                elif item.name in ("pi", "tau", "e", "sin", "cos", "tan", "sqrt", "exp", "abs", "asin", "acos", "atan", "radians", "degrees", "log", "log2", "log10", "floor", "ceil") and not (node.module == "numpy" and item.name == "tau"):
+                elif item.name in NUMERIC_MATH_NAMES and not (node.module == "numpy" and item.name == "tau"):
                     fn = getattr(math, item.name if item.name != "abs" else "fabs")
                     self.values[alias] = fn
                     self.constants.add(alias)
@@ -552,12 +567,21 @@ class _SourceInterpreter:
                     raise _error("INVALID_ARGUMENTS", f"Gate initialization failed: {exc}", node) from exc
             if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
                 module = self.modules.get(node.func.value.id)
-                if module in ("math", "numpy") and node.func.attr in ("sin", "cos", "tan", "sqrt", "exp", "abs", "asin", "acos", "atan", "radians", "degrees", "log", "log2", "log10", "floor", "ceil"):
+                if module in ("math", "numpy") and node.func.attr in NUMERIC_MATH_NAMES and node.func.attr not in ("pi", "tau", "e"):
                     fn = getattr(math, node.func.attr if node.func.attr != "abs" else "fabs")
                     args = [self.expression(a) for a in node.args]
                     res = float(fn(*args))
                     _number(res)
                     return res
+            if isinstance(node.func, ast.Name) and callable(self.values.get(node.func.id)):
+                fn = self.values[node.func.id]
+                args = [self.expression(a) for a in node.args]
+                try:
+                    res = float(fn(*args))
+                except Exception as exc:
+                    raise _error("INVALID_PARAMETER", f"Math function '{node.func.id}' evaluation failed: {exc}", node) from exc
+                _number(res)
+                return res
             if isinstance(node.func, ast.Name) and node.func.id == "range":
                 if node.keywords or not 1 <= len(node.args) <= 3:
                     raise _error("UNSUPPORTED_SOURCE", "range expects one to three integer arguments.", node)
@@ -811,75 +835,115 @@ def _metrics(circuit: QuantumCircuit, ir: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _round_real(value: float, digits: int = DISPLAY_DIGITS) -> float:
+    return round(float(value), digits)
+
+
+def _complex_cell(value: complex) -> dict[str, float]:
+    return {
+        "real": _round_real(float(np.real(value))),
+        "imag": _round_real(float(np.imag(value))),
+        "magnitude": _round_real(float(np.abs(value))),
+        "phase": _round_real(float(np.angle(value))),
+    }
+
+
+def _bloch_from_reduced(rho: DensityMatrix, qubit: int) -> dict[str, Any]:
+    data = np.asarray(rho.data, dtype=complex)
+    x = float(np.real(np.trace(data @ PAULI_X)))
+    y = float(np.real(np.trace(data @ PAULI_Y)))
+    z = float(np.real(np.trace(data @ PAULI_Z)))
+    r = float(np.sqrt(max(0.0, x * x + y * y + z * z)))
+    theta = float(np.arccos(np.clip(z / r, -1.0, 1.0))) if r > 1e-12 else 0.0
+    phi = float(np.arctan2(y, x))
+    purity = float(np.clip(np.real(np.trace(data @ data)), 0.0, 1.0))
+    return {
+        "qubit": qubit,
+        "x": _round_real(x),
+        "y": _round_real(y),
+        "z": _round_real(z),
+        "r": _round_real(r),
+        "purity": _round_real(purity),
+        "is_pure": bool(abs(purity - 1.0) < 1e-8),
+        "theta": _round_real(theta),
+        "phi": _round_real(phi),
+    }
+
+
+def _unitarity_report(operator: np.ndarray) -> dict[str, Any]:
+    dim = operator.shape[0]
+    gram = operator.conj().T @ operator
+    residual = float(np.max(np.abs(gram - np.eye(dim, dtype=complex))))
+    frobenius = float(np.linalg.norm(gram - np.eye(dim, dtype=complex)))
+    determinant_magnitude = float(abs(np.linalg.det(operator)))
+    return {
+        "is_unitary": bool(residual <= UNITARITY_TOLERANCE),
+        "max_deviation": residual,
+        "frobenius_deviation": frobenius,
+        "determinant_magnitude": determinant_magnitude,
+        "tolerance": UNITARITY_TOLERANCE,
+        "dimension": dim,
+        "definition": "max |U†U − I| over matrix entries. A closed pre-measurement circuit must satisfy U†U = I within numerical tolerance.",
+    }
+
+
 def compute_circuit_bloch_and_unitary(circuit: QuantumCircuit, ir: dict[str, Any]) -> dict[str, Any]:
     n = circuit.num_qubits
-    bloch_vectors = []
-    unitary_matrix = []
-    statevector_amplitudes = []
+    bloch_vectors: list[dict[str, Any]] = []
+    unitary_matrix: list[list[dict[str, float]]] = []
+    statevector_amplitudes: list[dict[str, Any]] = []
+    unitarity: dict[str, Any] | None = None
+    analysis_warnings: list[str] = []
     qasm_str = ""
     try:
         qasm_str = qasm2.dumps(circuit)
-    except Exception:
-        pass
+    except Exception as exc:
+        analysis_warnings.append(f"OpenQASM export was unavailable: {exc}")
 
     try:
+        u_circ = ir_to_circuit(ir, unitary_only=True)
         if n <= 6:
-            u_circ = ir_to_circuit(ir, unitary_only=True)
             state = Statevector.from_instruction(u_circ)
+            state_norm = float(np.linalg.norm(state.data))
+            if abs(state_norm - 1.0) > 1e-8:
+                analysis_warnings.append(f"Statevector norm is {state_norm:.12f}; expected 1 within 1e-8.")
             for q in range(n):
                 other = [i for i in range(n) if i != q]
                 rho = partial_trace(state, other) if other else DensityMatrix(state)
-                x = float(np.real(np.trace(rho.data @ np.array([[0, 1], [1, 0]], dtype=complex))))
-                y = float(np.real(np.trace(rho.data @ np.array([[0, -1j], [1j, 0]], dtype=complex))))
-                z = float(np.real(np.trace(rho.data @ np.array([[1, 0], [0, -1]], dtype=complex))))
-                r = float(np.sqrt(x * x + y * y + z * z))
-                theta = float(np.arccos(np.clip(z / r, -1.0, 1.0))) if r > 1e-7 else 0.0
-                phi = float(np.arctan2(y, x))
-                purity = float(np.real(np.trace(rho.data @ rho.data)))
-                bloch_vectors.append({
-                    "qubit": q,
-                    "x": round(x, 4),
-                    "y": round(y, 4),
-                    "z": round(z, 4),
-                    "r": round(r, 4),
-                    "purity": round(purity, 4),
-                    "is_pure": bool(abs(purity - 1.0) < 1e-8),
-                    "theta": round(theta, 4),
-                    "phi": round(phi, 4),
-                })
+                bloch_vectors.append(_bloch_from_reduced(rho, q))
             for idx, amp in enumerate(state.data):
                 mag = float(np.abs(amp))
-                prob = float(mag ** 2)
-                if prob > 1e-6 or n <= 4:
-                    statevector_amplitudes.append({
-                        "state": format(idx, f"0{n}b"),
-                        "real": round(float(np.real(amp)), 4),
-                        "imag": round(float(np.imag(amp)), 4),
-                        "magnitude": round(mag, 4),
-                        "phase": round(float(np.angle(amp)), 4),
-                        "probability": round(prob, 4),
-                    })
-        if n <= 4:
-            u_circ = ir_to_circuit(ir, unitary_only=True)
-            u_data = Operator(u_circ).data
-            for row in u_data:
-                unitary_matrix.append([
-                    {
-                        "real": round(float(np.real(c)), 4),
-                        "imag": round(float(np.imag(c)), 4),
-                        "magnitude": round(float(np.abs(c)), 4),
-                        "phase": round(float(np.angle(c)), 4),
-                    }
-                    for c in row
-                ])
-    except Exception:
-        pass
+                prob = float(np.real(amp * np.conjugate(amp)))
+                statevector_amplitudes.append({
+                    "state": format(idx, f"0{n}b"),
+                    "real": _round_real(float(np.real(amp))),
+                    "imag": _round_real(float(np.imag(amp))),
+                    "magnitude": _round_real(mag),
+                    "phase": _round_real(float(np.angle(amp))),
+                    "probability": _round_real(prob),
+                })
+            amplitude_sum = sum(item["probability"] for item in statevector_amplitudes)
+            if abs(amplitude_sum - 1.0) > 5e-7:
+                analysis_warnings.append(
+                    f"Displayed amplitude probabilities sum to {amplitude_sum:.12f} after rounding; the underlying statevector is still used for simulation."
+                )
+        if n <= MAX_EQUIVALENCE_QUBITS:
+            u_data = np.asarray(Operator(u_circ).data, dtype=complex)
+            unitarity = _unitarity_report(u_data)
+            if n <= 4:
+                unitary_matrix = [[_complex_cell(c) for c in row] for row in u_data]
+            if not unitarity["is_unitary"]:
+                analysis_warnings.append(
+                    f"Operator failed the unitarity residual check (max |U†U − I| = {unitarity['max_deviation']:.3e})."
+                )
+    except Exception as exc:
+        analysis_warnings.append(f"Ideal state analysis could not be completed: {exc}")
 
     text_diagram = ""
     try:
         text_diagram = str(circuit.draw("text"))
-    except Exception:
-        pass
+    except Exception as exc:
+        analysis_warnings.append(f"Text circuit diagram was unavailable: {exc}")
 
     return {
         "qasm": qasm_str,
@@ -887,6 +951,8 @@ def compute_circuit_bloch_and_unitary(circuit: QuantumCircuit, ir: dict[str, Any
         "bloch_vectors": bloch_vectors,
         "statevector_amplitudes": statevector_amplitudes,
         "unitary_matrix": unitary_matrix,
+        "unitarity": unitarity,
+        "analysis_warnings": analysis_warnings,
     }
 
 
@@ -912,13 +978,13 @@ def parse_source(source: str) -> dict[str, Any]:
     # Pure unitary circuits are valid inputs. The simulation path adds an
     # identity q[i] -> c[i] measurement map at execution time without changing
     # the saved source or the ideal-state evidence returned by parsing.
-    warnings: list[str] = []
     extra = compute_circuit_bloch_and_unitary(circuit, ir)
+    extra_warnings = extra.pop("analysis_warnings", [])
     return {
         "ir": ir,
         "metrics": metrics,
         "source_hash": hashlib.sha256(encoded).hexdigest(),
-        "warnings": warnings,
+        "warnings": extra_warnings,
         **extra,
     }
 
@@ -965,10 +1031,16 @@ def simulate(
         if noise_rate > 0.0 or readout_error > 0.0:
             noise = NoiseModel()
             if noise_rate > 0.0:
-                e1 = depolarizing_error(min(0.5, noise_rate), 1)
-                e2 = depolarizing_error(min(0.5, noise_rate * 2), 2)
-                noise.add_all_qubit_quantum_error(e1, ['h', 'x', 'y', 'z', 'u', 'rx', 'ry', 'rz', 's', 't', 'p', 'sx'])
-                noise.add_all_qubit_quantum_error(e2, ['cx', 'cz', 'swap', 'cp'])
+                present = {op["name"] for op in ir["operations"] if op["name"] not in ("measure", "barrier")}
+                one = [name for name in ONE_QUBIT_NOISE_GATES if name in present]
+                two = [name for name in TWO_QUBIT_NOISE_GATES if name in present]
+                three = [name for name in THREE_QUBIT_NOISE_GATES if name in present]
+                if one:
+                    noise.add_all_qubit_quantum_error(depolarizing_error(min(0.5, noise_rate), 1), one)
+                if two:
+                    noise.add_all_qubit_quantum_error(depolarizing_error(min(0.5, noise_rate * 2), 2), two)
+                if three:
+                    noise.add_all_qubit_quantum_error(depolarizing_error(min(0.5, noise_rate * 3), 3), three)
             if readout_error > 0.0:
                 from qiskit_aer.noise import ReadoutError
                 p = min(0.49, readout_error)
@@ -999,14 +1071,24 @@ def simulate(
             output = sum(((basis >> qubit) & 1) << clbit for qubit, clbit in mapping)
             theoretical[format(output, f"0{width}b")] += float(probability)
         total = sum(theoretical.values())
+        if total <= 0.0 or not math.isfinite(total):
+            raise QuantumError("SIMULATION_FAILED", "Ideal statevector probabilities were not a valid probability distribution.")
         theoretical = {key: value / total for key, value in theoretical.items()}
         tvd = 0.5 * sum(abs(empirical[key] - theoretical[key]) for key in outcomes)
+        overlap = sum(math.sqrt(max(0.0, empirical[key]) * max(0.0, theoretical[key])) for key in outcomes)
+        overlap = min(1.0, max(0.0, overlap))
+        classical_fidelity = overlap ** 2
+        hellinger_distance = math.sqrt(max(0.0, 1.0 - overlap))
     except QuantumError:
         raise
     except Exception as exc:
         raise QuantumError("SIMULATION_FAILED", f"Qiskit Aer could not simulate the circuit: {exc}") from exc
     mapping_text = ", ".join(f"q[{q}] → c[{c}]" for q, c in mapping)
-    sim_warnings = [w for w in parsed.get("warnings", []) if "measurement" not in w.lower()]
+    sim_warnings = list(parsed.get("warnings", []))
+    if auto_measured:
+        sim_warnings.append(
+            "Source contained no measurements. QORE appended q[i] → c[i] for sampling only; Bloch vectors, amplitudes, and the unitary remain the pre-measurement ideal state."
+        )
     return {
         **parsed,
         "warnings": sim_warnings,
@@ -1015,6 +1097,11 @@ def simulate(
         "theoretical_probabilities": theoretical,
         "tvd": float(tvd),
         "tvd_definition": "Total variation distance between these finite-shot empirical probabilities and the ideal statevector probabilities under the same classical measurement mapping.",
+        "classical_fidelity": float(classical_fidelity),
+        "classical_fidelity_definition": "Bhattacharyya coefficient squared between the sampled distribution and the ideal mapped probabilities. 1 is a perfect match.",
+        "hellinger_distance": float(hellinger_distance),
+        "hellinger_definition": "Hellinger distance √(1 − ∑√(p q)) between sampled and ideal mapped probabilities. 0 is a perfect match.",
+        "auto_measured": auto_measured,
         "shots": shots,
         "seed": seed,
         "noise_rate": noise_rate,

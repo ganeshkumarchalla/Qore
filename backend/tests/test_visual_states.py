@@ -32,3 +32,16 @@ def test_entangled_reduced_state_has_purity_one_half_and_zero_bloch_radius():
         assert (vector["x"], vector["y"], vector["z"]) == pytest.approx((0, 0, 0))
         assert vector["purity"] == pytest.approx(.5)
         assert vector["is_pure"] is False
+        assert vector["r"] == pytest.approx(0)
+
+
+def test_hadamard_unitary_is_verified_and_amplitudes_sum_to_one():
+    result = parse_source("from qiskit import QuantumCircuit\nqc=QuantumCircuit(1)\nqc.h(0)")
+    assert result["unitarity"]["is_unitary"] is True
+    assert result["unitarity"]["max_deviation"] < 1e-8
+    assert result["unitarity"]["dimension"] == 2
+    assert abs(sum(amp["probability"] for amp in result["statevector_amplitudes"]) - 1) < 1e-7
+    matrix = result["unitary_matrix"]
+    assert len(matrix) == 2
+    assert matrix[0][0]["real"] == pytest.approx(1 / math.sqrt(2), abs=1e-7)
+    assert matrix[0][1]["real"] == pytest.approx(1 / math.sqrt(2), abs=1e-7)

@@ -12,6 +12,7 @@ import json
 import argparse
 import base64
 import fnmatch
+import struct
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,9 +58,12 @@ def ignored_local_env(path: Path, root: Path) -> bool:
             result = subprocess.run(["git", "check-ignore", "--quiet", "--", str(path.relative_to(root))],
                                     cwd=root, capture_output=True, timeout=5,
                                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-            return result.returncode == 0
+            if result.returncode == 0:
+                return True
+            elif result.returncode == 1:
+                return False
         except (OSError, subprocess.TimeoutExpired):
-            return False
+            pass
     ignore = root / ".gitignore"
     if not ignore.exists():
         return False
@@ -240,19 +244,43 @@ class FileExposureAgent:
 
         # Git membership is inspected by name only; no credential file is read.
         if (root / ".git").exists():
+            tracked_paths = None
             try:
                 result = subprocess.run(["git", "ls-files", "--cached", "-z"], cwd=root,
                     capture_output=True, timeout=10,
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-                if result.returncode != 0:
-                    raise OSError("Git inventory unavailable")
-                for tracked in result.stdout.decode("utf-8", errors="replace").split("\0"):
+                if result.returncode == 0:
+                    tracked_paths = [t for t in result.stdout.decode("utf-8", errors="replace").split("\0") if t]
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+
+            if tracked_paths is None and (root / ".git" / "index").exists():
+                try:
+                    index_bytes = (root / ".git" / "index").read_bytes()
+                    if len(index_bytes) >= 12 and index_bytes[:4] == b"DIRC":
+                        _, _, entry_count = struct.unpack(">4sII", index_bytes[:12])
+                        pos = 12
+                        extracted = []
+                        for _ in range(entry_count):
+                            if pos + 62 > len(index_bytes):
+                                break
+                            end = index_bytes.find(b"\x00", pos + 62)
+                            if end == -1:
+                                break
+                            extracted.append(index_bytes[pos + 62:end].decode("utf-8", errors="replace"))
+                            pos += ((62 + (end - (pos + 62)) + 8) // 8) * 8
+                        tracked_paths = extracted
+                except Exception:
+                    pass
+
+            if tracked_paths is not None:
+                for tracked in tracked_paths:
                     name = Path(tracked).name
                     if name == ".env" or (name.startswith(".env.") and name != ".env.example") or name.endswith((".pem", ".key", ".db", ".sqlite", ".sqlite3")) or name == "credentials.json":
                         findings.append(Finding(self.NAME, "HIGH", "Sensitive file is tracked by Git",
                             "A sensitive configuration/database/credential path is present in Git's index; ignore rules do not untrack it.",
                             tracked, "Remove the sensitive file from version control while preserving the local file; rotate any exposed credentials."))
-            except (OSError, subprocess.TimeoutExpired):
+            else:
                 findings.append(Finding(self.NAME, "HIGH", "Git exposure inventory unavailable",
                     "Tracked credential paths could not be audited.", ".git", "Restore Git access and rerun the audit."))
 

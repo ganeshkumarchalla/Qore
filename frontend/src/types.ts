@@ -7,10 +7,21 @@ export type BlochVector = {
   x: number;
   y: number;
   z: number;
+  r?: number;
   theta: number;
   phi: number;
   purity: number;
   is_pure: boolean;
+};
+
+export type UnitarityReport = {
+  is_unitary: boolean;
+  max_deviation: number;
+  frobenius_deviation: number;
+  determinant_magnitude: number;
+  tolerance: number;
+  dimension: number;
+  definition: string;
 };
 
 export type StatevectorAmplitude = {
@@ -39,6 +50,7 @@ export type Parsed = {
   bloch_vectors?: BlochVector[];
   unitary_matrix?: UnitaryCell[][];
   statevector_amplitudes?: StatevectorAmplitude[];
+  unitarity?: UnitarityReport | null;
 };
 
 export type Simulation = Parsed & {
@@ -51,6 +63,9 @@ export type Simulation = Parsed & {
   probabilities: Record<string, number>;
   theoretical_probabilities: Record<string, number>;
   tvd: number | null;
+  classical_fidelity?: number;
+  hellinger_distance?: number;
+  auto_measured?: boolean;
   shots: number;
   seed: number;
   backend: string;
@@ -165,6 +180,15 @@ export async function api<T>(path: string, body?: unknown, method?: string): Pro
   if (signal.aborted) throw new Error('The workspace changed. Please retry.');
   if (!response.ok) { const detail = data?.error?.details; throw new Error(`${data?.error?.message ?? data?.detail?.[0]?.msg ?? (typeof data?.detail === 'string' ? data.detail : `Request failed (${response.status})`)}${detail ? ` · ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`); }
   return data as T;
+}
+export function runtimeLabel(versions?: Record<string, string> | null): string {
+  if (!versions) return 'Quantum runtime';
+  const qiskit = versions.qiskit;
+  const aer = versions.qiskit_aer;
+  if (qiskit && aer) return `Qiskit ${qiskit} · Aer ${aer}`;
+  if (qiskit) return `Qiskit ${qiskit}`;
+  if (aer) return `Aer ${aer}`;
+  return 'Quantum runtime connected';
 }
 export const readable = (value: unknown): string => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 export const formatDate = (value: string) => new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });

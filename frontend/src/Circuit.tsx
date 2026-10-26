@@ -28,7 +28,9 @@ function Gate({
       ? op.qubits.length - 1
       : op.name === 'ccx'
       ? 2
-      : ['cx', 'cy', 'cz', 'ch', 'cp', 'crx', 'cry', 'crz', 'cu', 'csx', 'cswap'].includes(op.name)
+      : op.name === 'ccz' || op.name === 'rccx'
+      ? 2
+      : ['cx', 'cy', 'cz', 'ch', 'cp', 'crx', 'cry', 'crz', 'cu', 'csx', 'cswap', 'cs', 'csdg'].includes(op.name)
       ? 1
       : 0;
   const ys = op.qubits.map(qy);

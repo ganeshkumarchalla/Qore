@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icons';
-import type { BlochVector, StatevectorAmplitude, UnitaryCell } from './types';
+import type { BlochVector, StatevectorAmplitude, UnitarityReport, UnitaryCell } from './types';
 
 // 3D rotation projection function
 function rotate3D(
@@ -413,7 +413,7 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
   );
 }
 
-export function UnitaryMatrixViewer({ matrix }: { matrix?: UnitaryCell[][] }) {
+export function UnitaryMatrixViewer({ matrix, unitarity }: { matrix?: UnitaryCell[][]; unitarity?: UnitarityReport | null }) {
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number; cell: UnitaryCell } | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
   const [phaseChroma, setPhaseChroma] = useState(true);
@@ -445,10 +445,21 @@ export function UnitaryMatrixViewer({ matrix }: { matrix?: UnitaryCell[][] }) {
           <div className="unitary-title-row">
             <h4>Full Unitary Operator Matrix (U)</h4>
             <span className="unitary-dim mono">{dim} × {dim} ({numQubits} Qubits)</span>
-            <span className="unitary-verified-tag" title="Unitary verified: U† · U = I">
-              <span className="verified-pulse-dot" />
-              U† · U = I (Unitary)
-            </span>
+            {unitarity ? (
+              <span
+                className={`unitary-verified-tag ${unitarity.is_unitary ? '' : 'failed'}`}
+                title={unitarity.definition}
+              >
+                <span className="verified-pulse-dot" />
+                {unitarity.is_unitary
+                  ? `U† · U = I  (max |Δ| = ${unitarity.max_deviation.toExponential(2)})`
+                  : `Not unitary  (max |Δ| = ${unitarity.max_deviation.toExponential(2)})`}
+              </span>
+            ) : (
+              <span className="unitary-verified-tag" title="Display matrix only; operator residual is reported for circuits ≤ 6 qubits.">
+                Display matrix
+              </span>
+            )}
           </div>
         </div>
 
@@ -552,7 +563,9 @@ export function UnitaryMatrixViewer({ matrix }: { matrix?: UnitaryCell[][] }) {
         </table>
       </div>
       <p className="help">
-        Values represent transition amplitudes ⟨i|U|j⟩. Cell hue indicates quantum phase angle, brightness indicates magnitude |U<sub>ij</sub>|.
+        Values are ⟨basis<sub>row</sub>|U|basis<sub>col</sub>⟩ in Qiskit’s little-endian computational basis.
+        Hue encodes arg(U<sub>ij</sub>); brightness encodes |U<sub>ij</sub>|.
+        {unitarity ? ` Unitarity residual max |U†U − I| = ${unitarity.max_deviation.toExponential(3)} (tolerance ${unitarity.tolerance}).` : ''}
       </p>
     </div>
   );

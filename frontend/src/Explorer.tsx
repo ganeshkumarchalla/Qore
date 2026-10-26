@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icons';
-import { formatDate, type ExperimentSummary, type Project } from './types';
+import { formatDate, runtimeLabel, type ExperimentSummary, type Project } from './types';
 import {
   deleteWorkspaceFolder,
   deleteWorkspaceFile,
@@ -50,6 +50,7 @@ interface ExplorerProps {
   onSetShots?: (shots: string) => void;
   optLevel?: string;
   onSetOptLevel?: (level: string) => void;
+  runtimeVersions?: Record<string, string> | null;
 }
 
 export function Explorer({
@@ -72,6 +73,7 @@ export function Explorer({
   onSetShots,
   optLevel = '2',
   onSetOptLevel,
+  runtimeVersions,
 }: ExplorerProps) {
   // Accordion section states (VS Code native style)
   const [sectionsOpen, setSectionsOpen] = useState({
@@ -746,6 +748,25 @@ export function Explorer({
         <div
           className="vs-folder-row"
           onClick={() => toggleFolder(folderName)}
+          role="treeitem"
+          tabIndex={0}
+          aria-expanded={isExpanded}
+          aria-label={`Folder ${folderName}`}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              toggleFolder(folderName);
+            }
+            if (event.key === 'F2') {
+              event.preventDefault();
+              setRenamingFolder(folderName);
+              setRenameFolderValue(folderName);
+            }
+            if (event.key === 'Delete') {
+              event.preventDefault();
+              void handleDeleteFolder(folderName);
+            }
+          }}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -809,6 +830,17 @@ export function Explorer({
               }}
             >
               <Icon name="upload" size={11} />
+            </button>
+            <button
+              type="button"
+              className="vs-tool-btn"
+              title={`Duplicate Folder "${folderName}"`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDuplicateFolder(folderName);
+              }}
+            >
+              <Icon name="copy" size={11} />
             </button>
             <button
               type="button"
@@ -1192,7 +1224,7 @@ export function Explorer({
 
       {/* Explorer Status Bar */}
       <div className="vs-explorer-footer">
-        <span className="vs-footer-engine">AerSimulator · Qiskit 2.6</span>
+        <span className="vs-footer-engine">{runtimeLabel(runtimeVersions)}</span>
       </div>
 
       {/* Move File Destination Modal */}
@@ -1409,6 +1441,30 @@ export function Explorer({
           >
             <Icon name="copy" size={12} />
             <span>Duplicate Folder</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              copyPath(folderContextMenu.folder + '/');
+              setFolderContextMenu(null);
+            }}
+          >
+            <Icon name="copy" size={12} />
+            <span>Copy Folder Path</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              toggleFolder(folderContextMenu.folder);
+              setFolderContextMenu(null);
+            }}
+          >
+            <Icon name="chevron" size={12} />
+            <span>{expandedFolders[folderContextMenu.folder] ? 'Collapse Folder' : 'Expand Folder'}</span>
           </button>
 
           <div className="context-menu-sep" />

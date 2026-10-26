@@ -4509,6 +4509,12 @@ textarea:focus,
   font-weight: 500;
 }
 
+.unitary-verified-tag.failed {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fca5a5;
+}
+
 .verified-pulse-dot {
   width: 5px;
   height: 5px;

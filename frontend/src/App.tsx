@@ -19,6 +19,7 @@ import {
   api,
   formatDate,
   readable,
+  runtimeLabel,
   type Experiment,
   type ExperimentSummary,
   type Health,
@@ -118,6 +119,7 @@ export default function App() {
   const [level, setLevel] = useState(() => String(settings.defaultOptLevel));
 
   const [busy, setBusy] = useState('Connecting');
+  const executionInFlight = useRef(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -312,7 +314,6 @@ export default function App() {
   }
 
   async function loadSource(nextSource: string, nextName: string, id: string | null, customFileId?: string) {
-    const epoch = identityEpoch.current;
     const fileId = customFileId || (id ? id : nextName.includes('.') ? `circuits/${nextName}` : `circuits/${nextName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.py`);
     setActiveFileId(fileId);
     setActiveWorkspaceFile(loadWorkspaceFiles().some(file => file.id === fileId) ? fileId : null);
@@ -327,23 +328,9 @@ export default function App() {
     clearResults();
     setTab('Studio');
     setError('');
-
-    // Only invoke quantum compiler parser on Python quantum circuit code
-    if ((nextSource.includes('QuantumCircuit') || nextSource.trimStart().startsWith('OPENQASM')) && !nextName.endsWith('.md') && !nextName.endsWith('.json') && !nextName.endsWith('.txt')) {
-      setBusy('Parsing');
-      try {
-        const result = await api<Parsed>('/parse', { source: nextSource });
-        if (epoch === identityEpoch.current && sourceRef.current === nextSource) setParsed(result);
-      } catch (err) {
-        if (epoch === identityEpoch.current) setError((err as Error).message);
-      } finally {
-        if (epoch === identityEpoch.current) setBusy('');
-      }
-    } else {
-      // Non-Python workspace files are still fully editable; they simply do
-      // not need a quantum parse pass before the editor becomes interactive.
-      setBusy('');
-    }
+    // Opening a file is an editor action only. Parsing is deliberately
+    // explicit through Run, Forge, the command palette, or the terminal.
+    setBusy('');
   }
 
   async function openProject(id: string) {
@@ -427,8 +414,7 @@ export default function App() {
       setSimulation(null);
       setOptimization(null);
       setTab('Studio');
-      const parsedRes = await api<Parsed>('/parse', { source: item.source }).catch(() => null);
-      if (parsedRes) setParsed(parsedRes);
+      setParsed(null);
       setNotice(`Copied snapshot "${item.name}" as editable draft in Studio.`);
     } catch (err) {
       setError((err as Error).message);
@@ -488,8 +474,9 @@ export default function App() {
   }
 
   async function execute(action: 'parse' | 'simulate' | 'optimize') {
-    if (busy || !source.trim()) return;
+    if (executionInFlight.current || busy || !source.trim()) return;
 
+    executionInFlight.current = true;
     setError('');
     const submittedSource = source;
     try {
@@ -542,6 +529,7 @@ export default function App() {
     } catch (err) {
       setError((err as Error).message);
     } finally {
+      executionInFlight.current = false;
       setBusy('');
     }
   }
@@ -1657,6 +1645,7 @@ export default function App() {
           onSetShots={setShots}
           optLevel={level}
           onSetOptLevel={setLevel}
+          runtimeVersions={health?.versions}
         />
 
         {/* 3. Main Workspace Area */}
@@ -1689,21 +1678,6 @@ export default function App() {
               }}
             >
               Copy to editable draft
-            </button>
-          </div>
-        )}
-
-        {error && (
-          <div className="workbench-banner error" role="alert">
-            <Icon name="info" size={14} />
-            <span>{error}</span>
-            {!health && (
-              <button className="banner-action" onClick={() => void initialize()} disabled={!!busy}>
-                Reconnect
-              </button>
-            )}
-            <button className="icon-close" aria-label="Dismiss error" onClick={() => setError('')}>
-              <Icon name="close" size={12} />
             </button>
           </div>
         )}
@@ -1983,7 +1957,7 @@ export default function App() {
                   {inspectorTab === 'unitary' && (
                     <div className="inspector-content-box">
                       <ErrorBoundary label="Unitary matrix visualizer">
-                        <UnitaryMatrixViewer matrix={parsed?.unitary_matrix} />
+                        <UnitaryMatrixViewer matrix={parsed?.unitary_matrix} unitarity={parsed?.unitarity} />
                       </ErrorBoundary>
                     </div>
                   )}
@@ -2060,7 +2034,7 @@ export default function App() {
         historical={!!historical}
         view={tab}
         workspaceSummary={`${loadWorkspaceFiles().filter(file => file.type === 'file').length} files; ${projects.length} projects; ${experiments.length} ledger records`}
-        diagnostics={error || (parsed?.warnings ?? []).join('\n')}
+        diagnostics={(parsed?.warnings ?? []).join('\n')}
         onAction={(action) => {
           if (action === 'studio') setTab('Studio');
           if (action === 'lab') setTab('Lab');
@@ -2080,12 +2054,8 @@ export default function App() {
     <footer className="vscode-statusbar">
       <div className="status-left">
         <span className="status-item brand-item" title="QORE Quantum Kernel">
-          <span className={`status-dot ${error ? 'error-dot' : ''}`} />
-          <span>{busy ? `${busy}…` : error ? 'Simulation error' : health ? 'Qiskit Aer 0.18 (Ready)' : 'Disconnected'}</span>
-        </span>
-        <span className="status-item" title="Problems detected in workspace">
-          <Icon name="info" size={11} />
-          <span>{error ? '1 Problem' : '0 Problems'}</span>
+          <span className="status-dot" />
+          <span>{busy ? `${busy}…` : health ? `${runtimeLabel(health.versions)} (Ready)` : 'Disconnected'}</span>
         </span>
         <span
           className={`status-item clickable ${isTerminalOpen ? 'active' : ''}`}
@@ -2143,6 +2113,7 @@ export default function App() {
       {isSettingsOpen && (
         <SettingsModal
           settings={settings}
+          versions={health?.versions}
           onClose={() => setIsSettingsOpen(false)}
           onSave={(updated) => {
             setSettings(updated);

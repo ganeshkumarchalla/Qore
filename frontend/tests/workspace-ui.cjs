@@ -34,7 +34,12 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await rename.fill('quantum-algorithms'); await rename.press('Enter');
 
     const renamed = page.getByTitle('Folder: quantum-algorithms/');
-    await renamed.waitFor(); await renamed.hover();
+    await renamed.waitFor();
+    await renamed.click({ button: 'right' });
+    await page.getByRole('button', { name: 'Copy Folder Path', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Duplicate Folder', exact: true }).click();
+    await page.getByTitle('Folder: quantum-algorithms_copy/').waitFor();
+    await renamed.hover();
     await page.getByTitle('New File inside quantum-algorithms', { exact: true }).click();
     const create = page.getByPlaceholder('filename.py (or .qasm, .json, .md)');
     await create.fill('vqe.py'); await create.press('Enter');
@@ -51,6 +56,6 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     assert.equal(await page.getByTitle('Folder: quantum-algorithms/').count(), 1);
     assert.equal((await page.locator('.vscode-sidebar').count()), 1);
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ passed: true, checks: ['Folder create and rename', 'File create and edit', 'Path and source persist after refresh', 'Single Explorer instance'] }));
+    console.log(JSON.stringify({ passed: true, checks: ['Folder create, rename, duplicate and context actions', 'File create and edit', 'Path and source persist after refresh', 'Single Explorer instance'] }));
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

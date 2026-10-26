@@ -247,7 +247,7 @@ export function Lab({ run, historical }: { run: Simulation | null; historical: b
         )}
 
         {subTab === 'bloch' && <BlochSphereViewer vectors={run.bloch_vectors} />}
-        {subTab === 'unitary' && <UnitaryMatrixViewer matrix={run.unitary_matrix} />}
+        {subTab === 'unitary' && <UnitaryMatrixViewer matrix={run.unitary_matrix} unitarity={run.unitarity} />}
         {subTab === 'amplitudes' && <StatevectorAmplitudesViewer amplitudes={run.statevector_amplitudes} />}
         {subTab === 'qasm' && <QasmViewer qasm={run.qasm} />}
       </section>
@@ -266,12 +266,23 @@ export function Lab({ run, historical }: { run: Simulation | null; historical: b
               noise_model: run.noise_applied ? `Aer Depolarizing (p=${run.noise_rate})` : 'Ideal (Noiseless)',
               execution_time: `${run.execution_ms.toFixed(2)} ms`,
               timestamp: formatDate(run.created_at),
+              auto_measured: run.auto_measured ? 'Yes — identity q→c map added for shots' : 'No',
             }}
           />
           <div className="tvd">
             <span>TOTAL VARIATION DISTANCE (TVD)</span>
-            <strong>{run.tvd === null ? 'N/A' : run.tvd.toFixed(6)}</strong>
-            <p>Statistical divergence between sampled distribution and ideal reference. 0 indicates perfect match.</p>
+            <strong>{run.tvd === null ? 'N/A' : run.tvd.toFixed(8)}</strong>
+            <p>½ ∑ |p_measured − p_ideal| under the same classical mapping. 0 is a perfect match.</p>
+          </div>
+          <div className="tvd">
+            <span>CLASSICAL FIDELITY</span>
+            <strong>{run.classical_fidelity == null ? 'N/A' : run.classical_fidelity.toFixed(8)}</strong>
+            <p>(∑ √(p q))² between sampled and ideal distributions. 1 is a perfect match.</p>
+          </div>
+          <div className="tvd">
+            <span>HELLINGER DISTANCE</span>
+            <strong>{run.hellinger_distance == null ? 'N/A' : run.hellinger_distance.toFixed(8)}</strong>
+            <p>√(1 − ∑ √(p q)). Complements TVD for the same mapped probabilities.</p>
           </div>
         </section>
 

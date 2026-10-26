@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './Icons';
 import type { AuthUser } from './AuthModal';
+import { runtimeLabel } from './types';
 
 interface AuthSuccessBannerProps {
   user: AuthUser;
   isNewUser?: boolean;
   onDismiss: () => void;
+  versions?: Record<string, string> | null;
 }
 
-export function AuthSuccessBanner({ user, isNewUser, onDismiss }: AuthSuccessBannerProps) {
+export function AuthSuccessBanner({ user, isNewUser, onDismiss, versions }: AuthSuccessBannerProps) {
   const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
@@ -111,7 +113,7 @@ export function AuthSuccessBanner({ user, isNewUser, onDismiss }: AuthSuccessBan
         <div className="auth-middle-checklist">
           <div className="auth-check-item">
             <Icon name="check" size={12} />
-            <span>Qiskit Aer 0.18 Ready</span>
+            <span>{runtimeLabel(versions)} Ready</span>
           </div>
           <div className="auth-check-item">
             <Icon name="check" size={12} />

@@ -44,7 +44,7 @@ async function main() {
         magnitude: Math.SQRT1_2, phase: 0, probability: 0.5 })),
       bloch_vectors: [0, 1, 2].map(qubit => ({ qubit, x: 0, y: 0, z: 0, theta: 0, phi: 0, purity: 0.5, is_pure: false })),
     };
-    let source = '', assistantRequest, runCount = 0;
+    let source = '', assistantRequest, runCount = 0, parseCount = 0;
     const workspace = workspaceFixture();
     await page.route('**/api/**', async route => {
       if (await workspace.handle(route)) return;
@@ -63,12 +63,18 @@ async function main() {
         safety_boundary: 'Circuit source is parsed and interpreted; arbitrary host execution is unavailable.',
       };
       else if (pathname === '/api/projects' || pathname === '/api/experiments') body = [];
-      else if (pathname === '/api/parse') { source = request.postDataJSON().source; body = parsed; }
+      else if (pathname === '/api/parse') { parseCount++; source = request.postDataJSON().source; body = parsed; }
       else if (pathname === '/api/assistant') {
         assistantRequest = request.postDataJSON();
         body = { available: true, answer: 'The active circuit prepares a three-qubit GHZ state.', model: 'ui-fixture-model' };
       } else if (pathname === '/api/simulate') {
         runCount++;
+        if (runCount === 2) {
+          await route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({
+            error: { code: 'unsupported_dynamic_circuit', message: 'Measurements must be terminal; no quantum gates may follow the first measurement.', details: { line: 16, column: 1 } },
+          }) });
+          return;
+        }
         source = request.postDataJSON().source;
         body = { ...parsed, id: 'ui-fixture-run-' + runCount, kind: 'simulation', source,
           created_at: '2026-10-25T08:00:00Z', counts: { '000': 512, '111': 512 },
@@ -94,7 +100,8 @@ async function main() {
     assert(requested.some(url => /QuantumEditor|monaco-editor|\/monaco[.-]/i.test(url)));
     assert.equal(requested.some(url => /cdn\.jsdelivr|unpkg\.com|cdnjs\.cloudflare/.test(url)), false, 'Monaco is local, not CDN loaded');
     assert.equal(await page.locator('.vscode-sidebar').count(), 1, 'Identity transition must not duplicate Explorer');
-    checks.push('Get Started opens a working local Monaco editor; exactly one Explorer');
+    assert.equal(parseCount, 0, 'Opening a file must not submit a background parse job');
+    checks.push('Get Started opens a working local Monaco editor without automatic parsing; exactly one Explorer');
 
     await page.locator('#qore-assistant-toggle').click();
     const sidebar = page.locator('#qore-assistant-sidebar'); await sidebar.waitFor();
@@ -102,7 +109,7 @@ async function main() {
     await page.getByLabel('Ask QI Assistant').fill('Explain the active circuit');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
-    assert.equal(assistantRequest.source, source);
+    assert.match(assistantRequest.source, /QuantumCircuit/);
     await page.screenshot({ path: path.join(EVIDENCE, 'assistant-studio-1366.png') });
     await page.getByRole('button', { name: 'Simulation', exact: true }).click();
     await page.getByRole('heading', { name: 'No Simulation Results' }).waitFor();
@@ -129,13 +136,18 @@ async function main() {
     }
     checks.push('Drawer fits 1366/1440/1920/900/390; overlay focus is contained; mobile has no document horizontal overflow');
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.getByRole('button', { name: 'Run Kernel', exact: true }).click();
+    await page.getByRole('button', { name: 'Run Kernel', exact: true }).evaluate(button => { button.click(); button.click(); });
+    await page.locator('.workbench-banner.notice').getByText('Simulation complete', { exact: false }).waitFor();
+    assert.equal(runCount, 1, 'A rapid repeated Run click must dispatch only one quantum job');
     await page.locator('.topbar-util-btn').filter({ has: page.locator('svg') }).last().click();
     const consoleInput = page.getByRole('textbox', { name: 'QORE console command' });
     if (!await consoleInput.isVisible()) await page.locator('.topbar-util-btn').last().click();
     await consoleInput.waitFor();
     const command = async value => { await consoleInput.fill(value); await consoleInput.press('Enter'); };
-    await command('clear'); await command('unitary');
+    await command('clear'); await command('parse');
+    await page.waitForFunction(() => document.body.textContent.includes('Parsed circuit successfully into QORE-IR.'));
+    assert.equal(parseCount, 1, 'The explicit terminal parse command must submit exactly one parse job');
+    await command('unitary');
     await page.getByText('Circuit unitary (8 × 8):', { exact: false }).waitFor();
     await command('statevector'); await page.getByText('Complex state amplitudes:', { exact: false }).waitFor();
     await command('qiskit --version'); await page.locator('.terminal-log-scroll').getByText('ui-fixture-version', { exact: false }).waitFor();
@@ -144,23 +156,29 @@ async function main() {
     await command('qiskit bloch'); await page.locator('.terminal-log-scroll').getByText('q[0] x=0.00000000', { exact: false }).waitFor();
     await command('qiskit ideal'); await page.locator('.terminal-log-scroll').getByText('Ideal reference probabilities:', { exact: false }).waitFor();
     await command('qiskit bitorder'); await page.locator('.terminal-log-scroll').getByText('UI fixture ordering', { exact: false }).waitFor();
-    await command('tree'); await page.locator('.terminal-log-scroll').getByText('my_first_qubits.py', { exact: false }).waitFor();
+    await command('tree'); await page.locator('.terminal-log-scroll .term-pre').filter({ hasText: '└─ my_first_qubits.py' }).waitFor();
     const before = runCount; await command('az quantum execute'); await command('qsharp run');
     assert.equal(runCount, before, 'Unsupported cloud/Q# commands must not dispatch Aer');
     await command('cat another_file.py'); await page.getByText('Workspace file not found:', { exact: false }).waitFor();
-    checks.push('Terminal executes capability, gate, module, Bloch, ideal, bit-order and workspace-tree commands; unsupported cloud/Q# never execute; cat rejects unknown files');
+    checks.push('Rapid Run clicks dispatch once; terminal executes capabilities, Bloch, ideal, bit-order and workspace-tree commands; unsupported cloud/Q# never execute');
 
     await page.locator('#qore-assistant-toggle').click();
     await page.getByLabel('Ask QI Assistant').fill('Explain again');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
     assert.equal(assistantRequest.simulation_id, 'ui-fixture-run-1');
+    await page.waitForFunction(() => !document.querySelector('#assistant-question')?.disabled);
     await page.getByLabel('Ask QI Assistant').fill('open lab');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
-    await page.getByText('Done — open lab.', { exact: true }).waitFor();
     await page.locator('.lab-view-shell').waitFor();
     assert.equal(requested.some(url => url.includes('/api/auth/')), false);
     checks.push('QI command opens Lab without any authentication request');
+
+    await page.getByRole('button', { name: 'Run Kernel', exact: true }).click();
+    await page.locator('.terminal-log-scroll').getByText('Measurements must be terminal; no quantum gates may follow the first measurement.', { exact: false }).waitFor();
+    assert(await page.locator('.vscode-terminal-dock').isVisible(), 'Execution errors must open the terminal');
+    assert.equal(await page.locator('.workbench-banner.error').count(), 0, 'Execution errors must not render outside the terminal');
+    checks.push('Execution errors appear only in the automatically opened terminal');
     assert.deepEqual(runtimeErrors, []);
     assert.equal(consoleErrors.some(message => /same key|unique.*key/i.test(message)), false);
     checks.push('No browser runtime errors or duplicate-key errors');

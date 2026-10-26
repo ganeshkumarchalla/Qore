@@ -14,31 +14,41 @@ type Node3D = {
 
 const TAU = Math.PI * 2;
 
-function stateSeed(state: string) {
-  return [...state].reduce((value, bit, index) => value + (bit === '1' ? 31 : 13) * (index + 1), 17);
+function hammingWeight(state: string) {
+  return [...state].reduce((weight, bit) => weight + (bit === '1' ? 1 : 0), 0);
 }
 
 function buildNodes(run: Simulation): Node3D[] {
   const amplitudes = new Map((run.statevector_amplitudes ?? []).map((item) => [item.state, item]));
-  const states = new Set([
+  const states = [...new Set([
     ...Object.keys(run.theoretical_probabilities),
     ...Object.keys(run.probabilities),
-  ]);
-  return [...states]
+  ])];
+  const byWeight = new Map<number, string[]>();
+  for (const state of states) {
+    const weight = hammingWeight(state);
+    const group = byWeight.get(weight) ?? [];
+    group.push(state);
+    byWeight.set(weight, group);
+  }
+  for (const group of byWeight.values()) group.sort();
+  const n = Math.max(1, ...states.map((state) => state.length));
+  return states
     .map((state) => {
-      const seed = stateSeed(state);
-      const fraction = (seed * 0.61803398875) % 1;
-      const inclination = Math.acos(1 - 2 * ((seed * 0.17320508075) % 1));
-      const azimuth = TAU * fraction;
+      const weight = hammingWeight(state);
+      const group = byWeight.get(weight) ?? [state];
+      const index = Math.max(0, group.indexOf(state));
+      const azimuth = group.length === 1 ? 0 : (TAU * index) / group.length;
+      const polar = n <= 1 ? 0 : Math.PI * (weight / n);
       const amplitude = amplitudes.get(state);
       return {
         state,
         probability: run.theoretical_probabilities[state] ?? 0,
         measured: run.probabilities[state] ?? 0,
-        x: Math.sin(inclination) * Math.cos(azimuth),
-        y: Math.sin(inclination) * Math.sin(azimuth),
-        z: Math.cos(inclination),
-        phase: amplitude?.phase ?? azimuth,
+        x: Math.sin(polar) * Math.cos(azimuth),
+        y: Math.sin(polar) * Math.sin(azimuth),
+        z: Math.cos(polar),
+        phase: amplitude?.phase ?? 0,
       };
     })
     .filter((node) => node.probability > 1e-8 || node.measured > 0)
@@ -205,8 +215,12 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
       <div className="quantum-world-head">
         <div>
           <span className="eyebrow">SIMULATION STATE WORLD</span>
-          <h3>Navigate the outcome constellation</h3>
-          <p>Node size follows ideal probability; glow responds to finite-shot measurements. Lines connect simultaneously probable outcomes.</p>
+          <h3>Computational-basis orbital shells</h3>
+          <p>
+            Latitude is Hamming weight (|00…0⟩ at the north pole, |11…1⟩ at the south). Node size is the ideal
+            mapped probability; hue is statevector phase; glow follows finite-shot frequency. This layout is a
+            basis-state orbital diagram, not a Hilbert-space embedding.
+          </p>
         </div>
         <button type="button" className={`matrix-toggle-btn ${orbiting ? 'active' : ''}`} onClick={() => setOrbiting((value) => !value)} aria-pressed={orbiting}>
           <Icon name={orbiting ? 'refresh' : 'play'} size={12} />
@@ -239,9 +253,11 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
         <span>SELECTED BASIS STATE</span>
         <strong>|{selectedNode?.state ?? '—'}⟩</strong>
         <dl>
-          <div><dt>Ideal</dt><dd>{((selectedNode?.probability ?? 0) * 100).toFixed(3)}%</dd></div>
-          <div><dt>Measured</dt><dd>{((selectedNode?.measured ?? 0) * 100).toFixed(3)}%</dd></div>
+          <div><dt>Ideal</dt><dd>{((selectedNode?.probability ?? 0) * 100).toFixed(6)}%</dd></div>
+          <div><dt>Measured</dt><dd>{((selectedNode?.measured ?? 0) * 100).toFixed(6)}%</dd></div>
           <div><dt>Shots</dt><dd>{run.counts[selectedNode?.state ?? ''] ?? 0}</dd></div>
+          <div><dt>Weight</dt><dd>{selectedNode ? hammingWeight(selectedNode.state) : '—'}</dd></div>
+          <div><dt>Phase</dt><dd>{selectedNode ? `${(selectedNode.phase / Math.PI).toFixed(4)}π` : '—'}</dd></div>
         </dl>
       </div>
       <div className="quantum-world-footer">
