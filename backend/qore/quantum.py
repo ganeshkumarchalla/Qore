@@ -965,10 +965,16 @@ def parse_source(source: str) -> dict[str, Any]:
         raise QuantumError("INVALID_SOURCE", "Source must contain valid UTF-8 text.") from exc
     if len(encoded) > MAX_SOURCE_BYTES:
         raise QuantumError("RESOURCE_LIMIT", f"Source exceeds {MAX_SOURCE_BYTES} UTF-8 bytes.")
-    stripped = source.strip()
-    if stripped.startswith("OPENQASM") or (stripped.startswith("include ") and ("qreg " in stripped or "qubit" in stripped)):
+    qasm_source = source.lstrip("\ufeff \t\r\n")
+    qasm_start = qasm_source
+    while qasm_start.startswith("//"):
+        newline = qasm_start.find("\n")
+        if newline < 0:
+            break
+        qasm_start = qasm_start[newline + 1:].lstrip(" \t\r\n")
+    if qasm_start.startswith("OPENQASM") or (qasm_start.startswith("include ") and ("qreg " in qasm_start or "qubit" in qasm_start)):
         try:
-            circuit = qasm2.loads(source)
+            circuit = qasm2.loads(qasm_source)
         except Exception as exc:
             raise QuantumError("SYNTAX_ERROR", f"OpenQASM parser error: {exc}") from exc
     else:

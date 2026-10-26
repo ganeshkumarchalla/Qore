@@ -194,6 +194,17 @@ def test_qiskit_circuit_module_import_is_supported():
     assert parse_source(source)["metrics"]["gate_types"] == {"h": 1}
 
 
+@pytest.mark.parametrize("prefix", ["// prepared circuit\n", "// first line\n  // second line\n", "\ufeff// UTF-8 BOM\n"])
+def test_openqasm_with_leading_comments_or_bom_parses_and_runs(prefix):
+    source = (prefix + 'OPENQASM 2.0;\ninclude "qelib1.inc";\n'
+              'qreg q[1];\ncreg c[1];\nx q[0];\nmeasure q[0] -> c[0];')
+    parsed = parse_source(source)
+    assert parsed["metrics"]["gate_types"] == {"x": 1}
+    result = simulate(source, shots=32, seed=7)
+    assert result["counts"] == {"1": 32}
+    assert result["theoretical_probabilities"]["1"] == pytest.approx(1)
+
+
 @pytest.mark.parametrize("gate,spec", sorted(GATES.items()))
 def test_every_advertised_native_gate_executes(gate, spec):
     parameter_count, qubit_count = spec
