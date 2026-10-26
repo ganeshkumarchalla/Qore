@@ -29,6 +29,12 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await page.getByPlaceholder('New folder name...').press('Enter');
     const folder = page.getByTitle('Folder: algorithms/');
     await folder.waitFor(); await folder.hover();
+    await page.getByTitle('New Folder', { exact: true }).click();
+    await page.getByPlaceholder('New folder name...').fill('..');
+    await page.getByPlaceholder('New folder name...').press('Enter');
+    assert.equal(await page.getByTitle('Folder: ../', { exact: true }).count(), 0);
+    await page.getByPlaceholder('New folder name...').press('Escape');
+    await folder.hover();
     await page.getByTitle('Rename Folder "algorithms"', { exact: true }).click();
     const rename = page.getByLabel('Rename folder algorithms');
     await rename.fill('quantum-algorithms'); await rename.press('Enter');
@@ -87,6 +93,6 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await page.getByRole('button', { name: 'Delete Folder', exact: true }).click();
     await page.getByTitle('Folder: quantum-work_copy/', { exact: true }).waitFor({ state: 'detached' });
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ passed: true, checks: ['Folder create, rename, duplicate and context actions', 'Nested folder create and file edit', 'Parent rename and duplicate preserve descendants', 'Folder deletion removes descendants', 'Path and source persist after refresh', 'Single Explorer instance'] }));
+    console.log(JSON.stringify({ passed: true, checks: ['Folder create, rename, duplicate and context actions', 'Reserved folder names rejected', 'Nested folder create and file edit', 'Parent rename and duplicate preserve descendants', 'Folder deletion removes descendants', 'Path and source persist after refresh', 'Single Explorer instance'] }));
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

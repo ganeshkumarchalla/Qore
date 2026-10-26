@@ -30,6 +30,12 @@ export interface WorkspaceFile {
   syncState?: 'local' | 'pending' | 'saved' | 'error' | 'conflict';
 }
 
+function isSafeFolderPath(path: string): boolean {
+  return path.length <= 512 && path.split('/').every(part =>
+    part.length > 0 && part.length <= 100 && part !== '.' && part !== '..'
+    && part === part.trim() && !/[\\:*?"<>|\x00-\x1f\x7f]/.test(part));
+}
+
 interface ExplorerProps {
   sidebarOpen: boolean;
   activeFileId: string;
@@ -259,6 +265,10 @@ export function Explorer({
       return;
     }
     const path = createFolderParent ? `${createFolderParent}/${raw}` : raw;
+    if (!isSafeFolderPath(path)) {
+      setFileError('Choose a folder name without reserved characters or dot-only segments (100 characters maximum).');
+      return;
+    }
     if (folders.includes(path) || (!createFolderParent && (raw === 'projects' || raw === 'experiments'))) {
       setFileError(`Folder "${path}" already exists.`);
       return;
@@ -288,6 +298,11 @@ export function Explorer({
     const newPath = parent + newName;
     if (newPath === renamingFolder) {
       setRenamingFolder(null);
+      return;
+    }
+    if (!isSafeFolderPath(newPath) || folders.some(path => path.startsWith(`${renamingFolder}/`) && !isSafeFolderPath(newPath + path.slice(renamingFolder.length)))
+      || customFiles.some(file => file.path.startsWith(`${renamingFolder}/`) && (newPath + file.path.slice(renamingFolder.length)).length > 512)) {
+      setFileError('The renamed folder or one of its descendants would exceed workspace path limits.');
       return;
     }
     if (folders.includes(newPath) || (!parent && (newName === 'projects' || newName === 'experiments'))) {
@@ -340,6 +355,11 @@ export function Explorer({
     let suffix = 2;
     while (folders.includes(copyName)) {
       copyName = `${folderName}_copy_${suffix++}`;
+    }
+    if (!isSafeFolderPath(copyName) || folders.some(path => path.startsWith(`${folderName}/`) && !isSafeFolderPath(copyName + path.slice(folderName.length)))
+      || customFiles.some(file => file.path.startsWith(`${folderName}/`) && (copyName + file.path.slice(folderName.length)).length > 512)) {
+      setFileError('The duplicated folder or one of its descendants would exceed workspace path limits.');
+      return;
     }
     const filesToCopy = customFiles.filter((f) => f.path.startsWith(`${folderName}/`));
     const newFiles: WorkspaceFile[] = filesToCopy.map((f) => {
