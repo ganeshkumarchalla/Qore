@@ -66,8 +66,8 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
       'Commutation Analysis & Gate Cancellation', 'Strict Unitary Verification (U† U = I)', 'Equivalence Numerical Tolerance']) await disabled(title);
     assert.equal(await dialog.getByRole('group', { name: 'Equivalence Numerical Tolerance', exact: true }).locator('select').inputValue(), '1e-9');
     await dialog.getByLabel('Transpiler optimization level', { exact: true }).selectOption('3');
-    await category('AI Copilot');
-    for (const title of ['Server-Managed Provider', 'Copilot Temperature (0.2)',
+    await category('QORE Intelligence');
+    for (const title of ['Server-Managed Provider', 'Response Temperature (0.2)',
       'Auto-Explain Generated Circuits in Chat', 'Stream Token Generation Animation']) await disabled(title);
     for (let index = 0; index < 45; index++) {
       await page.keyboard.press('Tab');

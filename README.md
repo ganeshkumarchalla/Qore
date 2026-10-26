@@ -54,11 +54,11 @@ Keep immutable experiment snapshots containing source, source hash, circuit IR, 
 
 [Research Ledger](docs/features/research-ledger.md) · [Reproducibility](docs/quantum/reproducibility.md)
 
-### QI Assistant — intelligence across the workbench
+### QORE Intelligence — assistance across the workbench
 
 ![Animated secondary assistant sidebar illustration](docs/assets/animations/assistant.gif)
 
-QI Assistant has a simple stacked secondary sidebar beside every active view. It receives the active view, workspace summary, diagnostics, circuit, and source-matched evidence. It can navigate QORE and invoke explicit simulation or optimization actions; model responses cannot silently edit source or approve candidates. The Gemini credential remains server-side and never enters the browser bundle.
+QORE Intelligence has a simple stacked secondary sidebar beside every active view. It receives the active view, workspace summary, diagnostics, circuit, and source-matched evidence. It can navigate QORE and invoke explicit simulation or optimization actions; model responses cannot silently edit source or approve candidates. The AI credential remains server-side and never enters the browser bundle.
 
 [Assistant scope and privacy](docs/features/assistant.md)
 

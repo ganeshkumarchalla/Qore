@@ -1,6 +1,6 @@
-# QI Assistant: quantum intelligence across QORE
+# QORE Intelligence: assistance across the workbench
 
-QI Assistant provides explanations and controlled workspace actions beside every QORE view. Its dedicated, VS Code-style secondary sidebar stays available in Studio, Lab, Forge, and Ledger. It receives only bounded context assembled by the application and can invoke explicit local actions such as opening a view, showing the terminal, creating a blank file, simulating, or optimizing. Generated text cannot silently edit source, certify evidence, or access the provider key.
+QORE Intelligence provides explanations and controlled workspace actions beside every QORE view. Its dedicated, VS Code-style secondary sidebar stays available in Studio, Lab, Forge, and Ledger. It receives only bounded context assembled by the application and can invoke explicit local actions such as opening a view, showing the terminal, creating a blank file, simulating, or optimizing. Generated text cannot silently edit source, certify evidence, or access the provider key.
 
 ![Assistant concept](../assets/animations/assistant.gif)
 

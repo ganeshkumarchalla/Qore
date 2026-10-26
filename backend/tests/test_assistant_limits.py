@@ -69,6 +69,31 @@ def test_provider_failure_does_not_leak_concurrency_slots(local_ai, monkeypatch)
         assert client.post("/api/assistant", json=BODY).json()["available"] is True
 
 
+def test_unavailable_configured_model_falls_back_to_current_stable_model(local_ai, monkeypatch):
+    monkeypatch.setenv("GEMINI_MODEL", "retired-model")
+    requested = []
+
+    class Client:
+        def __init__(self, **_options):
+            pass
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *_args):
+            pass
+        async def post(self, url, **_options):
+            requested.append(url)
+            return response(404 if "retired-model" in url else 200)
+
+    monkeypatch.setattr("qore.main.httpx.AsyncClient", Client)
+    with TestClient(local_ai) as client:
+        result = client.post("/api/assistant", json=BODY)
+    assert result.status_code == 200
+    assert result.json()["available"] is True
+    assert result.json()["model"] == "gemini-3.6-flash"
+    assert len(requested) == 2
+    assert requested[1].endswith("/gemini-3.6-flash:generateContent")
+
+
 def test_parallel_ai_requests_never_exceed_two_provider_calls(local_ai, monkeypatch):
     active = 0
     peak = 0

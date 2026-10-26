@@ -106,9 +106,11 @@ async function main() {
     await page.locator('#qore-assistant-toggle').click();
     const sidebar = page.locator('#qore-assistant-sidebar'); await sidebar.waitFor();
     assert.equal(await page.locator('.activity-bar').getByRole('button', { name: 'Assistant', exact: true }).count(), 0);
-    await page.getByLabel('Ask QI Assistant').fill('Explain the active circuit');
+    await page.getByLabel('Ask QORE Intelligence').fill('Explain the active circuit');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
+    await sidebar.getByRole('heading', { name: 'QORE Intelligence', exact: true }).waitFor();
+    assert.equal(await sidebar.getByText('ui-fixture-model', { exact: true }).count(), 0, 'Provider identifiers must not appear in the assistant interface');
     assert.match(assistantRequest.source, /QuantumCircuit/);
     await page.screenshot({ path: path.join(EVIDENCE, 'assistant-studio-1366.png') });
     await page.getByRole('button', { name: 'Simulation', exact: true }).click();
@@ -169,16 +171,16 @@ async function main() {
     checks.push('Rapid Run clicks dispatch once; terminal executes capabilities, Bloch, ideal, bit-order and workspace-tree commands; unsupported cloud/Q# never execute');
 
     await page.locator('#qore-assistant-toggle').click();
-    await page.getByLabel('Ask QI Assistant').fill('Explain again');
+    await page.getByLabel('Ask QORE Intelligence').fill('Explain again');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
     assert.equal(assistantRequest.simulation_id, 'ui-fixture-run-1');
     await page.waitForFunction(() => !document.querySelector('#assistant-question')?.disabled);
-    await page.getByLabel('Ask QI Assistant').fill('open lab');
+    await page.getByLabel('Ask QORE Intelligence').fill('open lab');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await page.locator('.lab-view-shell').waitFor();
     assert.equal(requested.some(url => url.includes('/api/auth/')), false);
-    checks.push('QI command opens Lab without any authentication request');
+    checks.push('QORE Intelligence command opens Lab without any authentication request');
 
     await page.getByRole('button', { name: 'Run Kernel', exact: true }).click();
     await page.locator('.terminal-log-scroll').getByText('Measurements must be terminal; no quantum gates may follow the first measurement.', { exact: false }).waitFor();

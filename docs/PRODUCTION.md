@@ -49,9 +49,9 @@ The quality workflow installs pinned package-manager and language versions, runs
 
 The recommended flow is editing branch → local verification → pull request checks → production branch/main. Generated evidence, databases, browser profiles, dependencies, and promotional recordings remain ignored. Only intentional source, documentation, lockfiles, migrations, and reproducible public assets belong in a release commit.
 
-## QI Assistant operations
+## QORE Intelligence operations
 
-QI uses `GEMINI_API_KEY` and `GEMINI_MODEL` from the backend process. The API assembles the active view, file name, bounded workspace summary, diagnostics, optional source, and source-matched run evidence. A model answer cannot trigger arbitrary commands. The local QI command map supports a small explicit set of QORE actions, while simulation and optimization still pass through normal validated endpoints.
+QORE Intelligence uses `GEMINI_API_KEY` and `GEMINI_MODEL` from the backend process. The API assembles the active view, file name, bounded workspace summary, diagnostics, optional source, and source-matched run evidence. A model answer cannot trigger arbitrary commands. Its local command map supports a small explicit set of QORE actions, while simulation and optimization still pass through normal validated endpoints.
 
 Rate limits are process-local: ten assistant calls per browser workspace per minute, two simultaneous provider calls, a bounded admission wait, and a provider timeout. Configure provider-side budgets and monitoring separately. Multiple replicas need a shared rate limiter and job queue before horizontal scaling.
 

@@ -10,7 +10,7 @@ All application routes are under `/api` and return JSON. Errors use `{"error":{"
 
 `GET /projects`, `POST /projects`, `GET /projects/{id}`, and `PUT /projects/{id}` manage named source records within the current browser workspace. `GET /runs` and `GET /runs/{id}` expose recorded executions. `POST /experiments` creates an immutable Ledger snapshot from exact source and optional source-matched run IDs. `GET /experiments` lists summaries; `GET /experiments/{id}` returns complete evidence.
 
-## QI Assistant
+## QORE Intelligence
 
 `POST /assistant` accepts `question`, optional `source`, `view`, `file_name`, `workspace_summary`, `diagnostics`, and optional simulation or optimization IDs. Referenced runs must belong to the same browser scope, have the expected kind, be successful, and match the submitted source hash. A response is `{available,answer,model?}`. Unavailability is reported honestly and never replaced with fabricated numerical output.
 

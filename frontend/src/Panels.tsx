@@ -613,14 +613,13 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
   const [answer, setAnswer] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
-  const [model, setModel] = useState('');
   const [available, setAvailable] = useState<boolean | null>(null);
   const generation = useRef(0);
   const ready = Boolean(health?.ai_available);
 
   useEffect(() => {
     generation.current += 1;
-    setAnswer(''); setError(''); setModel(''); setAvailable(null); setPending(false);
+    setAnswer(''); setError(''); setAvailable(null); setPending(false);
     return () => { generation.current += 1; };
   }, [fileName, simulation?.id, optimization?.id, view]);
 
@@ -638,7 +637,6 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
       setQuestion(text);
       setAnswer(`Done — ${normalized}.`);
       setAvailable(true);
-      setModel('QI command');
       return;
     }
     if (!ready) return;
@@ -646,7 +644,7 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
     setQuestion(text);
     setPending(true); setError(''); setAnswer('');
     try {
-      const data = await api<{ available: boolean; answer: string; model?: string }>('/assistant', {
+      const data = await api<{ available: boolean; answer: string }>('/assistant', {
         question: text.trim(),
         source,
         simulation_id: simulation?.id,
@@ -658,7 +656,6 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
       });
       if (generation.current !== requestGeneration) return;
       setAnswer(data.answer);
-      setModel(data.model ?? '');
       setAvailable(data.available);
     } catch (reason) {
       if (generation.current === requestGeneration) setError(reason instanceof Error ? reason.message : 'The assistant could not respond. Please try again.');
@@ -686,7 +683,7 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         <div><Icon name={historical ? 'clock' : 'file'} size={14} /><strong>{fileName || 'No circuit open'}</strong></div>
         <span>{view} · {historical ? 'Historical snapshot' : source.trim() ? source.split('\n').length + ' editor lines' : 'No circuit required'}</span>
       </div>
-      <div className="qore-assistant-command-stack" aria-label="QI workspace actions">
+      <div className="qore-assistant-command-stack" aria-label="QORE Intelligence workspace actions">
         <button type="button" onClick={() => onAction('studio')}>Studio</button>
         <button type="button" onClick={() => onAction('lab')}>Lab</button>
         <button type="button" onClick={() => onAction('forge')}>Forge</button>
@@ -706,7 +703,7 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         </button>)}
       </div>
       <form onSubmit={event => { event.preventDefault(); void ask(); }}>
-        <label htmlFor="assistant-question">Ask QI Assistant</label>
+        <label htmlFor="assistant-question">Ask QORE Intelligence</label>
         <textarea id="assistant-question" value={question} maxLength={4000}
           onChange={event => setQuestion(event.target.value)} rows={4} disabled={pending || !ready}
           placeholder={source.trim() ? 'Explain this workspace, result, or next step…' : 'Ask about QORE, or type “open lab”…'}
@@ -723,11 +720,10 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
       {error && <div className="error-box" role="alert">{error}</div>}
       {answer && <div className="assistant-answer" role="status">
         <div className="section-head"><Icon name="spark" size={15} /><h3>{available ? 'Assistant response' : 'Service notice'}</h3></div>
-        {model && <span className="mini-tag">{model}</span>}
         <p className="preserve-lines">{answer}</p>
       </div>}
     </section>
-    <p className="qore-assistant-footnote"><Icon name="info" size={13} />QI receives the active view, workspace summary, diagnostics, and attached evidence—never the server API key.</p>
+    <p className="qore-assistant-footnote"><Icon name="info" size={13} />QORE Intelligence receives the active view, workspace summary, diagnostics, and attached evidence—never the server API key.</p>
   </div>;
 }
 
@@ -786,12 +782,12 @@ export function AssistantSidebar({ isOpen, onClose, ...context }: AssistantConte
       role={overlay ? 'dialog' : 'complementary'} aria-modal={overlay || undefined} aria-labelledby="qore-assistant-title">
       <header className="qore-assistant-header">
         <div className="qore-assistant-heading"><span className="qore-assistant-symbol"><Icon name="spark" size={18} /></span>
-          <div><span>QUANTUM INTELLIGENCE</span><h2 id="qore-assistant-title">QI Assistant</h2></div>
+          <div><span>QORE INTELLIGENCE</span><h2 id="qore-assistant-title">QORE Intelligence</h2></div>
         </div>
         <button type="button" className="qore-assistant-close topbar-util-btn" aria-label="Close assistant sidebar" title="Close assistant (Escape)" onClick={onClose}><Icon name="close" size={14} /></button>
       </header>
       <div className="qore-assistant-scroll">
-        <ErrorBoundary label="QI Assistant">
+        <ErrorBoundary label="QORE Intelligence">
           <Intelligence {...context} />
         </ErrorBoundary>
       </div>

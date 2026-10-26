@@ -12,7 +12,7 @@ Editable workspace files are mutable working material. Projects are named source
 
 ## AI boundary
 
-QI Assistant receives a bounded context assembled by the backend. Gemini credentials remain in the server environment. Source and questions are treated as untrusted content, not system instructions. Local QI commands map to a small allowlist of existing UI actions; model text cannot execute arbitrary operations.
+QORE Intelligence receives a bounded context assembled by the backend. Provider credentials remain in the server environment. Source and questions are treated as untrusted content, not system instructions. Local commands map to a small allowlist of existing UI actions; model text cannot execute arbitrary operations.
 
 ## Deployment boundary
 
