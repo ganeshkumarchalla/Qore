@@ -1,14 +1,14 @@
-# QORE Intelligence: the secondary assistant sidebar
+# QI Assistant: quantum intelligence across QORE
 
-QORE Intelligence provides explanations beside your circuit work. Its dedicated secondary sidebar opens next to the current view, so Studio, Lab, Forge, and Ledger remain the main navigation. It receives source and source-matched attached results, answers a question, and can suggest changes for human review. It does not execute programs or certify a result.
+QI Assistant provides explanations and controlled workspace actions beside every QORE view. Its dedicated, VS Code-style secondary sidebar stays available in Studio, Lab, Forge, and Ledger. It receives only bounded context assembled by the application and can invoke explicit local actions such as opening a view, showing the terminal, creating a blank file, simulating, or optimizing. Generated text cannot silently edit source, certify evidence, or access the provider key.
 
 ![Assistant concept](../assets/animations/assistant.gif)
 
 ## What context it receives
 
-The request includes active circuit source and the question. It can reference a simulation ID and optimization ID. The backend checks those IDs against ownership, expected kind, successful execution, and the submitted source hash before assembling provider context.
+The request includes the active view, file name, workspace summary, sanitized diagnostics, optional circuit source, and the question. It can reference a simulation ID and optimization ID. The backend checks those IDs against the opaque browser workspace, expected kind, successful execution, and submitted source hash before assembling provider context.
 
-This means a result cannot be attached merely because its ID is known. A result from an older source version is rejected as a mismatch. The frontend also clears stale answers when source, run identifiers, or account context changes. Both client and server rules are important: a stale screen is confusing, and an unchecked backend reference would be a data-integrity problem.
+This means a result cannot be attached merely because its ID is known. A result from an older source version is rejected as a mismatch. The frontend clears stale answers when the view, file, or attached run changes. Both client and server rules are important: a stale screen is confusing, and an unchecked backend reference would be a data-integrity problem.
 
 When results are absent, an answer should say that it is reasoning from source or theory. It must not invent shot counts, hardware jobs, or validation evidence. The instruction distinguishes theoretical probabilities, finite-shot simulator output, and hardware data; QORE supplies no hardware runs through this interface.
 
@@ -22,7 +22,7 @@ Avoid asking the model to infer hidden implementation details from a chart alone
 
 ## Authority boundaries
 
-The assistant cannot edit your buffer, run a worker, submit a hardware job, or approve a compiler candidate. Its output is a proposal or explanation. Numerical checks remain in the quantum engine, and applying source changes remains an explicit user action.
+The model cannot edit your buffer, submit a hardware job, or approve a compiler candidate. QI's local command layer may call already-visible QORE actions such as Run Simulation or Optimize Circuit only after the user explicitly types or clicks that action. Numerical checks remain in the quantum engine, and applying source changes remains an explicit user action.
 
 Circuit source and questions are untrusted input. Text inside them does not become a system instruction that can grant the assistant more authority. A malicious comment saying to reveal credentials or ignore evidence does not change the backend's provider-key isolation or source-matching checks.
 
@@ -34,15 +34,15 @@ The optional provider key and model configuration live on the server. The fronte
 
 Provider network failures, an empty response, or an invalid configured model produce bounded failure behavior. The application should not replace an actual numerical result with a generated fallback. Retry only after reading the availability message and preserving your current work.
 
-The server currently limits assistant traffic to ten requests per account per minute and two concurrent provider calls per process. Admission waiting is bounded to two seconds, and provider requests have a timeout. These are application budgets, not a complete provider billing policy. Operators should configure provider-side spending and retention controls separately.
+The server currently limits assistant traffic to ten requests per browser workspace per minute and two concurrent provider calls per process. Admission waiting is bounded to two seconds, and provider requests have a timeout. These are application budgets, not a complete provider billing policy. Operators should configure provider-side spending and retention controls separately.
 
 ## Privacy and data handling
 
-Invoking the assistant sends the assembled source and attached evidence to the configured external model provider. Account-private storage does not imply that an optional provider request stays entirely inside the database. Do not include secrets, personal data, or confidential research unless the provider policy and your authorization permit that use.
+Invoking the assistant sends the assembled question and context to the configured Gemini service. Browser-local storage does not imply that an optional provider request stays on the device. Do not include secrets, personal data, or confidential research unless the provider policy and your authorization permit that use.
 
 The assistant does not need passwords, access tokens, database credentials, or environment files. Keep those out of source comments and questions. Redaction in error displays is useful but is not a reason to submit sensitive material in the first place.
 
-On a shared computer, sign out and use separate browser profiles. Source caches are account-scoped but are not an encrypted vault. If a support report includes an assistant issue, use a minimal nonprivate circuit and sanitized availability/error information.
+On a shared computer, use separate browser profiles and clear QORE site data only after exporting important work. Browser storage is not an encrypted vault. If a support report includes an assistant issue, use a minimal nonprivate circuit and sanitized availability/error information.
 
 ## Troubleshooting
 

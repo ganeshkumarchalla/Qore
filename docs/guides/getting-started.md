@@ -6,7 +6,7 @@ QORE gives a quantum experiment a clear path from source to evidence. Studio is 
 
 On a first visit, the animated welcome closes automatically. The fixed graphite interface stays consistent across views. Explorer initially contains no example files or projects. Create a blank file to start from scratch, or select **Get Started** to create one editable three-qubit learning circuit. That is an explicit action and is never repeatedly inserted on refresh.
 
-Use your email account on the hosted service. If registering, follow the confirmation email before trying to sign in. The backend verifies the provider session, and the browser receives protected session cookies. Complete [the account guide](email-account.md) if confirmation or delivery needs attention. Do not put identity credentials into circuit source.
+No account or sign-in is required. Editable files persist in the browser profile, and the backend assigns an opaque HttpOnly workspace cookie for browser-scoped projects, runs, and Ledger records. The cookie is not a verified identity, so use a separate browser profile on a shared computer and export important source before clearing site data.
 
 ## Navigate the workbench
 
@@ -24,12 +24,12 @@ Open State World for a spatial interpretation, then inspect Bloch vectors and ma
 
 ## Keep source and evidence
 
-Saving a file preserves editable source in the database. Saving an experiment preserves a separate historical snapshot with its source and attached execution evidence. A later file edit cannot alter the old snapshot. Name experiments according to the question you tested, such as `GHZ baseline, 1024 shots`, rather than treating every execution as interchangeable.
+Saving a file preserves editable source in browser storage. Saving an experiment preserves a separate SQLite historical snapshot with its source and attached execution evidence. A later file edit cannot alter the old snapshot. Name experiments according to the question you tested, such as `GHZ baseline, 1024 shots`, rather than treating every execution as interchangeable.
 
 Forge adds a deliberate review step. Compare the original and candidate, resource metrics, validation status, and measurement mapping. Apply a candidate only after reviewing its scope, then run the changed source for fresh sampled evidence. The compiler may change the gate basis without reducing gate count.
 
 ## Finish the session
 
-Wait for saved status before closing a tab. Pending or failed synchronization means the server has not confirmed the latest edit. Export important source before clearing browser storage. Sign out on a shared computer; another account should never inherit your visible files or execution state.
+Wait for saved status before closing a tab. Export important source before clearing browser storage. On a shared computer, use a separate operating-system or browser profile because QORE intentionally has no account boundary in this release.
 
-Use Undo immediately after an accidental deletion, or open Trash to restore another eligible entry within 48 hours. Folder restore is atomic and checks for occupied paths. Active files have no automatic expiry. The [first experiment](first-experiment.md) gives a complete prediction-to-Ledger walkthrough; [troubleshooting](troubleshooting.md) separates account, storage, execution, and interpretation problems.
+Use Undo immediately after an accidental deletion, or open Trash to restore another eligible entry within 48 hours. Folder restore checks occupied paths. Active files have no automatic expiry. The [first experiment](first-experiment.md) gives a complete prediction-to-Ledger walkthrough; [troubleshooting](troubleshooting.md) separates storage, execution, provider, and interpretation problems.

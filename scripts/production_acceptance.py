@@ -243,6 +243,7 @@ def main():
                 mismatch = client.post("/api/experiments", json={"name": "Wrong source", "source": GHZ + "# altered\n", "simulation_id": run["id"]})
                 require(mismatch.status_code == 409, "Ledger accepted a run from different source")
                 cache["snapshot"] = saved
+                cache["workspace_cookie"] = client.cookies.get("qore_workspace")
                 return {"exact_snapshot_retained": True, "survives_project_edit": True, "overwrite_status": 405, "delete_status": 405, "source_mismatch_status": 409}
 
             for name, action in (("Empty isolated workspace and health", health_check), ("Three-qubit GHZ and reduced states", ghz_check),
@@ -255,6 +256,7 @@ def main():
         def restart_check():
             saved = cache["snapshot"]
             with TestClient(create_app(database)) as restarted:
+                restarted.cookies.set("qore_workspace", cache["workspace_cookie"])
                 response = restarted.get("/api/experiments/" + saved["id"])
                 require(response.status_code == 200 and response.json() == saved, "Ledger evidence changed after application restart")
             return {"restored_snapshot_identical": True}

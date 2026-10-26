@@ -22,8 +22,6 @@ async function main() {
     page.on('pageerror', error => runtimeErrors.push(error.message));
     page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
     page.on('request', request => requested.push(request.url()));
-    let user = { id: 'c7f73659-f339-4cb5-9b31-3fb384279718', name: 'Validation Member',
-      email: 'member@example.test', avatarInitials: 'VM', role: 'Member', tier: 'Personal workspace' };
     const ir = { version: '1.0', num_qubits: 3, num_clbits: 3, global_phase: 0, operations: [
       { name: 'h', qubits: [0], clbits: [], params: [] },
       { name: 'cx', qubits: [0, 1], clbits: [], params: [] },
@@ -53,9 +51,6 @@ async function main() {
       const request = route.request(), pathname = new URL(request.url()).pathname;
       let body = {};
       if (pathname === '/api/health') body = { status: 'ok', ai_available: true, versions: { qiskit: 'ui-fixture-version' }, limits: { max_qubits: 10 } };
-      else if (pathname === '/api/auth/session') body = { user, configured: true, required: true };
-      else if (pathname === '/api/auth/config') body = { configured: true, required: true, email_enabled: true, google_enabled: false };
-      else if (pathname === '/api/auth/signout') { user = null; body = { user: null }; }
       else if (pathname === '/api/projects' || pathname === '/api/experiments') body = [];
       else if (pathname === '/api/parse') { source = request.postDataJSON().source; body = parsed; }
       else if (pathname === '/api/assistant') {
@@ -75,6 +70,10 @@ async function main() {
     });
     await page.goto(base);
     await page.getByRole('status', { name: 'Welcome to qubit' }).waitFor({ state: 'hidden' });
+    await page.locator('.quantum-onboarding-overlay').waitFor({ state: 'visible', timeout: 10000 });
+    await page.getByRole('radio', { name: /Quantum Superposition/ }).click();
+    await page.getByRole('button', { name: /Initialize Quantum Experience/ }).click();
+    await page.locator('.quantum-onboarding-overlay').waitFor({ state: 'hidden', timeout: 30000 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).waitFor();
     assert.equal(requested.some(url => /QuantumEditor|monaco-editor|\/monaco[.-]/i.test(url)), false, 'Monaco must be deferred on an empty workspace');
     checks.push('Empty welcome/workspace does not request Monaco');
@@ -89,7 +88,7 @@ async function main() {
     await page.locator('#qore-assistant-toggle').click();
     const sidebar = page.locator('#qore-assistant-sidebar'); await sidebar.waitFor();
     assert.equal(await page.locator('.activity-bar').getByRole('button', { name: 'Assistant', exact: true }).count(), 0);
-    await page.getByLabel('Ask about your circuit').fill('Explain the active circuit');
+    await page.getByLabel('Ask QI Assistant').fill('Explain the active circuit');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
     assert.equal(assistantRequest.source, source);
@@ -135,18 +134,16 @@ async function main() {
     checks.push('Terminal prints supplied unitary/amplitudes/versions; unsupported cloud/Q# never execute; cat rejects another file');
 
     await page.locator('#qore-assistant-toggle').click();
-    await page.getByLabel('Ask about your circuit').fill('Explain again');
+    await page.getByLabel('Ask QI Assistant').fill('Explain again');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
     assert.equal(assistantRequest.simulation_id, 'ui-fixture-run-1');
-    await page.getByRole('button', { name: 'Account', exact: true }).click();
-    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-    await sidebar.waitFor({ state: 'hidden' });
-    await page.getByRole('button', { name: 'Close account dialog' }).click();
-    await page.locator('#qore-assistant-toggle').click(); await sidebar.waitFor();
-    assert.equal(await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).count(), 0);
-    await sidebar.getByText('No circuit open', { exact: true }).waitFor();
-    checks.push('Sign-out clears assistant answers, context and workspace');
+    await page.getByLabel('Ask QI Assistant').fill('open lab');
+    await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
+    await page.getByText('Done — open lab.', { exact: true }).waitFor();
+    await page.locator('.lab-view-shell').waitFor();
+    assert.equal(requested.some(url => url.includes('/api/auth/')), false);
+    checks.push('QI command opens Lab without any authentication request');
     assert.deepEqual(runtimeErrors, []);
     assert.equal(consoleErrors.some(message => /same key|unique.*key/i.test(message)), false);
     checks.push('No browser runtime errors or duplicate-key errors');

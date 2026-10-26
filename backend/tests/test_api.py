@@ -87,7 +87,9 @@ def test_sqlite_records_survive_application_recreation(tmp_path, bell_source):
         project = first.post("/api/projects", json={"name": "Persistent", "source": bell_source}).json()
         run = first.post("/api/simulate", json={"source": bell_source, "shots": 64, "seed": 11}).json()
         saved = first.post("/api/experiments", json={"name": "Persistent evidence", "source": bell_source, "simulation_id": run["id"]}).json()
+        workspace_cookie = first.cookies.get("qore_workspace")
     with TestClient(create_app(database)) as reopened:
+        reopened.cookies.set("qore_workspace", workspace_cookie)
         assert reopened.get(f"/api/projects/{project['id']}").json() == project
         assert reopened.get(f"/api/experiments/{saved['id']}").json() == saved
 
@@ -227,7 +229,7 @@ def test_user_names_are_persisted_as_data_not_sql(client, bell_source):
 
 
 def test_api_responses_explicitly_prevent_search_indexing(client):
-    for path in ("/api/health", "/api/auth/session", "/api/projects"):
+    for path in ("/api/health", "/api/workspace", "/api/projects"):
         response = client.get(path)
         assert "noindex" in response.headers["x-robots-tag"]
         assert "no-store" in response.headers["cache-control"]

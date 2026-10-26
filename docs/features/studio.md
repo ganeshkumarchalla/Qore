@@ -6,9 +6,9 @@ Studio is the authoring surface for QORE. It combines Explorer, Monaco editing, 
 
 ## A deliberate starting point
 
-A new account opens with an empty Explorer. The welcome logo animates and the welcome closes automatically; no click-to-enter action is required. Get Started creates a single three-qubit learning circuit only when selected. Create blank file gives you an empty buffer. These are different choices, so onboarding never silently populates an account with unrelated demonstrations.
+A new browser workspace opens with an empty Explorer. The welcome logo animates and the welcome closes automatically; no click-to-enter action is required. Get Started creates a single three-qubit learning circuit only when selected. Create blank file gives you an empty buffer. These are different choices, so onboarding never silently populates the workspace with unrelated demonstrations.
 
-Files created through Explorer become account workspace records when saved. They are distinct from older named projects and from immutable Ledger experiments. A workspace file is editable working material; a Ledger snapshot records an experiment at a particular time. Treating the two as separate makes it possible to keep improving source without rewriting past results.
+Files created through Explorer remain editable browser-workspace records when saved. They are distinct from named backend projects and immutable Ledger experiments. A workspace file is editable working material; a Ledger snapshot records an experiment at a particular time. Treating the two as separate makes it possible to keep improving source without rewriting past results.
 
 ## Explorer and paths
 
@@ -28,7 +28,7 @@ Source edits invalidate attached live parse, simulation, and optimization contex
 
 ## Save confirmation and concurrent editing
 
-The account database is the authority for saved workspace records. Browser caches and an account-scoped outbox retain pending work during connection interruptions, but pending is not the same as committed. Wait for the visible saved state before closing a tab or switching accounts.
+Browser storage is the authority for editable Explorer source in the account-free release. The server workspace API separately protects versioned records and evidence. Wait for visible saved state before closing a tab, and export important source before clearing site data or moving to another browser profile.
 
 Each stored entry has an integer version. A changed write to an existing entry must match the server version; otherwise it returns a conflict. An identical retry is idempotent, so a connection retry does not create a duplicate edit. A trashed identifier cannot be resurrected through an ordinary save; use restore within the recovery window.
 

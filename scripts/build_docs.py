@@ -10,6 +10,7 @@ import html
 import json
 import re
 import shutil
+import stat
 from pathlib import Path
 
 from markdown_it import MarkdownIt
@@ -50,6 +51,21 @@ def plain(value):
 
 def build(destination: Path):
     destination.mkdir(parents=True, exist_ok=True)
+    # Remove only generated public artifacts so deleted/renamed source pages do
+    # not remain live. Repository metadata and hand-authored build files stay.
+    for generated in destination.glob("*.html"):
+        generated.unlink()
+    for name in ("search-index.json", "sitemap.xml", "robots.txt"):
+        target = destination / name
+        if target.exists():
+            target.unlink()
+    for name in ("assets", "content"):
+        target = destination / name
+        if target.is_dir():
+            def clear_readonly(operation, path, _error):
+                Path(path).chmod(stat.S_IWRITE)
+                operation(path)
+            shutil.rmtree(target, onexc=clear_readonly)
     assets = destination / "assets"
     assets.mkdir(exist_ok=True)
     (assets / "site.css").write_text(CSS, encoding="utf-8")
@@ -58,12 +74,10 @@ def build(destination: Path):
     if logo.exists(): shutil.copyfile(logo, assets / "qore.svg")
     for source in DOCS.rglob("*"):
         if source.is_file() and source.suffix.lower() in {".svg", ".png", ".gif", ".webp"}:
-            target = assets / source.relative_to(DOCS)
+            relative = source.relative_to(DOCS)
+            target = destination / relative if relative.parts[0] == "assets" else assets / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
-            archived_source = destination / "content" / source.relative_to(DOCS)
-            archived_source.parent.mkdir(parents=True, exist_ok=True)
-            if source.resolve() != archived_source.resolve(): shutil.copyfile(source, archived_source)
     pages = []
     for source in sorted(DOCS.rglob("*.md")):
         if source.name in EXCLUDED:
@@ -103,7 +117,8 @@ def build(destination: Path):
                     resolved = (page["source"].parent / path).resolve()
                     if str(resolved) in lookup: child.attrSet(attribute, lookup[str(resolved)] + ("#" + fragment if fragment else ""))
                     elif resolved.is_relative_to(DOCS) and resolved.suffix.lower() in {".svg", ".gif", ".png", ".webp"}:
-                        child.attrSet(attribute, "assets/" + resolved.relative_to(DOCS).as_posix())
+                        relative = resolved.relative_to(DOCS)
+                        child.attrSet(attribute, relative.as_posix() if relative.parts[0] == "assets" else "assets/" + relative.as_posix())
                     elif resolved.is_relative_to(ROOT):
                         child.attrSet(attribute, "https://github.com/ganeshkumarchalla/Qore/blob/main/" + resolved.relative_to(ROOT).as_posix())
         content = md.renderer.render(tokens, md.options, {})
@@ -126,9 +141,9 @@ def build(destination: Path):
         elif group == 'Quantum computing': steps = ['State', 'Phase', 'Gates', 'Interference', 'Measurement']
         diagram = '<div class="concept"><small>CONCEPT AT A GLANCE</small><div class="concept-track">' + '<span class="concept-arrow" aria-hidden="true">→</span>'.join('<span class="concept-step" style="--i:' + str(i) + '">' + value + '</span>' for i, value in enumerate(steps)) + '</div><p>Conceptual workflow. Numerical evidence and save status come from your actual QORE session.</p></div>'
         pager = '<div class="next-pages">' + ('<a href="' + previous['url'] + '">← ' + html.escape(previous['title']) + '</a>' if previous else '<span></span>') + ('<a href="' + following['url'] + '">' + html.escape(following['title']) + ' →</a>' if following else '') + '</div>'
-        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101821"><title>' + html.escape(title) + ' · QORE Documentation</title><meta name="description" content="' + html.escape(description, quote=True) + '"><link rel="canonical" href="https://qoredocs.vercel.app/' + current + '"><link rel="icon" href="assets/qore.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/site.css"><script src="assets/site.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><button class="icon-button" type="button" data-nav-toggle aria-label="Toggle documentation navigation" aria-controls="docs-sidebar" aria-expanded="true">☰</button><a class="brand" href="index.html"><img src="assets/qore.svg" alt="" width="29" height="29">QORE <small>DOCS</small></a><div class="search"><label for="docs-search" hidden>Search documentation</label><input id="docs-search" type="search" placeholder="Search the docs · Ctrl K" autocomplete="off"><div class="search-results" role="status"></div></div><a class="header-link" href="https://qore-bmh1.onrender.com/" rel="noopener">Open Studio ↗</a></header><button class="docs-menu-backdrop" type="button" aria-label="Close documentation navigation"></button><div class="shell"><nav class="sidebar" id="docs-sidebar" aria-label="Documentation topics">' + nav + '</nav><div class="main-shell"><main class="article" id="main"><span class="breadcrumb">' + html.escape(group) + '</span><h1>' + html.escape(title) + '</h1><p class="lead">' + html.escape(description) + '</p>' + diagram + content + pager + '<p class="footer-note">QORE reference · Bounded simulation, inspectable evidence, private account storage.</p></main>' + toc + '</div></div></body></html>'
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101821"><title>' + html.escape(title) + ' · QORE Documentation</title><meta name="description" content="' + html.escape(description, quote=True) + '"><link rel="canonical" href="https://qoredocs.vercel.app/' + current + '"><link rel="icon" href="assets/qore.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/site.css"><script src="assets/site.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><button class="icon-button" type="button" data-nav-toggle aria-label="Toggle documentation navigation" aria-controls="docs-sidebar" aria-expanded="true">☰</button><a class="brand" href="index.html"><img src="assets/qore.svg" alt="" width="29" height="29">QORE <small>DOCS</small></a><div class="search"><label for="docs-search" hidden>Search documentation</label><input id="docs-search" type="search" placeholder="Search the docs · Ctrl K" autocomplete="off"><div class="search-results" role="status"></div></div><a class="header-link" href="https://qore-bmh1.onrender.com/" rel="noopener">Open Studio ↗</a></header><button class="docs-menu-backdrop" type="button" aria-label="Close documentation navigation"></button><div class="shell"><nav class="sidebar" id="docs-sidebar" aria-label="Documentation topics">' + nav + '</nav><div class="main-shell"><main class="article" id="main"><span class="breadcrumb">' + html.escape(group) + '</span><h1>' + html.escape(title) + '</h1><p class="lead">' + html.escape(description) + '</p>' + diagram + content + pager + '<p class="footer-note">QORE reference · Bounded simulation, inspectable evidence, account-free browser workspace.</p></main>' + toc + '</div></div></body></html>'
 
-    index = '<h2 id="start">Build a reliable quantum workflow</h2><p>Start with an email account and an empty workspace. Create your own files or choose the explicit three-qubit starter, explore the state in Lab, review a compiler candidate in Forge, and preserve immutable experiment evidence.</p><div class="topic-grid">'
+    index = '<h2 id="start">Build a reliable quantum workflow</h2><p>Start immediately in an account-free browser workspace. Create your own files or choose the explicit three-qubit starter, explore the state in Lab, review a compiler candidate in Forge, and preserve immutable experiment evidence.</p><div class="topic-grid">'
     for page in pages:
         index += '<a class="topic-card" href="' + page['url'] + '"><strong>' + html.escape(page['title']) + '</strong><span>' + html.escape(page['description']) + '</span></a>'
     index += '</div><h2 id="scope">Understand the scope</h2><p>QORE supports a bounded circuit-building subset of Qiskit and OpenQASM 2, with explicit size and operation limits. It does not execute arbitrary Python or imply quantum-hardware access. Active files have no automatic expiry; deleted file content is recoverable for 48 hours.</p>'

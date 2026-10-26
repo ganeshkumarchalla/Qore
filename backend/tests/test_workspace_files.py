@@ -56,7 +56,9 @@ def test_empty_files_persist_after_refresh_and_application_restart(application, 
         assert "owner_id" not in created
         assert first.patch("/api/workspace/state", json={"active_file_id": ident}).status_code == 200
         assert current(first)["files"] == [created]
+        workspace_cookie = first.cookies.get("qore_workspace")
     with TestClient(create_app(tmp_path / "workspace.sqlite3")) as restarted:
+        restarted.cookies.set("qore_workspace", workspace_cookie)
         result = current(restarted)
         assert result["files"] == [created] and result["active_file_id"] == ident
 
@@ -296,19 +298,11 @@ def test_cloud_workspace_failures_are_sanitized(failure):
     assert unavailable.value.status == 503 and marker not in str(unavailable.value)
 
 
-def test_api_workspace_identity_is_verified_and_owner_scoped(application):
-    def provider(request):
-        owner = OWNER_B if request.headers.get("authorization") == "Bearer fixture-account-b" else OWNER_A
-        return httpx.Response(200, json={"id": owner, "email": "member@example.test"})
-    application.state.auth.settings = AuthSettings("https://identity.example.test", "publishable-fixture", "http://127.0.0.1:8000", True)
-    application.state.auth.transport = httpx.MockTransport(provider)
-    with TestClient(application) as client:
-        assert client.get("/api/workspace").status_code == 401
-        client.cookies.set(ACCESS_COOKIE, "fixture-account-a")
-        file = put(client, source="# account A").json()
-        client.cookies.clear()
-        client.cookies.set(ACCESS_COOKIE, "fixture-account-b")
-        assert current(client)["files"] == []
-        assert put(client, ident=file["id"], source="# account B", version=1).status_code == 404
-        assert client.request("DELETE", "/api/workspace/files/" + file["id"], json={"expected_version": 1}).status_code == 404
-        assert client.post("/api/workspace/files/" + file["id"] + "/restore").status_code == 404
+def test_api_workspace_isolated_by_anonymous_browser_cookie(application):
+    with TestClient(application) as first, TestClient(application) as second:
+        file = put(first, source="# browser A").json()
+        assert current(second)["files"] == []
+        assert put(second, ident=file["id"], source="# browser B", version=1).status_code == 404
+        assert second.request("DELETE", "/api/workspace/files/" + file["id"], json={"expected_version": 1}).status_code == 404
+        assert second.post("/api/workspace/files/" + file["id"] + "/restore").status_code == 404
+        assert current(first)["files"][0]["source"] == "# browser A"

@@ -68,7 +68,7 @@ export type Project = { id: string; name: string; source: string; created_at: st
 export type Example = { id: string; name: string; description: string; source: string };
 export type ExperimentSummary = { id: string; name: string; project_id?: string; created_at: string; source_hash: string };
 export type Experiment = ExperimentSummary & { source: string; ir_version: string; ir?: IR; metrics?: Metrics; versions: Record<string, string>; simulation: Simulation | null; optimization: Optimization | null };
-export type Health = { status: string; versions: Record<string, string>; ai_available: boolean; limits: Record<string, unknown> };
+export type Health = { status: string; versions: Record<string, string>; ai_available: boolean; auth_configured?: boolean; auth_required?: boolean; storage?: string; limits: Record<string, unknown> };
 
 export type WorkspaceEntry = {
   id: string; path: string; name: string; type: 'file' | 'folder';
@@ -148,10 +148,9 @@ export async function api<T>(path: string, body?: unknown, method?: string): Pro
   let response: Response;
   const signal = apiRequests.signal;
   try { response = await fetch(`/api${path}`, { method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'same-origin', signal, headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); }
-  catch { throw new Error(signal.aborted ? 'The workspace changed. Please retry in the current account.' : 'Cannot connect to the QORE backend. Check your connection, then retry.'); }
+  catch { throw new Error(signal.aborted ? 'The workspace changed. Please retry.' : 'Cannot connect to the QORE backend. Check your connection, then retry.'); }
   const data = await response.json().catch(() => null);
-  if (signal.aborted) throw new Error('The workspace changed. Please retry in the current account.');
-  if (response.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('qore:session-expired'));
+  if (signal.aborted) throw new Error('The workspace changed. Please retry.');
   if (!response.ok) { const detail = data?.error?.details; throw new Error(`${data?.error?.message ?? data?.detail?.[0]?.msg ?? (typeof data?.detail === 'string' ? data.detail : `Request failed (${response.status})`)}${detail ? ` · ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`); }
   return data as T;
 }
