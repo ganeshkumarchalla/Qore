@@ -1003,10 +1003,7 @@ def simulate(
     except Exception as exc:
         raise QuantumError("SIMULATION_FAILED", f"Qiskit Aer could not simulate the circuit: {exc}") from exc
     mapping_text = ", ".join(f"q[{q}] → c[{c}]" for q, c in mapping)
-    sim_warnings = list(parsed.get("warnings", []))
-    if auto_measured:
-        sim_warnings = [w for w in sim_warnings if "no measurements" not in w.lower()]
-        sim_warnings.append("No explicit terminal measurements were defined in the circuit; automatically measured all qubits (measure_all) for sampling.")
+    sim_warnings = [w for w in parsed.get("warnings", []) if "measurement" not in w.lower()]
     return {
         **parsed,
         "warnings": sim_warnings,

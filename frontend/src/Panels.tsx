@@ -27,10 +27,15 @@ function download(value: unknown, filename: string) {
 }
 
 export function Warnings({ warnings }: { warnings: string[] }) {
-  if (warnings.length === 0) return null;
+  const filtered = warnings.filter(
+    (w) =>
+      !w.toLowerCase().includes('automatically measured all qubits') &&
+      !w.toLowerCase().includes('no explicit terminal measurements')
+  );
+  if (filtered.length === 0) return null;
   return (
     <div className="warnings" role="status">
-      {warnings.map((warning, i) => (
+      {filtered.map((warning, i) => (
         <div key={i} className="warning-item">
           <Icon name="info" size={14} />
           <span>{readable(warning)}</span>
