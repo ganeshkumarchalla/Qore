@@ -133,6 +133,7 @@ export function Explorer({
   // Inline folder creation states
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [createFolderName, setCreateFolderName] = useState('');
+  const [createFolderParent, setCreateFolderParent] = useState<string | null>(null);
 
   // Inline file rename states
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -243,23 +244,33 @@ export function Explorer({
   };
 
   // --- Folder Management ---
+  const startCreatingFolder = (parent: string | null = null) => {
+    setCreateFolderParent(parent);
+    setCreateFolderName('');
+    setIsCreatingFolder(true);
+    if (parent) setExpandedFolders((prev) => ({ ...prev, [parent]: true }));
+    setSectionsOpen((prev) => ({ ...prev, workspace: true }));
+  };
+
   const handleCreateFolderCommit = () => {
     const raw = createFolderName.trim().replace(/[\\/:*?"<>|]/g, '');
     if (!raw) {
       setIsCreatingFolder(false);
       return;
     }
-    if (folders.includes(raw) || raw === 'projects' || raw === 'experiments') {
-      setFileError(`Folder "${raw}" already exists.`);
+    const path = createFolderParent ? `${createFolderParent}/${raw}` : raw;
+    if (folders.includes(path) || (!createFolderParent && (raw === 'projects' || raw === 'experiments'))) {
+      setFileError(`Folder "${path}" already exists.`);
       return;
     }
-    const nextFolders = [...folders, raw];
+    const nextFolders = [...folders, path];
     saveWorkspaceFolders(nextFolders);
     setFolders(nextFolders);
-    setExpandedFolders((prev) => ({ ...prev, [raw]: true }));
+    setExpandedFolders((prev) => ({ ...prev, [path]: true }));
     setIsCreatingFolder(false);
+    setCreateFolderParent(null);
     setCreateFolderName('');
-    setNoticeMessage(`Folder "${raw}" created.`);
+    setNoticeMessage(`Folder "${path}" created.`);
   };
 
   const handleRenameFolderCommit = async () => {
@@ -269,16 +280,22 @@ export function Explorer({
       return;
     }
     const newName = renameFolderValue.trim().replace(/[\\/:*?"<>|]/g, '');
-    if (!newName || newName === renamingFolder) {
+    if (!newName) {
       setRenamingFolder(null);
       return;
     }
-    if (folders.includes(newName) || newName === 'projects' || newName === 'experiments') {
-      setFileError(`Folder "${newName}" already exists.`);
+    const parent = renamingFolder.includes('/') ? renamingFolder.slice(0, renamingFolder.lastIndexOf('/') + 1) : '';
+    const newPath = parent + newName;
+    if (newPath === renamingFolder) {
+      setRenamingFolder(null);
+      return;
+    }
+    if (folders.includes(newPath) || (!parent && (newName === 'projects' || newName === 'experiments'))) {
+      setFileError(`Folder "${newPath}" already exists.`);
       return;
     }
     folderMutation.current = true;
-    try { await renameWorkspaceFolder(renamingFolder, newName); }
+    try { await renameWorkspaceFolder(renamingFolder, newPath); }
     catch (reason) { setFileError(reason instanceof Error ? reason.message : 'Folder could not be renamed.'); return; }
     finally { folderMutation.current = false; }
     setFolders(loadWorkspaceFolders());
@@ -293,12 +310,14 @@ export function Explorer({
 
     setExpandedFolders((prev) => {
       const next = { ...prev };
-      next[newName] = next[renamingFolder] ?? true;
-      delete next[renamingFolder];
+      Object.keys(next).filter(path => path === renamingFolder || path.startsWith(`${renamingFolder}/`)).forEach(path => {
+        next[newPath + path.slice(renamingFolder.length)] = next[path];
+        delete next[path];
+      });
       return next;
     });
     setRenamingFolder(null);
-    setNoticeMessage(`Renamed folder to "${newName}".`);
+    setNoticeMessage(`Renamed folder to "${newPath}".`);
   };
 
   const handleDeleteFolder = async (folderName: string) => {
@@ -334,7 +353,9 @@ export function Explorer({
         syncState: 'pending',
       };
     });
-    saveWorkspaceFolders([...folders, copyName]);
+    const copiedFolders = folders.filter(path => path === folderName || path.startsWith(`${folderName}/`))
+      .map(path => copyName + path.slice(folderName.length));
+    saveWorkspaceFolders([...folders, ...copiedFolders]);
     setFolders(loadWorkspaceFolders());
     saveCustomFiles([...newFiles, ...customFiles]);
     setExpandedFolders((prev) => ({ ...prev, [copyName]: true }));
@@ -739,9 +760,30 @@ export function Explorer({
     );
   };
 
-  const renderFolderBlock = (folderName: string) => {
+  const renderCreateFolderRow = () => (
+    <div className="vs-inline-create" style={{ padding: '4px 8px 4px 18px', background: 'rgba(87, 217, 255, 0.06)' }}>
+      <Icon name="folder" size={13} />
+      <input
+        ref={createFolderRef}
+        type="text"
+        className="vs-create-input"
+        placeholder="New folder name..."
+        value={createFolderName}
+        onChange={(event) => setCreateFolderName(event.target.value)}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === 'Enter') handleCreateFolderCommit();
+          if (event.key === 'Escape') setIsCreatingFolder(false);
+        }}
+        onBlur={handleCreateFolderCommit}
+      />
+    </div>
+  );
+
+  const renderFolderBlock = (folderName: string): React.ReactNode => {
     const isExpanded = !!expandedFolders[folderName];
-    const filesInFolder = customFiles.filter((f) => f.path.startsWith(`${folderName}/`));
+    const childFolders = folders.filter(path => path.slice(0, path.lastIndexOf('/')) === folderName);
+    const filesInFolder = customFiles.filter((file) => file.path.slice(0, file.path.lastIndexOf('/')) === folderName);
 
     return (
       <div key={folderName} className="vs-folder-block">
@@ -799,7 +841,7 @@ export function Explorer({
             />
           ) : (
             <span className="vs-folder-name" title={`Folder: ${folderName}/`}>
-              {folderName}
+              {folderName.slice(folderName.lastIndexOf('/') + 1)}
             </span>
           )}
 
@@ -819,6 +861,17 @@ export function Explorer({
               }}
             >
               <Icon name="filePlus" size={11} />
+            </button>
+            <button
+              type="button"
+              className="vs-tool-btn"
+              title={`New Subfolder inside ${folderName}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                startCreatingFolder(folderName);
+              }}
+            >
+              <Icon name="folderPlus" size={11} />
             </button>
             <button
               type="button"
@@ -871,6 +924,8 @@ export function Explorer({
         {isExpanded && (
           <div className="vs-folder-children">
             <div className="vs-indent-guide" />
+            {isCreatingFolder && createFolderParent === folderName && renderCreateFolderRow()}
+            {childFolders.map(renderFolderBlock)}
             {isCreatingFile && targetFolder === folderName && (
               <div className="vs-inline-create">
                 <span className="clean-file-icon py">
@@ -891,7 +946,7 @@ export function Explorer({
                 />
               </div>
             )}
-            {filesInFolder.length === 0 && !isCreatingFile && (
+            {filesInFolder.length === 0 && childFolders.length === 0 && !isCreatingFile && !(isCreatingFolder && createFolderParent === folderName) && (
               <div className="vs-empty-hint" style={{ paddingLeft: '22px', fontSize: '11px', opacity: 0.6 }}>
                 Empty folder (click + to add file)
               </div>
@@ -938,10 +993,7 @@ export function Explorer({
             type="button"
             className="vs-action-btn"
             title="New Folder"
-            onClick={() => {
-              setIsCreatingFolder(true);
-              setSectionsOpen((p) => ({ ...p, workspace: true }));
-            }}
+            onClick={() => startCreatingFolder()}
           >
             <Icon name="folderPlus" size={13} />
           </button>
@@ -1022,27 +1074,10 @@ export function Explorer({
           {sectionsOpen.workspace && (
             <div className="vs-tree-container">
               {/* Inline Folder Creation Row */}
-              {isCreatingFolder && (
-                <div className="vs-inline-create" style={{ padding: '4px 8px 4px 18px', background: 'rgba(87, 217, 255, 0.06)' }}>
-                  <Icon name="folder" size={13} />
-                  <input
-                    ref={createFolderRef}
-                    type="text"
-                    className="vs-create-input"
-                    placeholder="New folder name..."
-                    value={createFolderName}
-                    onChange={(e) => setCreateFolderName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleCreateFolderCommit();
-                      if (e.key === 'Escape') setIsCreatingFolder(false);
-                    }}
-                    onBlur={handleCreateFolderCommit}
-                  />
-                </div>
-              )}
+              {isCreatingFolder && createFolderParent === null && renderCreateFolderRow()}
 
               {/* Dynamic Folders */}
-              {folders.map(renderFolderBlock)}
+              {folders.filter(path => !path.includes('/')).map(renderFolderBlock)}
 
               {/* Projects Folder */}
               <div className="vs-folder-block">
@@ -1404,6 +1439,18 @@ export function Explorer({
           >
             <Icon name="filePlus" size={12} />
             <span>New File in &ldquo;{folderContextMenu.folder}&rdquo;</span>
+          </button>
+
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              startCreatingFolder(folderContextMenu.folder);
+              setFolderContextMenu(null);
+            }}
+          >
+            <Icon name="folderPlus" size={12} />
+            <span>New Subfolder</span>
           </button>
 
           <button

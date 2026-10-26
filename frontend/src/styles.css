@@ -3877,6 +3877,10 @@ textarea:focus,
   font-weight: 600 !important;
   font-size: 12px;
   letter-spacing: 0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .vs-item-count {
@@ -3972,7 +3976,8 @@ textarea:focus,
   display: none;
   align-items: center;
   gap: 2px;
-  margin-left: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 .vs-file-row:hover .vs-hover-tools,
 .vs-folder-row:hover .vs-hover-tools {

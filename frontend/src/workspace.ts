@@ -420,7 +420,10 @@ export function setActiveWorkspaceFile(id: string | null) {
 export function loadWorkspaceFolders(): string[] {
   const stored = workspaceOwner ? folderEntries.map(folder => folder.path) : read<string[]>(':folders', ['circuits', 'openqasm']);
   const derived = loadWorkspaceFiles().flatMap(file => file.path.includes('/') ? [file.path.slice(0, file.path.lastIndexOf('/'))] : []);
-  return [...new Set([...stored, ...derived])];
+  return [...new Set([...stored, ...derived].flatMap(path => {
+    const parts = path.split('/');
+    return parts.map((_, index) => parts.slice(0, index + 1).join('/'));
+  }))];
 }
 function makeFolder(path: string): WorkspaceEntry {
   return { id: newWorkspaceId(), path, name: path.split('/').pop() ?? path, type: 'folder', source: '', kind: null,
@@ -455,7 +458,8 @@ async function changeStructure(operation: () => Promise<void>) {
 }
 export async function renameWorkspaceFolder(oldPath: string, newPath: string) { return changeStructure(async () => {
   if (!workspaceOwner) {
-    saveWorkspaceFolders(loadWorkspaceFolders().map(path => path === oldPath ? newPath : path));
+    saveWorkspaceFolders(loadWorkspaceFolders().map(path => path === oldPath || path.startsWith(oldPath + '/')
+      ? newPath + path.slice(oldPath.length) : path));
     saveWorkspaceFiles(loadWorkspaceFiles().map(file => file.path.startsWith(oldPath + '/')
       ? { ...file, path: newPath + file.path.slice(oldPath.length), name: file.name } : file));
     return;
@@ -479,7 +483,7 @@ export async function deleteWorkspaceFile(id: string) { return changeStructure(a
 }); }
 export async function deleteWorkspaceFolder(path: string) { return changeStructure(async () => {
   if (!workspaceOwner) {
-    localStorage.setItem(key(':folders'), JSON.stringify(loadWorkspaceFolders().filter(folder => folder !== path)));
+    localStorage.setItem(key(':folders'), JSON.stringify(loadWorkspaceFolders().filter(folder => folder !== path && !folder.startsWith(path + '/'))));
     files = loadWorkspaceFiles().filter(file => !file.path.startsWith(path + '/')); persist(); notify(); return;
   }
   const folder = await freshFolder(path);
