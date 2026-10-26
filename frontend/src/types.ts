@@ -74,6 +74,7 @@ export type QuantumCapabilities = {
   languages: Array<{ id: string; label: string; execution: string; arbitrary_python: boolean }>;
   modules: Record<string, string>;
   gates: Record<string, { parameters: number; qubits: number }>;
+  gate_classes: string[];
   circuit_methods: string[];
   workflows: string[];
   simulation_methods: string[];

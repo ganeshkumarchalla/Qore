@@ -1,16 +1,16 @@
 # Account-free workspace and browser boundaries
 
-QORE currently opens without registration, email confirmation, OAuth, or a password. This keeps first use immediate and makes local or controlled demonstrations straightforward. It also changes the security model: a browser profile, rather than a verified person, is the workspace boundary.
+QORE currently opens without registration, an identity provider, or a password. This keeps first use immediate and makes local or controlled demonstrations straightforward. It also changes the security model: a browser profile, rather than a verified person, is the workspace boundary.
 
 ## What persists
 
 Explorer source is stored in the browser and survives ordinary refreshes. The active file, folders, settings, and recovery state are restored from the same site profile. Backend projects, runs, and Ledger records use SQLite. The server assigns a random opaque cookie and uses it to choose a database namespace without trusting an owner ID from request JSON.
 
-The cookie is HttpOnly, SameSite=Lax, and Secure on production HTTPS. JavaScript cannot read it. It contains no email, name, API token, or database credential. It is nevertheless a capability: another person using the same unlocked browser profile can reach the same QORE records.
+The cookie is HttpOnly, SameSite=Lax, and Secure on production HTTPS. JavaScript cannot read it. It contains no personal profile, API token, or database credential. It is nevertheless a capability: another person using the same unlocked browser profile can reach the same QORE records.
 
 ## Shared computers
 
-Use a separate operating-system account or browser profile on a shared machine. Export important source before clearing site data, using private browsing, or moving to another device. There is no password-based recovery, email restore, or account transfer in this release.
+Use a separate operating-system account or browser profile on a shared machine. Export important source before clearing site data, using private browsing, or moving to another device. There is no password-based recovery or account transfer in this release.
 
 Do not store passwords, API keys, patient data, regulated data, or confidential research in circuit comments. Browser storage is not an encrypted vault. QI questions and attached context can be sent to the configured external model provider when the assistant is used.
 

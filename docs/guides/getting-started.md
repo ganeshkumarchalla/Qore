@@ -16,7 +16,7 @@ On a laptop, close Explorer or the assistant when inspecting a dense matrix. Res
 
 ## Run a circuit
 
-A shot-based simulation requires terminal measurements. Confirm that the source uses [the supported language](../reference/circuit-python.md), choose shots and seed, then run the kernel. The API parses the circuit into QORE-IR, validates limits, and runs Qiskit Aer in a bounded worker. Unsupported imports are compatibility errors. Installing a package does not make arbitrary source executable through the editor.
+A shot-based simulation uses explicit terminal measurements when provided. For a pure unitary circuit without measurements, QORE creates an execution-only one-to-one measurement map so the source can run without being rewritten. Confirm that the source uses [the supported language](../reference/circuit-python.md), choose shots and seed, then run the kernel. The API parses the circuit into QORE-IR, validates limits, and runs Qiskit Aer in a bounded worker. Unsupported imports are compatibility errors. Installing a package does not make arbitrary source executable through the editor.
 
 Read the backend label and execution metadata before interpreting the chart. Counts should sum to the requested shots. Sampled probabilities divide those counts by shots. The ideal reference is computed separately from the noiseless unitary prefix under the same classical mapping. A finite difference between those distributions is expected even in ideal mode.
 

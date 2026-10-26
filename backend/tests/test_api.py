@@ -31,8 +31,9 @@ def test_capabilities_describe_real_bounded_quantum_runtime(client):
     capability = response.json()
     assert {"qiskit-circuit-python", "openqasm-2"} == {item["id"] for item in capability["languages"]}
     assert all(item["arbitrary_python"] is False for item in capability["languages"])
-    assert {"qiskit", "qiskit_aer", "math", "numpy"} <= set(capability["modules"])
+    assert {"qiskit", "qiskit.circuit.library", "qiskit_aer", "math", "numpy"} <= set(capability["modules"])
     assert {"h", "cx", "cu", "ccz", "rccx", "cs", "csdg"} <= set(capability["gates"])
+    assert {"HGate", "MCXGate", "CUGate", "CCZGate"} <= set(capability["gate_classes"])
     assert capability["simulation_methods"] == ["statevector", "matrix_product_state", "stabilizer"]
     assert capability["limits"]["max_qubits"] == 10
     assert "never passed to exec/eval" in capability["safety_boundary"]

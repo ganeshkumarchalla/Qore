@@ -4,7 +4,7 @@ Separate browser state, storage confirmation, source compatibility, worker execu
 
 ## Browser workspace and obsolete account screens
 
-QORE currently has no account or email-confirmation flow. If an account dialog appears, the browser is serving an obsolete frontend bundle. Rebuild the frontend, restart the API process, and verify the content-hashed assets referenced by `frontend/dist/index.html`. Do not clear site data until important Explorer source is exported.
+QORE currently has no account or identity-provider flow. If an account dialog appears, the browser is serving an obsolete frontend bundle. Rebuild the frontend, restart the API process, and verify the content-hashed assets referenced by `frontend/dist/index.html`. Do not clear site data until important Explorer source is exported.
 
 If the workspace appears new, verify the exact origin and browser profile. Localhost, `127.0.0.1`, a Render hostname, and a custom domain are separate storage origins. Never send cookies, environment values, or provider credentials in a support message.
 
@@ -18,7 +18,7 @@ Check Trash after a deletion. Restore is available for 48 hours and fails atomic
 
 Read the structured error and source location. Unsupported imports or expressions indicate a program outside the circuit allowlist. Reduce it to one circuit, supported gates, finite numeric parameters, and terminal measurements. Arbitrary functions, filesystem access, remote provider clients, reset, and measurement-controlled execution are not supported.
 
-Check all limits, including the 500-operation total that counts measurements and barriers. Shot-based simulation needs at least one explicit terminal measurement. A stabilizer simulator can reject a non-Clifford circuit even when it parses; choose a compatible method.
+Check all limits, including the 500-operation total that counts measurements and barriers. QORE automatically samples pure unitary circuits through an execution-only one-to-one measurement map. Explicit measurements must remain terminal. A stabilizer simulator can reject a non-Clifford circuit even when it parses; choose a compatible method.
 
 ## Busy jobs and timeouts
 

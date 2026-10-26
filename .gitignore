@@ -26,6 +26,7 @@ frontend/public/presenter_*.jpg
 frontend/dist/captures/
 frontend/dist/intro-video.html
 frontend/dist/*.mp4
+frontend/dist/presenter_*.jpg
 backend/~*/
 *.sqlite
 *.sqlite3

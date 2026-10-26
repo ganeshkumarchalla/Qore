@@ -165,6 +165,7 @@ def capabilities() -> dict[str, Any]:
         ],
         "modules": {
             "qiskit": "QuantumCircuit, QuantumRegister, ClassicalRegister",
+            "qiskit.circuit.library": "supported standard gate classes through constructors and circuit.append",
             "qiskit_aer": "AerSimulator through QORE simulation settings",
             "math": "bounded numeric constants and functions",
             "numpy": "bounded numeric constants and functions; no array/runtime access",
@@ -173,6 +174,7 @@ def capabilities() -> dict[str, Any]:
             name: {"parameters": parameter_count, "qubits": qubit_count}
             for name, (parameter_count, qubit_count) in sorted(GATES.items())
         },
+        "gate_classes": sorted(SUPPORTED_GATE_CLASSES),
         "circuit_methods": ["barrier", "measure", "measure_all", "draw", "depth", "size", "width"],
         "workflows": [
             "parse and validate", "shot simulation", "ideal probabilities", "Bloch vectors and purity",
@@ -907,9 +909,10 @@ def parse_source(source: str) -> dict[str, Any]:
         circuit = _SourceInterpreter().run(source)
     ir = circuit_to_ir(circuit)
     metrics = _metrics(circuit, ir)
-    warnings = []
-    if metrics["measurement_count"] == 0:
-        warnings.append("This circuit has no measurements. Add terminal measurements before running a shot-based simulation.")
+    # Pure unitary circuits are valid inputs. The simulation path adds an
+    # identity q[i] -> c[i] measurement map at execution time without changing
+    # the saved source or the ideal-state evidence returned by parsing.
+    warnings: list[str] = []
     extra = compute_circuit_bloch_and_unitary(circuit, ir)
     return {
         "ir": ir,

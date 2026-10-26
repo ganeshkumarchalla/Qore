@@ -134,7 +134,7 @@ def build(destination: Path):
         toc = '<aside class="toc" aria-label="On this page"><h2>ON THIS PAGE</h2>' + ''.join('<a href="#' + ident + '">' + html.escape(label) + '</a>' for label, ident in headings) + '</aside>'
         steps = ['Write', 'Save', 'Explore', 'Verify', 'Keep evidence']
         if any(word in title.lower() for word in ('file', 'trash', 'workspace', 'explorer')): steps = ['Create', 'Save to database', 'Delete', '48-hour Trash', 'Restore']
-        elif any(word in title.lower() for word in ('auth', 'email', 'identity')): steps = ['Create account', 'Confirm email', 'Sign in', 'Private session', 'Your workspace']
+        elif any(word in title.lower() for word in ('auth', 'identity')): steps = ['Open workspace', 'Receive browser scope', 'Create source', 'Run safely', 'Keep evidence']
         elif any(word in title.lower() for word in ('forge', 'transpil', 'optim')): steps = ['Inspect source', 'Compile candidate', 'Check equivalence', 'Review evidence', 'Apply explicitly']
         elif any(word in title.lower() for word in ('ledger', 'snapshot', 'experiment')): steps = ['Run circuit', 'Capture source', 'Freeze settings', 'Keep evidence', 'Restore context']
         elif any(word in title.lower() for word in ('lab', 'bloch', 'measurement', 'noise', 'probabil')): steps = ['Prepare state', 'Evolve amplitudes', 'Sample shots', 'Compare evidence', 'Inspect limitations']

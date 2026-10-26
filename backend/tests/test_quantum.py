@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qore.quantum import QuantumError, optimize, parse_source, simulate, validate_ir, versions
+from qore.quantum import GATES, QuantumError, optimize, parse_source, simulate, validate_ir, versions
 
 
 def program(body, qubits=2, clbits=2):
@@ -174,6 +174,18 @@ def test_qiskit_circuit_module_import_is_supported():
     assert parse_source(source)["metrics"]["gate_types"] == {"h": 1}
 
 
+@pytest.mark.parametrize("gate,spec", sorted(GATES.items()))
+def test_every_advertised_native_gate_executes(gate, spec):
+    parameter_count, qubit_count = spec
+    arguments = ["0.125"] * parameter_count + [str(index) for index in range(qubit_count)]
+    measurement = "\n".join(f"qc.measure({index}, {index})" for index in range(qubit_count))
+    source = program(f"qc.{gate}({', '.join(arguments)})\n{measurement}", qubits=max(1, qubit_count), clbits=max(1, qubit_count))
+    parsed = parse_source(source)
+    assert parsed["ir"]["operations"][0]["name"] == gate
+    result = simulate(source, shots=8, seed=17)
+    assert sum(result["counts"].values()) == 8
+
+
 def test_qiskit_circuit_library_gates_and_append_are_supported():
     source = (
         "from qiskit import QuantumCircuit\n"
@@ -192,4 +204,19 @@ def test_qiskit_circuit_library_gates_and_append_are_supported():
     sim = simulate(source, shots=100, seed=42)
     assert sum(sim["counts"].values()) == 100
     assert "0000" in sim["counts"] or "0001" in sim["counts"]
+
+
+def test_unitary_only_source_parses_without_false_measurement_warning():
+    source = "from qiskit import QuantumCircuit\nqc = QuantumCircuit(1)\nqc.h(0)"
+    parsed = parse_source(source)
+    assert parsed["metrics"]["measurement_count"] == 0
+    assert not any("measurement" in warning.lower() for warning in parsed["warnings"])
+
+
+def test_unitary_only_source_is_auto_measured_for_shot_simulation():
+    source = "from qiskit import QuantumCircuit\nqc = QuantumCircuit(1)\nqc.h(0)"
+    result = simulate(source, shots=128, seed=42)
+    assert sum(result["counts"].values()) == 128
+    assert set(result["counts"]) <= {"0", "1"}
+    assert "q[0] → c[0]" in result["bit_ordering"]
 

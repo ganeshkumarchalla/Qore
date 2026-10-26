@@ -188,8 +188,8 @@ def workspace(t):
 
 
 def operations(t):
-    c=Canvas(); title(c,"07 · Quality + Operations","A reviewable route to release.","Email sessions, private records, bounded workers, and repeatable engineering checks.")
-    items=(("IDENTITY","Verified email session"),("DATA","Account isolation + RLS"),("RUNTIME","Limits + worker timeout"),("QUALITY","Tests + secret scanning"))
+    c=Canvas(); title(c,"07 · Quality + Operations","A reviewable route to release.","Browser scopes, durable records, bounded workers, and repeatable engineering checks.")
+    items=(("IDENTITY","Opaque browser boundary"),("DATA","Workspace isolation"),("RUNTIME","Limits + worker timeout"),("QUALITY","Tests + secret scanning"))
     for i,(label,detail) in enumerate(items):
         x=38+i*286; active=int(t*4)%4==i
         c.box((x,166,x+267,396),"#203142" if active else CARD,BLUE if active else LINE)
@@ -212,7 +212,7 @@ def workflow(t):
         c.text((x+15,245),name,17,bold=True)
         c.text((x+15,286),subtitles[i],13,MUTED,True)
         if i<6: c.line([(x+151,265),(x+162,265)],BLUE,3)
-    c.text((39,372),"Email identity  ·  Persistent files  ·  48-hour Trash  ·  Optional assistant",20,MUTED)
+    c.text((39,372),"Browser scope  ·  Persistent files  ·  48-hour Trash  ·  Optional assistant",20,MUTED)
     return c
 
 

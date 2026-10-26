@@ -1,6 +1,6 @@
 # Production operations
 
-QORE serves the React workbench and FastAPI API from one origin. This release intentionally has no account, login, OAuth, or email-confirmation flow. Editable Explorer source is retained in browser storage. Backend projects, runs, workspace records, and Ledger evidence use SQLite and an opaque browser-specific HttpOnly cookie. Simulation remains a bounded Qiskit environment rather than arbitrary Python, a general shell, or a hardware-job service.
+QORE serves the React workbench and FastAPI API from one origin. This release intentionally has no account, login, OAuth, or identity-provider flow. Editable Explorer source is retained in browser storage. Backend projects, runs, workspace records, and Ledger evidence use SQLite and an opaque browser-specific HttpOnly cookie. Simulation remains a bounded Qiskit environment rather than arbitrary Python, a general shell, or a hardware-job service.
 
 ## Runtime architecture
 

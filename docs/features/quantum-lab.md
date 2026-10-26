@@ -6,7 +6,7 @@ Quantum Lab turns a supported circuit into inspectable numerical evidence. It co
 
 ## From source to execution
 
-The active source is parsed into QORE-IR and checked against the circuit allowlist and resource bounds. Shot-based simulation requires at least one explicit terminal measurement. No unitary operation may follow the measurement suffix. Dynamic measurement-controlled programs are outside this runtime.
+The active source is parsed into QORE-IR and checked against the circuit allowlist and resource bounds. If a pure unitary circuit has no measurements, QORE adds an execution-only `q[i] → c[i]` measurement map for shot sampling; it does not modify the saved source. When measurements are written explicitly, they must form the terminal suffix and no unitary operation may follow them. Dynamic measurement-controlled programs are outside this runtime.
 
 The API admits a bounded number of jobs, runs the worker, and records the result as a historical run. A source hash identifies the exact submitted text. Editing source clears live results while the prior run remains available through the Ledger. The console and output panel refer to attached results, not an invented running shell session.
 

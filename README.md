@@ -130,7 +130,7 @@ The [manual](docs/README.md) contains separate user guides, product manuals, qua
 & .\.venv\Scripts\python.exe scripts/frontend_auditor.py
 ```
 
-Run `pnpm test:ui` in `frontend` for browser interaction checks. The complete baseline is `scripts/daily_quality_report.py`. Reports distinguish mocked provider/browser checks from real numerical simulation and human email-delivery checks. Generated evidence stays under the ignored `evidence/` directory.
+Run `pnpm test:ui` in `frontend` for browser interaction checks. The complete baseline is `scripts/daily_quality_report.py`. Reports distinguish mocked provider/browser checks from real numerical simulation and operator-reviewed integration checks. Generated evidence stays under the ignored `evidence/` directory.
 
 ## Repository structure
 
