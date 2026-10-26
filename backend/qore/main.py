@@ -425,6 +425,11 @@ def create_app(db_path=None):
     async def projects():
         return await storage("projects")
 
+    @application.get("/api/capabilities")
+    async def quantum_capabilities():
+        from .quantum import capabilities
+        return capabilities()
+
     @application.post("/api/projects", status_code=201)
     async def new_project(body: ProjectInput):
         return await storage("save_project", body.name, body.source)

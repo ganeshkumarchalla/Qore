@@ -20,6 +20,7 @@ from qiskit import QuantumCircuit, transpile, qasm2
 from qiskit.quantum_info import DensityMatrix, Operator, Statevector, partial_trace
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel, depolarizing_error
+import qiskit.circuit.library as qiskit_gate_lib
 
 
 IR_VERSION = "1.0"
@@ -35,18 +36,70 @@ MAX_STATEMENT_STEPS = 2_000
 MAX_ABSOLUTE_NUMBER = 1e12
 EQUIVALENCE_TOLERANCE = 1e-9
 
+# Supported standard gate classes from qiskit.circuit.library
+SUPPORTED_GATE_CLASSES: dict[str, type] = {
+    # 1-qubit unitary gates
+    "HGate": qiskit_gate_lib.HGate,
+    "XGate": qiskit_gate_lib.XGate,
+    "YGate": qiskit_gate_lib.YGate,
+    "ZGate": qiskit_gate_lib.ZGate,
+    "SGate": qiskit_gate_lib.SGate,
+    "SdgGate": qiskit_gate_lib.SdgGate,
+    "TGate": qiskit_gate_lib.TGate,
+    "TdgGate": qiskit_gate_lib.TdgGate,
+    "SXGate": qiskit_gate_lib.SXGate,
+    "SXdgGate": qiskit_gate_lib.SXdgGate,
+    "RXGate": qiskit_gate_lib.RXGate,
+    "RYGate": qiskit_gate_lib.RYGate,
+    "RZGate": qiskit_gate_lib.RZGate,
+    "PhaseGate": qiskit_gate_lib.PhaseGate,
+    "UGate": qiskit_gate_lib.UGate,
+    "RGate": qiskit_gate_lib.RGate,
+    # 2-qubit unitary gates
+    "CXGate": qiskit_gate_lib.CXGate,
+    "CYGate": qiskit_gate_lib.CYGate,
+    "CZGate": qiskit_gate_lib.CZGate,
+    "CHGate": qiskit_gate_lib.CHGate,
+    "SwapGate": qiskit_gate_lib.SwapGate,
+    "ECRGate": qiskit_gate_lib.ECRGate,
+    "iSwapGate": qiskit_gate_lib.iSwapGate,
+    "CSXGate": qiskit_gate_lib.CSXGate,
+    "CSGate": qiskit_gate_lib.CSGate,
+    "CSdgGate": qiskit_gate_lib.CSdgGate,
+    "DCXGate": qiskit_gate_lib.DCXGate,
+    "CPhaseGate": qiskit_gate_lib.CPhaseGate,
+    "CRXGate": qiskit_gate_lib.CRXGate,
+    "CRYGate": qiskit_gate_lib.CRYGate,
+    "CRZGate": qiskit_gate_lib.CRZGate,
+    "RXXGate": qiskit_gate_lib.RXXGate,
+    "RYYGate": qiskit_gate_lib.RYYGate,
+    "RZZGate": qiskit_gate_lib.RZZGate,
+    "RZXGate": qiskit_gate_lib.RZXGate,
+    "CUGate": qiskit_gate_lib.CUGate,
+    # 3-qubit unitary gates
+    "CCXGate": qiskit_gate_lib.CCXGate,
+    "CCZGate": qiskit_gate_lib.CCZGate,
+    "RCCXGate": qiskit_gate_lib.RCCXGate,
+    "CSwapGate": qiskit_gate_lib.CSwapGate,
+    # Multi-qubit controlled gates
+    "MCXGate": qiskit_gate_lib.MCXGate,
+}
+
 # name: (number of numerical parameters, number of qubits).
 GATES: dict[str, tuple[int, int]] = {
     **{name: (0, 1) for name in ("id", "x", "y", "z", "h", "s", "sdg", "t", "tdg", "sx", "sxdg")},
     **{name: (1, 1) for name in ("rx", "ry", "rz", "p")},
     "u": (3, 1),
     "r": (2, 1),
-    **{name: (0, 2) for name in ("cx", "cy", "cz", "ch", "swap", "ecr", "iswap", "csx", "dcx")},
+    **{name: (0, 2) for name in ("cx", "cy", "cz", "ch", "swap", "ecr", "iswap", "csx", "cs", "csdg", "dcx")},
     **{name: (1, 2) for name in ("cp", "crx", "cry", "crz", "rxx", "ryy", "rzz", "rzx")},
+    "cu": (4, 2),
     "ccx": (0, 3),
+    "ccz": (0, 3),
+    "rccx": (0, 3),
     "cswap": (0, 3),
 }
-ALIASES = {"cnot": "cx", "toffoli": "ccx", "i": "id", "u3": "u", "u2": "u", "u1": "p"}
+ALIASES = {"cnot": "cx", "toffoli": "ccx", "i": "id", "u3": "u", "u2": "u", "u1": "p", "cu1": "cp", "cu3": "cu"}
 METRIC_DEFINITION = (
     "Gate count and gate types count unitary operations only; measurements and "
     "barriers are excluded. Two-qubit gate count counts unitary instructions on "
@@ -101,6 +154,44 @@ def versions() -> dict[str, str]:
     }
 
 
+def capabilities() -> dict[str, Any]:
+    """Describe the executable quantum surface without implying arbitrary Python support."""
+    return {
+        "languages": [
+            {"id": "qiskit-circuit-python", "label": "Qiskit circuit-building Python",
+             "execution": "bounded_ast_interpreter", "arbitrary_python": False},
+            {"id": "openqasm-2", "label": "OpenQASM 2.0",
+             "execution": "qiskit_qasm2_parser", "arbitrary_python": False},
+        ],
+        "modules": {
+            "qiskit": "QuantumCircuit, QuantumRegister, ClassicalRegister",
+            "qiskit_aer": "AerSimulator through QORE simulation settings",
+            "math": "bounded numeric constants and functions",
+            "numpy": "bounded numeric constants and functions; no array/runtime access",
+        },
+        "gates": {
+            name: {"parameters": parameter_count, "qubits": qubit_count}
+            for name, (parameter_count, qubit_count) in sorted(GATES.items())
+        },
+        "circuit_methods": ["barrier", "measure", "measure_all", "draw", "depth", "size", "width"],
+        "workflows": [
+            "parse and validate", "shot simulation", "ideal probabilities", "Bloch vectors and purity",
+            "statevector amplitudes", "unitary matrix", "noise simulation", "Forge transpilation and equivalence",
+            "OpenQASM 2.0 import and export", "immutable Ledger evidence",
+        ],
+        "simulation_methods": ["statevector", "matrix_product_state", "stabilizer"],
+        "limits": {
+            "max_source_bytes": MAX_SOURCE_BYTES, "max_qubits": MAX_QUBITS, "max_clbits": MAX_CLBITS,
+            "max_operations": MAX_OPERATIONS, "max_shots": MAX_SHOTS,
+            "operator_validation_max_qubits": MAX_EQUIVALENCE_QUBITS,
+        },
+        "safety_boundary": (
+            "Circuit source is parsed and interpreted. It is never passed to exec/eval and cannot access the host "
+            "filesystem, network, subprocesses, package installation, provider credentials, or arbitrary imports."
+        ),
+    }
+
+
 class _SourceInterpreter:
     """Interpret only bounded circuit-building syntax, never Python code."""
 
@@ -113,6 +204,7 @@ class _SourceInterpreter:
         self.constructors: set[str] = set()
         self.qreg_constructors: set[str] = set()
         self.creg_constructors: set[str] = set()
+        self.gate_constructors: dict[str, type] = {}
         self.quantum_registers: dict[str, int] = {}
         self.classical_registers: dict[str, int] = {}
         self.modules: dict[str, str] = {}
@@ -280,30 +372,44 @@ class _SourceInterpreter:
     def import_statement(self, node: ast.Import | ast.ImportFrom) -> None:
         if isinstance(node, ast.Import):
             for item in node.names:
-                if item.name not in ("qiskit", "math", "numpy"):
+                if item.name not in ("qiskit", "qiskit.circuit", "qiskit.circuit.library", "math", "numpy"):
                     raise _error("UNSUPPORTED_IMPORT", f"Import '{item.name}' is not supported; no user imports are executed.", node)
                 alias = item.asname or item.name
                 self.bindable(alias, node)
                 self.values.pop(alias, None)
                 self.modules[alias] = item.name
             return
-        if node.level or node.module not in ("qiskit", "math", "numpy"):
-            raise _error("UNSUPPORTED_IMPORT", "Only QuantumCircuit, QuantumRegister, ClassicalRegister, and numeric math constants can be imported.", node)
+        if node.level or node.module not in ("qiskit", "qiskit.circuit", "qiskit.circuit.library", "math", "numpy"):
+            raise _error("UNSUPPORTED_IMPORT", "Only QuantumCircuit, QuantumRegister, ClassicalRegister, standard gate classes, and numeric math constants can be imported.", node)
         for item in node.names:
             alias = item.asname or item.name
             self.bindable(alias, node)
             self.values.pop(alias, None)
-            if node.module == "qiskit":
+            if node.module in ("qiskit", "qiskit.circuit"):
                 if item.name in ("QuantumCircuit", "*"):
                     self.constructors.add(alias if item.name != "*" else "QuantumCircuit")
                 if item.name in ("QuantumRegister", "*"):
                     self.qreg_constructors.add(alias if item.name != "*" else "QuantumRegister")
                 if item.name in ("ClassicalRegister", "*"):
                     self.creg_constructors.add(alias if item.name != "*" else "ClassicalRegister")
-                if item.name not in ("QuantumCircuit", "QuantumRegister", "ClassicalRegister", "*"):
+                if item.name in SUPPORTED_GATE_CLASSES:
+                    self.gate_constructors[alias] = SUPPORTED_GATE_CLASSES[item.name]
+                if item.name not in ("QuantumCircuit", "QuantumRegister", "ClassicalRegister", "*") and item.name not in SUPPORTED_GATE_CLASSES:
                     raise _error(
                         "UNSUPPORTED_IMPORT",
-                        f"Import '{item.name}' from 'qiskit' is outside the supported circuit-building subset.",
+                        f"Import '{item.name}' from '{node.module}' is outside the supported circuit-building subset.",
+                        node,
+                    )
+            elif node.module == "qiskit.circuit.library":
+                if item.name == "*":
+                    for gate_name, gate_cls in SUPPORTED_GATE_CLASSES.items():
+                        self.gate_constructors[gate_name] = gate_cls
+                elif item.name in SUPPORTED_GATE_CLASSES:
+                    self.gate_constructors[alias] = SUPPORTED_GATE_CLASSES[item.name]
+                else:
+                    raise _error(
+                        "UNSUPPORTED_IMPORT",
+                        f"Gate class '{item.name}' from 'qiskit.circuit.library' is outside the supported gate subset.",
                         node,
                     )
             elif node.module in ("math", "numpy"):
@@ -323,6 +429,19 @@ class _SourceInterpreter:
                     )
             else:
                 raise _error("UNSUPPORTED_IMPORT", f"Import '{item.name}' from '{node.module}' is not supported.", node)
+
+    def _resolve_gate_class(self, node: ast.AST | None) -> type | None:
+        if node is None:
+            return None
+        if isinstance(node, ast.Name) and node.id in self.gate_constructors:
+            return self.gate_constructors[node.id]
+        if isinstance(node, ast.Attribute) and node.attr in SUPPORTED_GATE_CLASSES:
+            val = node.value
+            if isinstance(val, ast.Name) and (val.id in ("library", "circuit_library") or self.modules.get(val.id) in ("qiskit.circuit.library", "qiskit.circuit", "qiskit")):
+                return SUPPORTED_GATE_CLASSES[node.attr]
+            if isinstance(val, ast.Attribute) and val.attr in ("library", "circuit"):
+                return SUPPORTED_GATE_CLASSES[node.attr]
+        return None
 
     def is_constructor(self, node: ast.AST) -> bool:
         return (isinstance(node, ast.Name) and node.id in self.constructors) or (
@@ -421,31 +540,88 @@ class _SourceInterpreter:
                         self.values[gen.target.id] = val
                         items.append(self.expression(node.elt))
                     return items
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
-            module = self.modules.get(node.func.value.id)
-            if module in ("math", "numpy") and node.func.attr in ("sin", "cos", "tan", "sqrt", "exp", "abs", "asin", "acos", "atan", "radians", "degrees", "log", "log2", "log10", "floor", "ceil"):
-                fn = getattr(math, node.func.attr if node.func.attr != "abs" else "fabs")
+        if isinstance(node, ast.Call):
+            gate_cls = self._resolve_gate_class(node.func)
+            if gate_cls is not None:
                 args = [self.expression(a) for a in node.args]
-                res = float(fn(*args))
-                _number(res)
-                return res
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "range":
-            if node.keywords or not 1 <= len(node.args) <= 3:
-                raise _error("UNSUPPORTED_SOURCE", "range expects one to three integer arguments.", node)
-            values = [_integer(self.expression(value), "Range argument", -MAX_OPERATIONS, MAX_OPERATIONS) for value in node.args]
-            if len(values) == 3 and values[2] == 0:
-                raise _error("INVALID_INPUT", "Range step cannot be zero.", node)
-            result = range(*values)
-            if len(result) > MAX_OPERATIONS:
-                raise _error("RESOURCE_LIMIT", "range is limited to 500 entries.", node)
-            return result
+                try:
+                    return gate_cls(*args)
+                except Exception as exc:
+                    raise _error("INVALID_ARGUMENTS", f"Gate initialization failed: {exc}", node) from exc
+            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                module = self.modules.get(node.func.value.id)
+                if module in ("math", "numpy") and node.func.attr in ("sin", "cos", "tan", "sqrt", "exp", "abs", "asin", "acos", "atan", "radians", "degrees", "log", "log2", "log10", "floor", "ceil"):
+                    fn = getattr(math, node.func.attr if node.func.attr != "abs" else "fabs")
+                    args = [self.expression(a) for a in node.args]
+                    res = float(fn(*args))
+                    _number(res)
+                    return res
+            if isinstance(node.func, ast.Name) and node.func.id == "range":
+                if node.keywords or not 1 <= len(node.args) <= 3:
+                    raise _error("UNSUPPORTED_SOURCE", "range expects one to three integer arguments.", node)
+                values = [_integer(self.expression(value), "Range argument", -MAX_OPERATIONS, MAX_OPERATIONS) for value in node.args]
+                if len(values) == 3 and values[2] == 0:
+                    raise _error("INVALID_INPUT", "Range step cannot be zero.", node)
+                result = range(*values)
+                if len(result) > MAX_OPERATIONS:
+                    raise _error("RESOURCE_LIMIT", "range is limited to 500 entries.", node)
+                return result
         raise _error("UNSUPPORTED_SOURCE", f"Unsupported expression: {type(node).__name__}. Use numeric literals, pi, indices, or basic arithmetic.", node)
 
     def circuit_call(self, node: ast.Call) -> None:
         if not (isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id == self.circuit_name and self.circuit is not None):
             raise _error("UNSUPPORTED_SOURCE", "Only methods on the declared quantum circuit may be called.", node)
-        name = ALIASES.get(node.func.attr, node.func.attr)
+        method_name = node.func.attr
+        name = ALIASES.get(method_name, method_name)
         if name in ("draw", "depth", "size", "width"):
+            return
+        if name == "append":
+            if self.has_measurement:
+                raise _error("NON_TERMINAL_MEASUREMENT", "Measurements must be terminal; no quantum gates may follow the first measurement.", node)
+            if not 2 <= len(node.args) <= 3:
+                raise _error("INVALID_ARGUMENTS", "append expects a gate and a list of target qubits (and optional clbits).", node)
+            gate = self.expression(node.args[0])
+            qargs_val = self.expression(node.args[1])
+            qargs = [qargs_val] if isinstance(qargs_val, int) else list(qargs_val)
+            for q in qargs:
+                self.indices(q, self.circuit.num_qubits, "Qubit")
+            if len(set(qargs)) != len(qargs):
+                raise _error("INVALID_ARGUMENTS", "Duplicate qubits specified for appended gate.", node)
+            cargs = None
+            if len(node.args) == 3:
+                cargs_val = self.expression(node.args[2])
+                cargs = [cargs_val] if isinstance(cargs_val, int) else list(cargs_val) if cargs_val else []
+                for c in cargs:
+                    self.indices(c, self.circuit.num_clbits, "Classical bit")
+            try:
+                self.circuit.append(gate, qargs, cargs)
+            except Exception as exc:
+                raise _error("INVALID_ARGUMENTS", f"append failed: {exc}", node) from exc
+            if len(self.circuit.data) > MAX_OPERATIONS:
+                raise _error("RESOURCE_LIMIT", f"Circuit exceeds {MAX_OPERATIONS} operations, including measurements and barriers.", node)
+            return
+        if name == "mcx":
+            if self.has_measurement:
+                raise _error("NON_TERMINAL_MEASUREMENT", "Measurements must be terminal; no quantum gates may follow the first measurement.", node)
+            args = [self.expression(a) for a in node.args]
+            if len(args) == 2 and isinstance(args[0], (list, tuple, range)):
+                ctrls = list(args[0])
+                tgt = args[1]
+            elif len(args) >= 2 and all(type(x) is int for x in args):
+                ctrls = list(args[:-1])
+                tgt = args[-1]
+            else:
+                raise _error("INVALID_ARGUMENTS", "mcx expects control qubits and a target qubit.", node)
+            for q in ctrls + [tgt]:
+                self.indices(q, self.circuit.num_qubits, "Qubit")
+            if len(set(ctrls + [tgt])) != len(ctrls) + 1:
+                raise _error("INVALID_ARGUMENTS", "Duplicate qubits in mcx operation.", node)
+            try:
+                self.circuit.append(SUPPORTED_GATE_CLASSES["MCXGate"](len(ctrls)), ctrls + [tgt])
+            except Exception as exc:
+                raise _error("INVALID_ARGUMENTS", f"mcx failed: {exc}", node) from exc
+            if len(self.circuit.data) > MAX_OPERATIONS:
+                raise _error("RESOURCE_LIMIT", f"Circuit exceeds {MAX_OPERATIONS} operations, including measurements and barriers.", node)
             return
         if name not in GATES and name not in ("measure", "measure_all", "barrier"):
             raise _error("UNSUPPORTED_GATE", f"Circuit operation '{name}' is not supported.", node)
@@ -454,6 +630,11 @@ class _SourceInterpreter:
         if self.has_measurement and name not in ("measure", "barrier"):
             raise _error("NON_TERMINAL_MEASUREMENT", "Measurements must be terminal; no quantum gates may follow the first measurement.", node)
         arguments = [self.expression(value) for value in node.args]
+        # Preserve common Qiskit legacy spellings without executing deprecated APIs.
+        if method_name == "u2" and len(arguments) == 3:
+            arguments.insert(0, math.pi / 2)
+        elif method_name == "cu3" and len(arguments) == 5:
+            arguments.insert(3, 0.0)
         if name in GATES:
             parameter_count, qubit_count = GATES[name]
             # Handle single-qubit broadcasting: e.g. qc.h([0, 1]) or qc.h(range(n))
@@ -543,7 +724,7 @@ def _validate_ir(ir: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(op, dict) or set(op) != {"name", "qubits", "clbits", "params"}:
             raise QuantumError("INVALID_IR", f"Operation {index} requires exactly name, qubits, clbits, and params.")
         name = op["name"]
-        if not isinstance(name, str) or name not in GATES and name not in ("measure", "barrier"):
+        if not isinstance(name, str) or (name not in GATES and name not in ("measure", "barrier", "mcx")):
             raise QuantumError("INVALID_IR", f"Operation {index} has an unsupported name.")
         if any(not isinstance(op[key], list) for key in ("qubits", "clbits", "params")):
             raise QuantumError("INVALID_IR", f"Operation {index} indices and parameters must be lists.")
@@ -556,6 +737,11 @@ def _validate_ir(ir: dict[str, Any]) -> dict[str, Any]:
             parameter_count, qubit_count = GATES[name]
             if len(q) != qubit_count or len(p) != parameter_count or c:
                 raise QuantumError("INVALID_IR", f"Operation {index} has invalid arity for {name}.")
+            if seen_measurement:
+                raise QuantumError("NON_TERMINAL_MEASUREMENT", "Measurements must be terminal; quantum gates cannot follow measurement.")
+        elif name == "mcx":
+            if len(p) != 0 or c or len(q) < 2:
+                raise QuantumError("INVALID_IR", f"Operation {index} has invalid arity for mcx.")
             if seen_measurement:
                 raise QuantumError("NON_TERMINAL_MEASUREMENT", "Measurements must be terminal; quantum gates cannot follow measurement.")
         elif name == "measure":
@@ -601,6 +787,8 @@ def ir_to_circuit(ir: dict[str, Any], *, unitary_only: bool = False) -> QuantumC
             circuit.measure(q[0], c[0])
         elif name == "barrier":
             circuit.barrier(*q)
+        elif name == "mcx":
+            circuit.append(SUPPORTED_GATE_CLASSES["MCXGate"](len(q) - 1), q)
         else:
             getattr(circuit, name)(*p, *q)
     return circuit
@@ -863,8 +1051,11 @@ def ir_to_source(ir: dict[str, Any]) -> str:
     if ir["global_phase"]:
         lines.append(f"qc.global_phase = {ir['global_phase']!r}")
     for op in ir["operations"]:
-        values = [repr(value) for value in op["params"]] + [str(value) for value in op["qubits"]] + [str(value) for value in op["clbits"]]
-        lines.append(f"qc.{op['name']}({', '.join(values)})")
+        if op["name"] == "mcx":
+            lines.append(f"qc.mcx({op['qubits'][:-1]!r}, {op['qubits'][-1]})")
+        else:
+            values = [repr(value) for value in op["params"]] + [str(value) for value in op["qubits"]] + [str(value) for value in op["clbits"]]
+            lines.append(f"qc.{op['name']}({', '.join(values)})")
     return "\n".join(lines) + "\n"
 
 

@@ -21,10 +21,13 @@ Differences: keyed by metric, `{original:number,candidate:number,absolute:number
 Controlled gates use qubits in framework order (controls then targets); no independently interpreted UI source.
 Support constrained AST parsing, never exec/eval. Terminal measurements only, up to 10 qubits, 10 classical bits, 500 operations, 32 KiB source, 100000 shots. Equivalence full operator up to global phase <=6 qubits; larger cases honestly unavailable. Preserve global phase in IR/source or equivalence up to global phase. Enforce mapping comparison.
 
+The installed executable surface is reported by `GET /api/capabilities`. Qiskit support means the reported bounded circuit-building subset and OpenQASM 2.0, not arbitrary Python, all Qiskit packages, provider clients, pulse programs, primitives, dynamic circuits, hardware jobs, or future SDK APIs. Unsupported source must fail explicitly and must never fall through to `exec`, `eval`, a host shell, filesystem access, networking, or package installation.
+
 ## API
 - QORE currently exposes no login, signup, OAuth, or account-management routes.
 - An opaque `qore_workspace` HttpOnly, SameSite cookie scopes SQLite projects, runs, experiments, and workspace records to one browser profile. It is a workspace boundary, not verified human identity.
 - GET `/health` -> `{status,versions,ai_available,auth_configured:false,auth_required:false,storage:"sqlite",limits}`
+- GET `/capabilities` -> installed circuit languages, bounded modules, native gates, simulator methods, workflows, limits, and safety boundary
 - GET `/examples` -> `[{id,name,description,source}]`
 - GET `/projects` -> project summaries (including source acceptable)
 - POST `/projects` body `{name,source}` -> project

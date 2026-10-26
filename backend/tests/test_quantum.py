@@ -149,3 +149,47 @@ def test_runtime_versions_report_framework_and_simulator():
     assert reported
     assert any("qiskit" in key.lower() for key in reported)
     assert any("aer" in key.lower() for key in reported)
+
+
+@pytest.mark.parametrize("instruction", [
+    "qc.cs(0, 1)",
+    "qc.csdg(0, 1)",
+    "qc.cu(0.1, 0.2, 0.3, 0.4, 0, 1)",
+    "qc.ccz(0, 1, 2)",
+    "qc.rccx(0, 1, 2)",
+    "qc.u2(0.2, 0.3, 0)",
+    "qc.cu3(0.1, 0.2, 0.3, 0, 1)",
+])
+def test_additional_native_qiskit_gates_parse_simulate_and_export(instruction):
+    source = program(f"{instruction}\nqc.measure(0, 0)\nqc.measure(1, 1)\nqc.measure(2, 2)", qubits=3, clbits=3)
+    parsed = parse_source(source)
+    assert parsed["ir"]["operations"][0]["name"] in {"cs", "csdg", "u", "cu", "ccz", "rccx"}
+    assert parsed["qasm"].startswith("OPENQASM 2.0")
+    result = simulate(source, shots=64, seed=5)
+    assert sum(result["counts"].values()) == 64
+
+
+def test_qiskit_circuit_module_import_is_supported():
+    source = "from qiskit.circuit import QuantumCircuit\nqc = QuantumCircuit(1, 1)\nqc.h(0)\nqc.measure(0, 0)\n"
+    assert parse_source(source)["metrics"]["gate_types"] == {"h": 1}
+
+
+def test_qiskit_circuit_library_gates_and_append_are_supported():
+    source = (
+        "from qiskit import QuantumCircuit\n"
+        "from qiskit.circuit.library import HGate, MCXGate\n"
+        "mcx_gate = MCXGate(3)\n"
+        "hadamard_gate = HGate()\n"
+        "qc = QuantumCircuit(4, 4)\n"
+        "qc.append(hadamard_gate, [0])\n"
+        "qc.append(mcx_gate, [0, 1, 2, 3])\n"
+        "qc.draw('mpl')\n"
+        "qc.measure([0, 1, 2, 3], [0, 1, 2, 3])\n"
+    )
+    parsed = parse_source(source)
+    assert parsed["metrics"]["gate_types"] == {"h": 1, "mcx": 1}
+    assert parsed["metrics"]["qubits"] == 4
+    sim = simulate(source, shots=100, seed=42)
+    assert sum(sim["counts"].values()) == 100
+    assert "0000" in sim["counts"] or "0001" in sim["counts"]
+

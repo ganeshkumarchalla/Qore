@@ -14,9 +14,12 @@ These views share a source context. If you edit a file, previous live results cl
 | --- | --- |
 | `help` | Show the current supported command help |
 | `run`, `simulate`, `qiskit run` | Simulate active source using workspace settings |
+| `parse`, `validate`, `qiskit validate` | Execute bounded parsing and validation without sampling |
 | `transpile`, `opt`, `optimize`, `qiskit transpile` | Request a Forge candidate using selected settings |
 | `qiskit --version` | Show server-reported dependency versions |
 | `qiskit backends` | Show last backend and reported engine limits |
+| `qiskit capabilities` | Query executable languages, workflows, modules, methods, gates and safety boundary |
+| `qiskit gates`, `qiskit modules`, `qiskit methods`, `qiskit limits` | Query the server-owned runtime contract |
 
 Commands use the active source and settings; they do not accept an alternate script path or arbitrary simulator flags. Set shots, seed, noise, and optimization level through the supported workspace controls. Running again while an operation is busy should report that state instead of silently creating unrestricted parallel jobs.
 
@@ -30,6 +33,12 @@ The `qiskit` prefix identifies QORE shortcuts. It does not launch an installed Q
 | `metrics`, `qiskit metrics` | Current circuit metrics |
 | `statevector`, `qiskit statevector` | Available ideal complex amplitudes |
 | `unitary`, `qiskit unitary` | Available circuit operator |
+| `qiskit qasm` | Backend-generated OpenQASM 2.0 |
+| `qiskit bloch`, `qiskit purity` | Per-qubit Bloch coordinates and reduced-state purity |
+| `qiskit ideal` | Ideal reference probabilities attached to the current simulation |
+| `qiskit bitorder` | Recorded classical mapping and bitstring convention |
+| `qiskit noise` | Simulator method and applied noise configuration |
+| `qiskit result`, `qiskit source-hash` | Source-matched parse, simulation and Forge provenance |
 | `probs` | Sampled probabilities |
 | `counts` | Actual shot counts |
 | `ast` | Parsed QORE-IR, not a Python AST dump |
@@ -39,7 +48,7 @@ Statevector and unitary output obey their display limits. A missing matrix above
 
 ## Work with the active buffer
 
-`ls` and `pwd` identify the active file/path context. `cat` displays the active source; an optional argument must refer to that active buffer. The console is not an unrestricted directory browser and does not expose other container files. Use Explorer to select another workspace file before inspecting it here.
+`ls`, `tree`, and `pwd` inspect the browser workspace only. `cat`, `head`, and `wc` may read a file already present in that browser workspace. These commands never address the server container, host filesystem, environment files, or another user's workspace.
 
 `date`, `echo`, and `clear` are console utilities. Command history is bounded. Use the help output as the authority for accepted syntax. Extra arguments to actions that take none should produce a clear warning rather than being interpreted as shell flags.
 

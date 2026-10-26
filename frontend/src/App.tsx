@@ -2030,6 +2030,7 @@ export default function App() {
           onClose={() => setIsTerminalOpen(false)}
           onRunSimulation={() => void execute('simulate')}
           onRunTranspile={() => void execute('optimize')}
+          onRunParse={() => void execute('parse')}
           parsed={parsed}
           simulation={simulation}
           optimization={optimization}
@@ -2044,6 +2045,7 @@ export default function App() {
             editorRef.current?.setPosition({ lineNumber: line, column: 1 });
             editorRef.current?.focus();
           }}
+          workspaceFiles={loadWorkspaceFiles()}
           />
         </ErrorBoundary>
       </main>

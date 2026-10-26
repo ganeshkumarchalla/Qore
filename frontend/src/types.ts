@@ -69,6 +69,16 @@ export type Example = { id: string; name: string; description: string; source: s
 export type ExperimentSummary = { id: string; name: string; project_id?: string; created_at: string; source_hash: string };
 export type Experiment = ExperimentSummary & { source: string; ir_version: string; ir?: IR; metrics?: Metrics; versions: Record<string, string>; simulation: Simulation | null; optimization: Optimization | null };
 export type Health = { status: string; versions: Record<string, string>; ai_available: boolean; auth_configured?: boolean; auth_required?: boolean; storage?: string; limits: Record<string, unknown> };
+export type QuantumCapabilities = {
+  languages: Array<{ id: string; label: string; execution: string; arbitrary_python: boolean }>;
+  modules: Record<string, string>;
+  gates: Record<string, { parameters: number; qubits: number }>;
+  circuit_methods: string[];
+  workflows: string[];
+  simulation_methods: string[];
+  limits: Record<string, number>;
+  safety_boundary: string;
+};
 
 export type WorkspaceEntry = {
   id: string; path: string; name: string; type: 'file' | 'folder';

@@ -51,6 +51,17 @@ async function main() {
       const request = route.request(), pathname = new URL(request.url()).pathname;
       let body = {};
       if (pathname === '/api/health') body = { status: 'ok', ai_available: true, versions: { qiskit: 'ui-fixture-version' }, limits: { max_qubits: 10 } };
+      else if (pathname === '/api/capabilities') body = {
+        languages: [
+          { id: 'qiskit-circuit-python', label: 'Qiskit circuit-building Python', execution: 'bounded_ast_interpreter', arbitrary_python: false },
+          { id: 'openqasm-2', label: 'OpenQASM 2.0', execution: 'qiskit_qasm2_parser', arbitrary_python: false },
+        ],
+        modules: { qiskit: 'QuantumCircuit', qiskit_aer: 'AerSimulator', math: 'bounded numeric functions', numpy: 'bounded numeric functions' },
+        gates: { h: { parameters: 0, qubits: 1 }, cx: { parameters: 0, qubits: 2 }, ccz: { parameters: 0, qubits: 3 } },
+        circuit_methods: ['barrier', 'measure'], workflows: ['parse and validate', 'shot simulation', 'Forge transpilation and equivalence'],
+        simulation_methods: ['statevector', 'matrix_product_state', 'stabilizer'], limits: { max_qubits: 10, max_shots: 100000 },
+        safety_boundary: 'Circuit source is parsed and interpreted; arbitrary host execution is unavailable.',
+      };
       else if (pathname === '/api/projects' || pathname === '/api/experiments') body = [];
       else if (pathname === '/api/parse') { source = request.postDataJSON().source; body = parsed; }
       else if (pathname === '/api/assistant') {
@@ -128,10 +139,16 @@ async function main() {
     await page.getByText('Circuit unitary (8 × 8):', { exact: false }).waitFor();
     await command('statevector'); await page.getByText('Complex state amplitudes:', { exact: false }).waitFor();
     await command('qiskit --version'); await page.locator('.terminal-log-scroll').getByText('ui-fixture-version', { exact: false }).waitFor();
+    await command('qiskit gates'); await page.locator('.terminal-log-scroll').getByText('"ccz"', { exact: false }).waitFor();
+    await command('qiskit modules'); await page.locator('.terminal-log-scroll').getByText('AerSimulator', { exact: false }).waitFor();
+    await command('qiskit bloch'); await page.locator('.terminal-log-scroll').getByText('q[0] x=0.00000000', { exact: false }).waitFor();
+    await command('qiskit ideal'); await page.locator('.terminal-log-scroll').getByText('Ideal reference probabilities:', { exact: false }).waitFor();
+    await command('qiskit bitorder'); await page.locator('.terminal-log-scroll').getByText('UI fixture ordering', { exact: false }).waitFor();
+    await command('tree'); await page.locator('.terminal-log-scroll').getByText('my_first_qubits.py', { exact: false }).waitFor();
     const before = runCount; await command('az quantum execute'); await command('qsharp run');
     assert.equal(runCount, before, 'Unsupported cloud/Q# commands must not dispatch Aer');
-    await command('cat another_file.py'); await page.getByText('File is not the active buffer:', { exact: false }).waitFor();
-    checks.push('Terminal prints supplied unitary/amplitudes/versions; unsupported cloud/Q# never execute; cat rejects another file');
+    await command('cat another_file.py'); await page.getByText('Workspace file not found:', { exact: false }).waitFor();
+    checks.push('Terminal executes capability, gate, module, Bloch, ideal, bit-order and workspace-tree commands; unsupported cloud/Q# never execute; cat rejects unknown files');
 
     await page.locator('#qore-assistant-toggle').click();
     await page.getByLabel('Ask QI Assistant').fill('Explain again');

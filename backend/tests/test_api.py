@@ -25,6 +25,19 @@ def test_health_and_examples_are_usable(client):
         assert client.post("/api/parse", json={"source": example["source"]}).status_code == 200
 
 
+def test_capabilities_describe_real_bounded_quantum_runtime(client):
+    response = client.get("/api/capabilities")
+    assert response.status_code == 200
+    capability = response.json()
+    assert {"qiskit-circuit-python", "openqasm-2"} == {item["id"] for item in capability["languages"]}
+    assert all(item["arbitrary_python"] is False for item in capability["languages"])
+    assert {"qiskit", "qiskit_aer", "math", "numpy"} <= set(capability["modules"])
+    assert {"h", "cx", "cu", "ccz", "rccx", "cs", "csdg"} <= set(capability["gates"])
+    assert capability["simulation_methods"] == ["statevector", "matrix_product_state", "stabilizer"]
+    assert capability["limits"]["max_qubits"] == 10
+    assert "never passed to exec/eval" in capability["safety_boundary"]
+
+
 def test_project_create_edit_open_and_list(client, bell_source):
     created = client.post("/api/projects", json={"name": "Bell experiment", "source": bell_source})
     assert created.status_code in (200, 201), created.text
@@ -229,7 +242,7 @@ def test_user_names_are_persisted_as_data_not_sql(client, bell_source):
 
 
 def test_api_responses_explicitly_prevent_search_indexing(client):
-    for path in ("/api/health", "/api/workspace", "/api/projects"):
+    for path in ("/api/health", "/api/capabilities", "/api/workspace", "/api/projects"):
         response = client.get(path)
         assert "noindex" in response.headers["x-robots-tag"]
         assert "no-store" in response.headers["cache-control"]

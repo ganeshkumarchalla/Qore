@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icons';
-import type { Parsed, Simulation, Optimization, Health, UnitaryCell } from './types';
+import { api, type Parsed, type Simulation, type Optimization, type Health, type QuantumCapabilities, type UnitaryCell } from './types';
+import type { WorkspaceFile } from './Explorer';
 
 export interface WorkspaceProblem {
   id: string;
@@ -17,6 +18,7 @@ export interface TerminalProps {
   onClose: () => void;
   onRunSimulation: () => void;
   onRunTranspile: () => void;
+  onRunParse: () => void;
   parsed: Parsed | null;
   simulation: Simulation | null;
   optimization: Optimization | null;
@@ -26,6 +28,7 @@ export interface TerminalProps {
   fileName?: string;
   error?: string;
   onSelectProblemLine?: (line: number) => void;
+  workspaceFiles?: WorkspaceFile[];
 }
 
 interface LogEntry {
@@ -37,9 +40,13 @@ interface LogEntry {
 
 const ALL_COMMANDS = [
   'help', 'qiskit --version', 'qiskit run', 'qiskit transpile', 'qiskit backends',
-  'qiskit draw', 'qiskit statevector', 'qiskit unitary', 'qiskit metrics',
-  'run', 'simulate', 'transpile', 'metrics', 'statevector', 'unitary', 'probs',
-  'counts', 'ast', 'status', 'ls', 'cat', 'pwd', 'date', 'clear', 'echo',
+  'qiskit validate', 'qiskit draw', 'qiskit statevector', 'qiskit unitary', 'qiskit metrics',
+  'qiskit qasm', 'qiskit bloch', 'qiskit purity', 'qiskit ideal', 'qiskit bitorder',
+  'qiskit noise', 'qiskit result', 'qiskit source-hash', 'qiskit capabilities',
+  'qiskit gates', 'qiskit modules', 'qiskit methods', 'qiskit limits', 'qiskit forge',
+  'run', 'simulate', 'parse', 'validate', 'transpile', 'metrics', 'statevector', 'unitary', 'probs',
+  'ideal', 'counts', 'qasm', 'bloch', 'purity', 'bitorder', 'noise', 'result', 'source-hash',
+  'capabilities', 'gates', 'modules', 'methods', 'limits', 'ast', 'status', 'ls', 'tree', 'cat', 'head', 'wc', 'pwd', 'date', 'clear', 'echo',
 ];
 
 function redact(text: string): string {
@@ -74,8 +81,8 @@ function analyzeWorkspaceProblems(fileName?: string, error?: string, warnings?: 
   return problems;
 }
 
-export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, parsed, simulation,
-  optimization, health, busy, source, fileName, error, onSelectProblemLine }: TerminalProps) {
+export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onRunParse, parsed, simulation,
+  optimization, health, busy, source, fileName, error, onSelectProblemLine, workspaceFiles = [] }: TerminalProps) {
   const [activeTab, setActiveTab] = useState<'terminal' | 'output' | 'problems' | 'debug'>('terminal');
   const [inputVal, setInputVal] = useState('');
   const [isMaximized, setIsMaximized] = useState(false);
@@ -131,7 +138,7 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, par
     bit_ordering: simulation?.bit_ordering ?? null, simulation_method: simulation?.simulation_method ?? null,
   }, null, 2);
 
-  const handleCommandSubmit = (commandText: string) => {
+  const handleCommandSubmit = async (commandText: string) => {
     const raw = commandText.trim();
     if (!raw) return;
     addLog('cmd', 'qore › ' + raw);
@@ -146,10 +153,11 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, par
       return;
     }
     if (command === 'qiskit') { command = (args.shift() ?? '--version').toLowerCase(); }
-    const aliases: Record<string, string> = { simulate: 'run', opt: 'transpile', optimize: 'transpile',
-      circuit: 'draw', targets: 'backends', version: '--version', '-v': '--version', dir: 'ls', cls: 'clear', '?': 'help' };
+    const aliases: Record<string, string> = { simulate: 'run', opt: 'transpile', optimize: 'transpile', forge: 'transpile',
+      validate: 'parse', circuit: 'draw', ir: 'ast', targets: 'backends', version: '--version', '-v': '--version',
+      env: 'capabilities', dir: 'ls', cls: 'clear', '?': 'help' };
     command = aliases[command] ?? command;
-    if (args.length && !['cat', 'echo'].includes(command)) {
+    if (args.length && !['cat', 'head', 'wc', 'echo'].includes(command)) {
       addLog('warn', 'This command takes no arguments. Simulation and optimization use the settings selected in the workspace.');
       return;
     }
@@ -158,29 +166,39 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, par
         addLog('output', [
           'QORE command console',
           '  run, qiskit run       Simulate the active circuit using current settings',
+          '  parse, qiskit validate Validate and parse active source without sampling',
           '  transpile            Optimize the active circuit using current settings',
           '  qiskit --version     Show server-reported package versions',
           '  qiskit backends      Show the last run backend and available engine limits',
           '  qiskit draw          List actual parsed circuit operations',
+          '  qiskit qasm          Show backend-generated OpenQASM 2.0',
+          '  qiskit bloch         Show per-qubit Bloch vectors and purity',
+          '  qiskit ideal         Show ideal measurement probabilities',
+          '  qiskit bitorder      Explain the recorded classical mapping',
+          '  qiskit noise         Show the applied simulator noise configuration',
+          '  qiskit result        Summarize source-matched parse/run/Forge evidence',
+          '  qiskit capabilities  Query executable languages and workflows',
+          '  qiskit gates/modules/methods/limits  Query the server runtime contract',
           '  metrics              Show parsed circuit metrics',
           '  statevector          Show actual complex state amplitudes, when available',
           '  unitary              Show the actual circuit operator, when available',
           '  probs, counts        Show sampled probabilities or shot counts',
           '  ast                  Show the parsed intermediate representation',
           '  status               Show live server health and limits',
-          '  ls, pwd              Show the active file path (this console sees one buffer)',
-          '  cat [active file]    Show the active editor source',
+          '  ls, tree, pwd        Inspect browser-workspace files and paths',
+          '  cat/head/wc [path]   Inspect a browser-workspace file without host access',
           '  date, echo, clear    Console utilities',
           '',
           'Commands with the qiskit prefix are QORE shortcuts. This console executes supported circuit actions through the backend; it does not provide an operating system shell.',
         ].join('\n'));
         break;
       case 'run':
+      case 'parse':
       case 'transpile':
         if (busy) { addLog('warn', 'An operation is already in progress. Wait for it to finish.'); break; }
         if (!source?.trim()) { addLog('warn', 'Open or create a circuit file before running it.'); break; }
-        addLog('info', (command === 'run' ? 'Simulating ' : 'Optimizing ') + (fileName ?? 'the active buffer') + ' with current workspace settings…');
-        if (command === 'run') onRunSimulation(); else onRunTranspile();
+        addLog('info', (command === 'run' ? 'Simulating ' : command === 'parse' ? 'Validating ' : 'Optimizing ') + (fileName ?? 'the active buffer') + ' with the bounded quantum runtime…');
+        if (command === 'run') onRunSimulation(); else if (command === 'parse') onRunParse(); else onRunTranspile();
         break;
       case '--version':
         addLog('output', 'Server-reported versions:\n' + versionSummary(health?.versions ?? simulation?.versions ?? optimization?.versions));
@@ -197,6 +215,17 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, par
       case 'metrics':
         addLog(parsed ? 'output' : 'warn', parsed ? JSON.stringify(parsed.metrics, null, 2) : 'Parse or run the active circuit to see its metrics.');
         break;
+      case 'qasm':
+        addLog(parsed?.qasm ? 'output' : 'warn', parsed?.qasm ?? 'No OpenQASM export is attached. Parse or run a supported circuit first.');
+        break;
+      case 'bloch':
+      case 'purity': {
+        const vectors = result?.bloch_vectors;
+        addLog(vectors?.length ? 'output' : 'warn', vectors?.length
+          ? vectors.map(vector => `q[${vector.qubit}] ${command === 'purity' ? `purity=${vector.purity.toFixed(8)} ${vector.is_pure ? 'pure' : 'mixed'}` : `x=${vector.x.toFixed(8)} y=${vector.y.toFixed(8)} z=${vector.z.toFixed(8)} theta=${vector.theta.toFixed(8)} phi=${vector.phi.toFixed(8)} purity=${vector.purity.toFixed(8)}`}`).join('\n')
+          : 'No Bloch evidence is attached. Parse or run a circuit within the visualization limit.');
+        break;
+      }
       case 'statevector': {
         const amplitudes = result?.statevector_amplitudes;
         addLog(amplitudes?.length ? 'output' : 'warn', amplitudes?.length
@@ -217,6 +246,48 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, par
           ? (command === 'counts' ? 'Measured shot counts' : 'Sampled measurement probabilities') + ' (' + simulation.shots + ' shots):\n' + JSON.stringify(command === 'counts' ? simulation.counts : simulation.probabilities, null, 2)
           : 'No measured result yet. Run a simulation first.');
         break;
+      case 'ideal':
+        addLog(simulation ? 'output' : 'warn', simulation
+          ? 'Ideal reference probabilities:\n' + JSON.stringify(simulation.theoretical_probabilities, null, 2)
+          : 'No source-matched simulation is attached. Run the active circuit first.');
+        break;
+      case 'bitorder':
+        addLog(simulation ? 'output' : 'warn', simulation ? 'Recorded bitstring convention:\n' + (typeof simulation.bit_ordering === 'string' ? simulation.bit_ordering : JSON.stringify(simulation.bit_ordering, null, 2)) : 'No simulation mapping is attached.');
+        break;
+      case 'noise':
+        addLog(simulation ? 'output' : 'warn', simulation ? JSON.stringify({
+          backend: simulation.backend, simulation_method: simulation.simulation_method ?? null,
+          noise_applied: simulation.noise_applied ?? false, depolarizing_rate: simulation.noise_rate ?? 0,
+          readout_error: simulation.readout_error ?? 0,
+        }, null, 2) : 'No simulation evidence is attached.');
+        break;
+      case 'source-hash':
+        addLog(parsed?.source_hash ? 'output' : 'warn', parsed?.source_hash ?? 'Parse or run the active source to calculate its hash.');
+        break;
+      case 'result':
+        addLog(parsed ? 'output' : 'warn', parsed ? JSON.stringify({
+          source_hash: parsed.source_hash, metrics: parsed.metrics,
+          simulation: simulation ? { id: simulation.id, backend: simulation.backend, shots: simulation.shots, seed: simulation.seed, tvd: simulation.tvd } : null,
+          forge: optimization ? { id: optimization.id, validation: optimization.validation, differences: optimization.differences } : null,
+        }, null, 2) : 'No parsed evidence is attached.');
+        break;
+      case 'capabilities':
+      case 'gates':
+      case 'modules':
+      case 'methods':
+      case 'limits': {
+        try {
+          const capability = await api<QuantumCapabilities>('/capabilities');
+          const value = command === 'gates' ? capability.gates
+            : command === 'modules' ? capability.modules
+            : command === 'methods' ? capability.simulation_methods
+            : command === 'limits' ? capability.limits : capability;
+          addLog('output', JSON.stringify(value, null, 2));
+        } catch (capabilityError) {
+          addLog('error', capabilityError instanceof Error ? capabilityError.message : 'Could not load quantum capabilities.');
+        }
+        break;
+      }
       case 'ast':
         addLog(parsed ? 'output' : 'warn', parsed
           ? 'Parsed circuit IR (this is not the Python AST):\n' + JSON.stringify(parsed.ir, null, 2)
@@ -231,13 +302,33 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, par
         break;
       }
       case 'ls':
-      case 'pwd':
-        addLog('output', fileName ? 'Active file: ' + fileName + '\nThis console can access the active editor buffer only.' : 'No file is open in the editor.');
+        addLog('output', workspaceFiles.length ? workspaceFiles.map(file => file.path).sort().join('\n') : 'The browser workspace contains no files.');
         break;
-      case 'cat': {
+      case 'tree': {
+        const paths = workspaceFiles.map(file => file.path).sort();
+        addLog('output', paths.length ? paths.map(path => {
+          const parts = path.split('/'); return '  '.repeat(Math.max(0, parts.length - 1)) + '└─ ' + parts[parts.length - 1];
+        }).join('\n') : 'The browser workspace contains no files.');
+        break;
+      }
+      case 'pwd':
+        addLog('output', fileName ? 'browser-workspace:/' + (workspaceFiles.find(file => file.name === fileName || file.id === fileName)?.path ?? fileName) : 'browser-workspace:/');
+        break;
+      case 'cat':
+      case 'head':
+      case 'wc': {
         const requestedFile = args.join(' ').replace(/^['"]|['"]$/g, '');
-        if (requestedFile && requestedFile !== fileName) { addLog('warn', 'File is not the active buffer: ' + requestedFile + '. Open it in Explorer first.'); break; }
-        addLog(source !== undefined ? 'output' : 'warn', source !== undefined ? (fileName ?? 'Active buffer') + '\n' + (source || '(empty file)') : 'No file is open.');
+        const selected = requestedFile
+          ? workspaceFiles.find(file => file.path === requestedFile || file.name === requestedFile || file.id === requestedFile)
+          : workspaceFiles.find(file => file.name === fileName || file.id === fileName);
+        const contents = selected?.source ?? (!requestedFile ? source : undefined);
+        if (contents === undefined) { addLog('warn', 'Workspace file not found: ' + (requestedFile || fileName || '(none)')); break; }
+        if (command === 'wc') {
+          addLog('output', `${contents.split(/\r?\n/).length} lines  ${new TextEncoder().encode(contents).length} bytes  ${selected?.path ?? fileName ?? 'active buffer'}`);
+        } else {
+          const shown = command === 'head' ? contents.split(/\r?\n/).slice(0, 20).join('\n') : contents;
+          addLog('output', (selected?.path ?? fileName ?? 'Active buffer') + '\n' + (shown || '(empty file)'));
+        }
         break;
       }
       case 'date': addLog('output', new Date().toISOString()); break;
@@ -250,7 +341,7 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, par
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
       event.preventDefault(); setLogs([]);
-    } else if (event.key === 'Enter') handleCommandSubmit(inputVal);
+    } else if (event.key === 'Enter') void handleCommandSubmit(inputVal);
     else if (event.key === 'ArrowUp') {
       event.preventDefault();
       if (cmdHistory.length) {
