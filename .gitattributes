@@ -5,3 +5,4 @@ README.md whitespace=cr-at-eol
 backend/tests/test_api.py whitespace=cr-at-eol
 frontend/src/types.ts whitespace=cr-at-eol
 scripts/build_docs.py whitespace=cr-at-eol
+docs/assets/animations/verification.json whitespace=cr-at-eol
