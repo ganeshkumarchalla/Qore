@@ -4,6 +4,10 @@
 
 [Open QORE](https://qore-bmh1.onrender.com/) · [Documentation](https://qoredocs.vercel.app/) · [Manual sources](docs/README.md) · [Report an issue](https://github.com/ganeshkumarchalla/Qore/issues)
 
+## Problem statement
+
+Quantum development is often split across disconnected editors, simulators, state visualizers, compiler tools, and experiment records. That fragmentation makes it easy to misread sampled output, lose execution context, compare stale results, or accept an optimization without evidence that it preserved the circuit. QORE brings source, bounded Qiskit and OpenQASM execution, ideal and sampled results, compiler validation, and reproducible experiment records into one traceable workspace.
+
 QORE brings an editor, quantum simulator, visual laboratory, compiler workbench, and research ledger into one consistent glass interface. Write a circuit in the supported Qiskit Python subset or OpenQASM 2. Inspect actual simulator output, compare a compiler candidate, and preserve the source and evidence behind an experiment.
 
 The workspace starts empty. **Get Started** creates a three-qubit learning circuit only when requested. No account is required: editable source is retained in the browser workspace, while server-side projects and evidence are isolated by an opaque HttpOnly workspace cookie. Saved files have no automatic expiry; deleted files and folders remain recoverable for **48 hours** through Undo and Trash.
