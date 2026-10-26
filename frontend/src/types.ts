@@ -35,6 +35,7 @@ export type Parsed = {
   source_hash: string;
   warnings: string[];
   qasm?: string;
+  text_diagram?: string;
   bloch_vectors?: BlochVector[];
   unitary_matrix?: UnitaryCell[][];
   statevector_amplitudes?: StatevectorAmplitude[];

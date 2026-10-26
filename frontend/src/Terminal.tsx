@@ -208,6 +208,10 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
         break;
       case 'draw':
         if (!parsed) { addLog('warn', 'Parse or run the active circuit first.'); break; }
+        if (parsed.text_diagram) {
+          addLog('output', parsed.text_diagram);
+          break;
+        }
         addLog('output', 'Parsed operations (' + parsed.ir.num_qubits + ' qubits):\n' + (parsed.ir.operations.length
           ? parsed.ir.operations.map((operation, index) => (index + 1) + '. ' + operation.name + (operation.params.length ? '(' + operation.params.join(', ') + ')' : '') + ' ' + operation.qubits.map(qubit => 'q[' + qubit + ']').join(', ') + (operation.clbits.length ? ' → ' + operation.clbits.map(bit => 'c[' + bit + ']').join(', ') : '')).join('\n')
           : 'The circuit contains no operations.'));

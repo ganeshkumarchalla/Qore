@@ -873,8 +873,15 @@ def compute_circuit_bloch_and_unitary(circuit: QuantumCircuit, ir: dict[str, Any
     except Exception:
         pass
 
+    text_diagram = ""
+    try:
+        text_diagram = str(circuit.draw("text"))
+    except Exception:
+        pass
+
     return {
         "qasm": qasm_str,
+        "text_diagram": text_diagram,
         "bloch_vectors": bloch_vectors,
         "statevector_amplitudes": statevector_amplitudes,
         "unitary_matrix": unitary_matrix,
@@ -938,8 +945,17 @@ def simulate(
     parsed = parse_source(source)
     ir = parsed["ir"]
     mapping = _measurement_mapping(ir)
+    auto_measured = False
     if not mapping:
-        raise QuantumError("MEASUREMENT_REQUIRED", "Shot-based simulation requires at least one explicit terminal measurement.")
+        auto_measured = True
+        import json
+        auto_ir = json.loads(json.dumps(ir))
+        n_q = auto_ir["num_qubits"]
+        auto_ir["num_clbits"] = n_q
+        for q_idx in range(n_q):
+            auto_ir["operations"].append({"name": "measure", "qubits": [q_idx], "clbits": [q_idx], "params": []})
+        ir = auto_ir
+        mapping = [(q_idx, q_idx) for q_idx in range(n_q)]
     circuit = ir_to_circuit(ir)
     try:
         noise = None
@@ -987,8 +1003,13 @@ def simulate(
     except Exception as exc:
         raise QuantumError("SIMULATION_FAILED", f"Qiskit Aer could not simulate the circuit: {exc}") from exc
     mapping_text = ", ".join(f"q[{q}] → c[{c}]" for q, c in mapping)
+    sim_warnings = list(parsed.get("warnings", []))
+    if auto_measured:
+        sim_warnings = [w for w in sim_warnings if "no measurements" not in w.lower()]
+        sim_warnings.append("No explicit terminal measurements were defined in the circuit; automatically measured all qubits (measure_all) for sampling.")
     return {
         **parsed,
+        "warnings": sim_warnings,
         "counts": counts,
         "probabilities": empirical,
         "theoretical_probabilities": theoretical,

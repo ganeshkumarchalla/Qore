@@ -24,7 +24,13 @@ function Gate({
   animated?: boolean;
 }) {
   const controlCount =
-    op.name === 'ccx' ? 2 : ['cx', 'cy', 'cz', 'ch', 'cp', 'crx', 'cry', 'crz', 'cu', 'csx', 'cswap'].includes(op.name) ? 1 : 0;
+    op.name === 'mcx'
+      ? op.qubits.length - 1
+      : op.name === 'ccx'
+      ? 2
+      : ['cx', 'cy', 'cz', 'ch', 'cp', 'crx', 'cry', 'crz', 'cu', 'csx', 'cswap'].includes(op.name)
+      ? 1
+      : 0;
   const ys = op.qubits.map(qy);
   const isSwap = op.name === 'swap' || op.name === 'cswap';
   const delay = (index * 0.08).toFixed(2);
@@ -137,7 +143,7 @@ function Gate({
               <g key={y} className="swap-cross-group">
                 <path d={`m${x - 7} ${y - 7} 14 14m-14 0 14-14`} stroke="#57D9FF" strokeWidth="2.2" strokeLinecap="round" />
               </g>
-            ) : op.name === 'cx' || op.name === 'ccx' ? (
+            ) : op.name === 'cx' || op.name === 'ccx' || op.name === 'mcx' ? (
               <g key={y} className="target-cx-group">
                 <circle cx={x} cy={y} r="15" fill="#0c1d2c" stroke="#57D9FF" strokeWidth="1.8" className="cx-circle glow-cyan" />
                 <path d={`M${x - 9} ${y}h18M${x} ${y - 9}v18`} stroke="#57D9FF" strokeWidth="2" strokeLinecap="round" />
