@@ -246,3 +246,21 @@ def test_unitary_only_source_is_auto_measured_for_shot_simulation():
         (result["probabilities"].get("0", 0) ** 0.5 * 0.5 ** 0.5 + result["probabilities"].get("1", 0) ** 0.5 * 0.5 ** 0.5) ** 2
     )
 
+
+def test_readout_error_uses_the_requested_boundary_probability(monkeypatch):
+    import qiskit_aer.noise as aer_noise
+
+    original = aer_noise.ReadoutError
+    recorded = []
+
+    def capture(probabilities):
+        recorded.append(probabilities)
+        return original(probabilities)
+
+    monkeypatch.setattr(aer_noise, "ReadoutError", capture)
+    source = "from qiskit import QuantumCircuit\nqc = QuantumCircuit(1, 1)\nqc.measure(0, 0)"
+    result = simulate(source, shots=32, seed=7, readout_error=0.5)
+    assert recorded == [[[0.5, 0.5], [0.5, 0.5]]]
+    assert result["readout_error"] == 0.5
+    assert sum(result["counts"].values()) == 32
+

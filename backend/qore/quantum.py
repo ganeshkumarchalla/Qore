@@ -1043,7 +1043,7 @@ def simulate(
                     noise.add_all_qubit_quantum_error(depolarizing_error(min(0.5, noise_rate * 3), 3), three)
             if readout_error > 0.0:
                 from qiskit_aer.noise import ReadoutError
-                p = min(0.49, readout_error)
+                p = readout_error
                 ro = ReadoutError([[1.0 - p, p], [p, 1.0 - p]])
                 noise.add_all_qubit_readout_error(ro)
 
