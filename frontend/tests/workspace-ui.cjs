@@ -22,6 +22,13 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     });
     await page.goto(base);
+    await page.getByRole('button', { name: 'Get Started', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Open circuits/my_first_qubits.py', exact: true }).count(), 0,
+      'Returning users with an empty workspace must not receive a recreated example');
+    await page.reload();
+    await page.getByRole('button', { name: 'Get Started', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Open circuits/my_first_qubits.py', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Create blank file', exact: true }).click();
     await page.locator('.monaco-editor').first().waitFor();
 
     await page.getByTitle('New Folder', { exact: true }).click();
@@ -61,6 +68,15 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await page.locator('.monaco-editor .view-lines').getByText(/QuantumCircuit/).waitFor();
     assert.equal(await page.getByTitle('Folder: quantum-algorithms/').count(), 1);
     assert.equal((await page.locator('.vscode-sidebar').count()), 1);
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('button', { name: 'Clear Editor Buffer', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('.monaco-editor .view-lines')?.textContent.includes('QuantumCircuit'));
+    await page.waitForTimeout(800);
+    await page.reload();
+    await page.getByTitle('Folder: quantum-algorithms/').click();
+    await page.getByRole('button', { name: 'Open quantum-algorithms/vqe.py', exact: true }).click();
+    assert.equal((await page.locator('.monaco-editor .view-lines').first().textContent()).includes('QuantumCircuit'), false,
+      'Clearing the buffer must persist the empty file across refresh');
 
     const parent = page.getByTitle('Folder: quantum-algorithms/', { exact: true });
     await parent.click({ button: 'right' });
@@ -93,6 +109,6 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await page.getByRole('button', { name: 'Delete Folder', exact: true }).click();
     await page.getByTitle('Folder: quantum-work_copy/', { exact: true }).waitFor({ state: 'detached' });
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ passed: true, checks: ['Folder create, rename, duplicate and context actions', 'Reserved folder names rejected', 'Nested folder create and file edit', 'Parent rename and duplicate preserve descendants', 'Folder deletion removes descendants', 'Path and source persist after refresh', 'Single Explorer instance'] }));
+    console.log(JSON.stringify({ passed: true, checks: ['Empty returning workspace stays empty until an explicit action', 'Folder create, rename, duplicate and context actions', 'Reserved folder names rejected', 'Nested folder create and file edit', 'Clear Editor Buffer persists the empty source', 'Parent rename and duplicate preserve descendants', 'Folder deletion removes descendants', 'Path and source persist after refresh', 'Single Explorer instance'] }));
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

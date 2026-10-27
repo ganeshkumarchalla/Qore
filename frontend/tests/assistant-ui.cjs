@@ -45,6 +45,7 @@ async function main() {
       bloch_vectors: [0, 1, 2].map(qubit => ({ qubit, x: 0, y: 0, z: 0, theta: 0, phi: 0, purity: 0.5, is_pure: false, direction_defined: false, azimuth_defined: false })),
     };
     let source = '', assistantRequest, runCount = 0, parseCount = 0;
+    let holdNextSimulation = false, releaseSimulation;
     const workspace = workspaceFixture();
     await page.route('**/api/**', async route => {
       if (await workspace.handle(route)) return;
@@ -75,6 +76,7 @@ async function main() {
           }) });
           return;
         }
+        if (holdNextSimulation) await new Promise(resolve => { releaseSimulation = resolve; });
         source = request.postDataJSON().source;
         body = { ...parsed, id: 'ui-fixture-run-' + runCount, kind: 'simulation', source,
           created_at: '2026-10-25T08:00:00Z', counts: { '000': 512, '111': 512 },
@@ -102,6 +104,26 @@ async function main() {
     assert.equal(await page.locator('.vscode-sidebar').count(), 1, 'Identity transition must not duplicate Explorer');
     assert.equal(parseCount, 0, 'Opening a file must not submit a background parse job');
     checks.push('Get Started opens a working local Monaco editor without automatic parsing; exactly one Explorer');
+
+    const paletteTrigger = page.getByTitle('Command Palette (Ctrl+K)', { exact: true });
+    await paletteTrigger.click();
+    const palette = page.getByRole('dialog', { name: 'Command Palette' });
+    await palette.waitFor();
+    const searchCommands = page.getByRole('combobox', { name: 'Search commands' });
+    await searchCommands.fill('View: Open Simulation Diagnostics');
+    await searchCommands.press('Tab');
+    assert.equal(await searchCommands.evaluate(element => document.activeElement === element), true,
+      'Tab must remain inside the command palette');
+    await searchCommands.press('Escape');
+    await palette.waitFor({ state: 'hidden' });
+    assert.equal(await paletteTrigger.evaluate(element => document.activeElement === element), true,
+      'Escape must restore focus to the palette opener');
+    await paletteTrigger.click();
+    await searchCommands.fill('View: Open Simulation Diagnostics');
+    await searchCommands.press('Enter');
+    await page.getByRole('heading', { name: 'No Simulation Results' }).waitFor();
+    await page.getByRole('button', { name: 'Circuit Editor', exact: true }).click();
+    checks.push('Command palette contains keyboard focus, restores focus on Escape, and runs navigation commands');
 
     await page.locator('#qore-assistant-toggle').click();
     const sidebar = page.locator('#qore-assistant-sidebar'); await sidebar.waitFor();
@@ -211,6 +233,21 @@ async function main() {
     assert(await page.locator('.vscode-terminal-dock').isVisible(), 'Execution errors must open the terminal');
     assert.equal(await page.locator('.workbench-banner.error').count(), 0, 'Execution errors must not render outside the terminal');
     checks.push('Execution errors appear only in the automatically opened terminal');
+    await page.getByRole('button', { name: 'Circuit Editor', exact: true }).click();
+    holdNextSimulation = true;
+    const delayedRequest = page.waitForRequest(request => request.url().includes('/api/simulate') && request.method() === 'POST');
+    await command('run');
+    await delayedRequest;
+    const editor = page.locator('.monaco-editor textarea.inputarea').first();
+    await editor.focus();
+    await page.keyboard.type('\n# changed during the pending simulation');
+    await page.locator('.monaco-editor .view-lines').getByText('changed during the pending simulation', { exact: false }).waitFor();
+    assert(releaseSimulation, 'The mocked simulation response must be held while the source changes');
+    releaseSimulation();
+    await page.getByRole('button', { name: 'Run Kernel', exact: true }).waitFor();
+    await command('source-hash');
+    await page.locator('.terminal-log-scroll').getByText('Parse or run the active source to calculate its hash.', { exact: true }).waitFor();
+    checks.push('A simulation response for edited source is discarded instead of publishing stale results');
     assert.deepEqual(runtimeErrors, []);
     assert.equal(consoleErrors.some(message => /same key|unique.*key/i.test(message)), false);
     checks.push('No browser runtime errors or duplicate-key errors');

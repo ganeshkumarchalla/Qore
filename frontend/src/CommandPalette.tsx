@@ -22,14 +22,22 @@ export function CommandPalette({
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    if (!isOpen) return;
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setQuery('');
+    setSelectedIndex(0);
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 50);
+    return () => window.clearTimeout(timer);
   }, [isOpen]);
+
+  const closeAndRestoreFocus = () => {
+    const opener = openerRef.current;
+    onClose();
+    opener?.focus();
+  };
 
   const filtered = commands.filter((cmd) => {
     const q = query.toLowerCase();
@@ -55,7 +63,10 @@ export function CommandPalette({
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      onClose();
+      closeAndRestoreFocus();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      inputRef.current?.focus();
     }
   };
 
@@ -65,15 +76,21 @@ export function CommandPalette({
     <div
       className="command-palette-backdrop"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) closeAndRestoreFocus();
       }}
     >
-      <div className="command-palette-card" role="dialog" aria-modal="true">
+      <div className="command-palette-card" role="dialog" aria-modal="true" aria-label="Command Palette">
         <div className="palette-input-wrap">
           <Icon name="search" size={16} />
           <input
             ref={inputRef}
             type="text"
+            role="combobox"
+            aria-label="Search commands"
+            aria-autocomplete="list"
+            aria-expanded="true"
+            aria-controls="qore-command-list"
+            aria-activedescendant={filtered.length ? `qore-command-${filtered[selectedIndex]?.id ?? filtered[0].id}` : undefined}
             className="palette-input"
             placeholder="Type a command or search action (e.g. simulate, bloch, gate, settings)..."
             value={query}
@@ -86,13 +103,14 @@ export function CommandPalette({
           <kbd className="palette-esc">ESC</kbd>
         </div>
 
-        <div className="palette-list" role="listbox">
+        <div className="palette-list" role="listbox" id="qore-command-list">
           {filtered.length === 0 ? (
             <div className="palette-empty">No matching commands</div>
           ) : (
             filtered.map((cmd, idx) => (
               <div
                 key={cmd.id}
+                id={`qore-command-${cmd.id}`}
                 role="option"
                 aria-selected={idx === selectedIndex}
                 className={`palette-item ${idx === selectedIndex ? 'selected' : ''}`}

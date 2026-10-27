@@ -129,8 +129,10 @@ export default function App() {
   const [saving, setSaving] = useState(false);
 
   const dirty = source !== baseline || name !== baselineName;
+  const resultEpoch = useRef(0);
 
   const clearResults = useCallback(() => {
+    resultEpoch.current += 1;
     setParsed(null);
     setSimulation(null);
     setOptimization(null);
@@ -221,14 +223,6 @@ export default function App() {
         void loadSource(active.source, active.name, active.projectId || null, active.id);
       } else if (files.length > 0) {
         void loadSource(files[0].source, files[0].name, files[0].projectId || null, files[0].id);
-      } else {
-        const completed = (() => {
-          try { return localStorage.getItem('qore_started') === 'true'; } catch { return false; }
-        })();
-        if (completed) {
-          const file = addStarterFile();
-          void loadSource(file.source, file.name, null, file.id);
-        }
       }
     } catch (err) {
       if (requestId === initializationRequest.current) setError((err as Error).message);
@@ -348,6 +342,7 @@ export default function App() {
 
   async function loadExperimentData(id: string) {
     const item = await api<Experiment>(`/experiments/${id}`);
+    resultEpoch.current += 1;
     setSource(item.source);
     sourceRef.current = item.source;
     setName(item.name);
@@ -411,10 +406,8 @@ export default function App() {
       setBaseline('');
       setBaselineName(`${item.name} copy`);
       setSelectedExperiment(null);
-      setSimulation(null);
-      setOptimization(null);
+      clearResults();
       setTab('Studio');
-      setParsed(null);
       setNotice(`Copied snapshot "${item.name}" as editable draft in Studio.`);
     } catch (err) {
       setError((err as Error).message);
@@ -461,16 +454,20 @@ export default function App() {
     }
   }
 
-  function numericConfig() {
-    const shotValue = Number(shots);
+  function numericSeed() {
     const seedValue = Number(seed);
-    if (!Number.isInteger(shotValue) || shotValue < 1 || shotValue > 100000) {
-      throw new Error('Shots must be a whole number between 1 and 100,000.');
-    }
     if (!Number.isInteger(seedValue) || seedValue < 0 || seedValue > 2147483647) {
       throw new Error('Seed must be an integer between 0 and 2,147,483,647.');
     }
-    return { shots: shotValue, seed: seedValue };
+    return seedValue;
+  }
+
+  function numericConfig() {
+    const shotValue = Number(shots);
+    if (!Number.isInteger(shotValue) || shotValue < 1 || shotValue > 100000) {
+      throw new Error('Shots must be a whole number between 1 and 100,000.');
+    }
+    return { shots: shotValue, seed: numericSeed() };
   }
 
   async function execute(action: 'parse' | 'simulate' | 'optimize') {
@@ -479,19 +476,22 @@ export default function App() {
     executionInFlight.current = true;
     setError('');
     const submittedSource = source;
+    let requestEpoch: number | null = null;
     try {
-      const config = numericConfig();
       const linkedProject = historical ? undefined : projectId ?? undefined;
       leaveHistorical();
+      requestEpoch = resultEpoch.current;
       setBusy(action === 'parse' ? 'Parsing' : action === 'simulate' ? 'Simulating' : 'Optimizing');
 
       if (action === 'parse') {
         const result = await api<Parsed>('/parse', { source: submittedSource });
+        if (resultEpoch.current !== requestEpoch || sourceRef.current !== submittedSource) return;
         setParsed(result);
         setTab('Studio');
         setNotice('Parsed circuit successfully into QORE-IR.');
       }
       if (action === 'simulate') {
+        const config = numericConfig();
         const simPayload: Record<string, unknown> = {
           source: submittedSource,
           ...config,
@@ -505,6 +505,7 @@ export default function App() {
           simPayload.readout_error = settings.readoutErrorRate;
         }
         const result = await api<Simulation>('/simulate', simPayload);
+        if (resultEpoch.current !== requestEpoch || sourceRef.current !== submittedSource) return;
         setSimulation(result);
         setParsed(result);
         setTab('Lab');
@@ -518,16 +519,19 @@ export default function App() {
         const result = await api<Optimization>('/optimize', {
           source: submittedSource,
           level: Number(level),
-          seed: config.seed,
+          seed: numericSeed(),
           project_id: linkedProject,
         });
+        if (resultEpoch.current !== requestEpoch || sourceRef.current !== submittedSource) return;
         setOptimization(result);
         setParsed({ ...result.original, source_hash: result.source_hash, warnings: result.warnings });
         setTab('Forge');
         setNotice('Optimization candidate ready for review.');
       }
     } catch (err) {
-      setError((err as Error).message);
+      if (requestEpoch === null || (resultEpoch.current === requestEpoch && sourceRef.current === submittedSource)) {
+        setError((err as Error).message);
+      }
     } finally {
       executionInFlight.current = false;
       setBusy('');
@@ -1039,9 +1043,7 @@ export default function App() {
                     onClick={() => {
                       setActiveDropdown(null);
                       safeSwitch(() => {
-                        setSource('');
-                        setBaseline('');
-                        clearResults();
+                        editSource('');
                       });
                     }}
                   >
