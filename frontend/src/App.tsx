@@ -328,21 +328,33 @@ export default function App() {
   }
 
   async function openProject(id: string) {
+    const requestEpoch = ++resultEpoch.current;
     setBusy('Opening project');
     setError('');
     try {
       const project = await api<Project>(`/projects/${id}`);
+      if (resultEpoch.current !== requestEpoch) return;
       await loadSource(project.source, project.name, project.id);
-      setBusy('');
     } catch (err) {
-      setError((err as Error).message);
+      if (resultEpoch.current === requestEpoch) setError((err as Error).message);
+    } finally {
       setBusy('');
     }
   }
 
   async function loadExperimentData(id: string) {
-    const item = await api<Experiment>(`/experiments/${id}`);
+    const requestEpoch = ++resultEpoch.current;
+    let item: Experiment;
+    try {
+      item = await api<Experiment>(`/experiments/${id}`);
+    } catch (err) {
+      if (resultEpoch.current !== requestEpoch) return null;
+      throw err;
+    }
+    if (resultEpoch.current !== requestEpoch) return null;
     resultEpoch.current += 1;
+    setActiveFileId('');
+    setActiveWorkspaceFile(null);
     setSource(item.source);
     sourceRef.current = item.source;
     setName(item.name);
@@ -370,6 +382,7 @@ export default function App() {
     setError('');
     try {
       const item = await loadExperimentData(id);
+      if (!item) return;
       setTab('Studio');
       setNotice(`Loaded snapshot "${item.name}" into Studio. Circuit, Bloch spheres, and Unitary are preserved.`);
     } catch (err) {
@@ -384,6 +397,7 @@ export default function App() {
     setError('');
     try {
       const item = await loadExperimentData(id);
+      if (!item) return;
       setTab('Research');
       setNotice(`Viewing provenance for "${item.name}". Click "Open in Studio" to inspect circuit.`);
     } catch (err) {
@@ -394,10 +408,14 @@ export default function App() {
   }
 
   async function restoreExperimentAsDraft(id: string) {
+    const requestEpoch = ++resultEpoch.current;
     setBusy('Creating editable draft');
     setError('');
     try {
       const item = await api<Experiment>(`/experiments/${id}`);
+      if (resultEpoch.current !== requestEpoch) return;
+      setActiveFileId('');
+      setActiveWorkspaceFile(null);
       setHistorical(null);
       setProjectId(null);
       setName(`${item.name} copy`);
@@ -410,7 +428,7 @@ export default function App() {
       setTab('Studio');
       setNotice(`Copied snapshot "${item.name}" as editable draft in Studio.`);
     } catch (err) {
-      setError((err as Error).message);
+      if (resultEpoch.current === requestEpoch) setError((err as Error).message);
     } finally {
       setBusy('');
     }
