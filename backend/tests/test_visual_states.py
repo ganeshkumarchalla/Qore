@@ -45,3 +45,22 @@ def test_hadamard_unitary_is_verified_and_amplitudes_sum_to_one():
     assert len(matrix) == 2
     assert matrix[0][0]["real"] == pytest.approx(1 / math.sqrt(2), abs=1e-7)
     assert matrix[0][1]["real"] == pytest.approx(1 / math.sqrt(2), abs=1e-7)
+
+
+def test_two_qubit_unitary_respects_qiskit_basis_order_and_complex_phase():
+    result = parse_source(
+        "from qiskit import QuantumCircuit\n"
+        "qc=QuantumCircuit(2)\n"
+        "qc.cx(0,1)\n"
+        "qc.s(1)"
+    )
+    matrix = result["unitary_matrix"]
+    # q[0] is the least significant basis bit: |01> -> i|11>,
+    # |11> -> |01>, and |10> -> i|10>.
+    expected = {(0, 0): 1, (1, 3): 1, (2, 2): 1j, (3, 1): 1j}
+    for row in range(4):
+        for column in range(4):
+            actual = complex(matrix[row][column]["real"], matrix[row][column]["imag"])
+            assert actual == pytest.approx(expected.get((row, column), 0), abs=1e-8)
+    assert result["unitarity"]["is_unitary"] is True
+    assert result["unitarity"]["max_deviation"] < 1e-8
