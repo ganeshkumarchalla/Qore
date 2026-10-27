@@ -6370,6 +6370,7 @@ input:focus, select:focus, textarea:focus {
 }
 .bloch-svg { width: min(92%, 680px) !important; height: auto !important; cursor: grab; }
 .bloch-svg:active { cursor: grabbing; }
+.bloch-svg-wrap { touch-action: none; }
 .bloch-metrics {
   width: 100% !important;
   margin: 0 !important;
@@ -6403,8 +6404,8 @@ input:focus, select:focus, textarea:focus {
   border-color: transparent !important;
   box-shadow: none !important;
 }
-.bloch-viewer-card .bloch-grid-card:hover,
-.bloch-viewer-card .bloch-grid-card.active { background: rgba(130,188,232,.08) !important; border-color: rgba(130,188,232,.32) !important; }
+.bloch-viewer-card .bloch-grid-card:hover { background: transparent !important; border-color: transparent !important; }
+.bloch-viewer-card .bloch-grid-card:hover .bloch-grid-svg { filter: drop-shadow(0 0 12px rgba(130,188,232,.36)); }
 .bloch-viewer-card .bloch-grid-svg-wrap { flex: 1; width: 100%; min-height: 190px; }
 .bloch-viewer-card .bloch-grid-svg { width: min(100%, 220px) !important; height: auto !important; }
 @media (prefers-reduced-motion: no-preference) {

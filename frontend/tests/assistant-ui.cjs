@@ -147,6 +147,29 @@ async function main() {
     await page.getByText('Accessible state-world data', { exact: true }).click();
     await page.getByRole('cell', { name: 'c = 000', exact: true }).waitFor();
     checks.push('State World labels classical outcomes and withholds phase when no complete amplitude map is available');
+    await page.getByRole('button', { name: 'Bloch Spheres (3)', exact: true }).click();
+    await page.getByText('Undefined (|r| = 0)', { exact: true }).first().waitFor();
+    const focusedSphere = page.locator('.bloch-svg-wrap');
+    const xAxisBefore = await focusedSphere.locator('svg line').nth(1).getAttribute('x2');
+    const sphereBounds = await focusedSphere.boundingBox();
+    await page.mouse.move(sphereBounds.x + sphereBounds.width / 2, sphereBounds.y + sphereBounds.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sphereBounds.x + sphereBounds.width / 2 + 65, sphereBounds.y + sphereBounds.height / 2 + 12);
+    await page.mouse.up();
+    assert.notEqual(await focusedSphere.locator('svg line').nth(1).getAttribute('x2'), xAxisBefore,
+      'Pointer drag must rotate the Bloch camera');
+    await page.getByRole('button', { name: 'All Qubits (3)', exact: true }).click();
+    assert.equal(await page.locator('.bloch-grid-gallery .bloch-grid-svg').count(), 3);
+    assert.equal(await page.locator('.bloch-grid-gallery .bloch-grid-svg').first().locator('line').count(), 4,
+      'Each qubit must show three projected axes and its state vector');
+    assert.equal(await page.locator('.bloch-grid-gallery').getByText('θ: undefined').count(), 3,
+      'A zero Bloch vector must not claim a physical direction');
+    await page.locator('.bloch-viewer-card').screenshot({ path: path.join(EVIDENCE, 'bloch-all-qubits-1366.png') });
+    checks.push('Every qubit shares the 3D Bloch stage with XYZ axes; maximally mixed states have undefined direction');
+    await page.getByRole('button', { name: 'Unitary Matrix (U)', exact: true }).click();
+    assert.match(await page.locator('.unitary-matrix-table tbody tr').nth(7).locator('td').first().getAttribute('title'),
+      /^⟨111\|U\|000⟩:/, 'Matrix tooltip must use the same row/column convention as the selected cell');
+    checks.push('Unitary cell tooltips use ⟨row|U|column⟩ basis ordering');
     await page.locator('.topbar-util-btn').filter({ has: page.locator('svg') }).last().click();
     const consoleInput = page.getByRole('textbox', { name: 'QORE console command' });
     if (!await consoleInput.isVisible()) await page.locator('.topbar-util-btn').last().click();

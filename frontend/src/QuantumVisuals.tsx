@@ -16,7 +16,7 @@ function rotate3D(
   const pRad = (pDeg * Math.PI) / 180;
   const yRad = (yDeg * Math.PI) / 180;
 
-  // Yaw (rotation around Y in camera space)
+  // Rotate the Bloch X/Y plane around its Z axis before tilting the view.
   const x1 = x * Math.cos(yRad) + y * Math.sin(yRad);
   const y1 = -x * Math.sin(yRad) + y * Math.cos(yRad);
   const z1 = z;
@@ -48,12 +48,17 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
     startYaw: -35,
   });
 
-  // Smooth continuous 3D orbit when enabled and not dragging
+  // Time-based orbit keeps the same angular speed on 60/120/144 Hz displays.
   useEffect(() => {
     if (!autoOrbit || isDragging) return;
     let animId: number;
-    const step = () => {
-      setYaw((prev) => (prev + 0.35) % 360);
+    let previousTime: number | null = null;
+    const step = (time: number) => {
+      if (previousTime !== null) {
+        const elapsed = Math.min(time - previousTime, 50);
+        setYaw((prev) => (prev + elapsed * 0.021) % 360);
+      }
+      previousTime = time;
       animId = requestAnimationFrame(step);
     };
     animId = requestAnimationFrame(step);
@@ -78,7 +83,7 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
     );
   }
 
-  const active = vectors[selectedQubit] ?? vectors[0];
+  const active = vectors.find((vector) => vector.qubit === selectedQubit) ?? vectors[0];
   const cx = 95;
   const cy = 95;
   const R = 70;
@@ -110,8 +115,9 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
       return `${i === 0 ? 'M' : 'L'} ${pt.px.toFixed(2)} ${pt.py.toFixed(2)}`;
     }).join(' ') + ' Z';
 
-  // Mouse drag handlers for full 3D interactive orbit
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Pointer capture lets mouse, pen, and touch rotate the focused sphere.
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
     dragRef.current = {
       startX: e.clientX,
@@ -121,7 +127,7 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
     };
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return;
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
@@ -129,7 +135,10 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
     setPitch(Math.max(-80, Math.min(80, dragRef.current.startPitch - dy * 0.7)));
   };
 
-  const handleMouseUp = () => setIsDragging(false);
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    setIsDragging(false);
+  };
 
   return (
     <div className="bloch-viewer-card interactive-3d-card">
@@ -203,20 +212,30 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
       {viewMode === 'grid' ? (
         <div className="bloch-grid-gallery">
           {vectors.map((v) => {
-            const vProj = rotate3D(v.x, v.y, v.z, pitch, yaw, 65, 65, 46);
-            const nP = rotate3D(0, 0, 1, pitch, yaw, 65, 65, 46);
-            const sP = rotate3D(0, 0, -1, pitch, yaw, 65, 65, 46);
+            const vProj = rotate3D(v.x, v.y, v.z, pitch, yaw, 65, 65, 53);
+            const nP = rotate3D(0, 0, 1, pitch, yaw, 65, 65, 53);
+            const sP = rotate3D(0, 0, -1, pitch, yaw, 65, 65, 53);
+            const xPos = rotate3D(1, 0, 0, pitch, yaw, 65, 65, 53);
+            const xNeg = rotate3D(-1, 0, 0, pitch, yaw, 65, 65, 53);
+            const yPos = rotate3D(0, 1, 0, pitch, yaw, 65, 65, 53);
+            const yNeg = rotate3D(0, -1, 0, pitch, yaw, 65, 65, 53);
             const eqPts =
               Array.from({ length: 32 }, (_, i) => {
                 const a = (i / 32) * 2 * Math.PI;
-                const pt = rotate3D(Math.cos(a), Math.sin(a), 0, pitch, yaw, 65, 65, 46);
+                const pt = rotate3D(Math.cos(a), Math.sin(a), 0, pitch, yaw, 65, 65, 53);
+                return `${i === 0 ? 'M' : 'L'} ${pt.px.toFixed(1)} ${pt.py.toFixed(1)}`;
+              }).join(' ') + ' Z';
+            const meridianPts =
+              Array.from({ length: 32 }, (_, i) => {
+                const a = (i / 32) * 2 * Math.PI;
+                const pt = rotate3D(Math.cos(a), 0, Math.sin(a), pitch, yaw, 65, 65, 53);
                 return `${i === 0 ? 'M' : 'L'} ${pt.px.toFixed(1)} ${pt.py.toFixed(1)}`;
               }).join(' ') + ' Z';
             return (
               <button
                 type="button"
                 key={v.qubit}
-                className={`bloch-grid-card ${selectedQubit === v.qubit ? 'active' : ''}`}
+                className="bloch-grid-card"
                 onClick={() => {
                   setSelectedQubit(v.qubit);
                   setViewMode('focused');
@@ -231,18 +250,23 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                 </div>
                 <div className="bloch-grid-svg-wrap">
                   <svg viewBox="0 0 130 130" width="130" height="130" className="bloch-grid-svg">
-                    <circle cx="65" cy="65" r="46" fill="rgba(15, 23, 42, 0.65)" stroke="rgba(56, 189, 248, 0.25)" strokeWidth="1" />
+                    <circle cx="65" cy="65" r="53" fill="rgba(15, 23, 42, 0.65)" stroke="rgba(56, 189, 248, 0.25)" strokeWidth="1" />
                     <path d={eqPts} fill="none" stroke="rgba(148, 163, 184, 0.3)" strokeDasharray="2 3" />
+                    <path d={meridianPts} fill="none" stroke="rgba(129, 140, 248, 0.3)" strokeDasharray="2 3" />
                     <line x1={nP.px} y1={nP.py} x2={sP.px} y2={sP.py} stroke="rgba(100, 116, 139, 0.3)" strokeDasharray="2 2" />
+                    <line x1={xNeg.px} y1={xNeg.py} x2={xPos.px} y2={xPos.py} stroke="rgba(100, 116, 139, 0.3)" strokeDasharray="2 2" />
+                    <line x1={yNeg.px} y1={yNeg.py} x2={yPos.px} y2={yPos.py} stroke="rgba(100, 116, 139, 0.3)" strokeDasharray="2 2" />
                     <line x1="65" y1="65" x2={vProj.px} y2={vProj.py} stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" />
                     <circle cx={vProj.px} cy={vProj.py} r="4" fill="#38bdf8" stroke="#ffffff" strokeWidth="1.2" />
                     <text x={nP.px} y={nP.py - 4} fill="#38bdf8" fontSize="8.5" textAnchor="middle" fontWeight="bold">|0⟩</text>
                     <text x={sP.px} y={sP.py + 10} fill="#94a3b8" fontSize="8.5" textAnchor="middle">|1⟩</text>
+                    <text x={xPos.px + 3} y={xPos.py + 3} fill="#a5b4fc" fontSize="7.5">X</text>
+                    <text x={yPos.px + 3} y={yPos.py + 3} fill="#a5b4fc" fontSize="7.5">Y</text>
                   </svg>
                 </div>
                 <div className="bloch-grid-card-foot mono">
                   <span>Purity: {v.purity.toFixed(3)}</span>
-                  <span>θ: {((v.theta * 180) / Math.PI).toFixed(0)}°</span>
+                  <span>θ: {Math.hypot(v.x, v.y, v.z) < 1e-8 ? 'undefined' : `${((v.theta * 180) / Math.PI).toFixed(0)}°`}</span>
                 </div>
               </button>
             );
@@ -252,10 +276,10 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
         <div className="bloch-body">
           <div
             className={`bloch-svg-wrap ${isDragging ? 'grabbing' : 'grabbable'}`}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             title="Drag to rotate Bloch sphere in 3D space"
           >
             <svg viewBox="0 0 190 190" className="bloch-svg" width="190" height="190">
@@ -392,11 +416,11 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
               </div>
               <div className="bloch-kv-cell">
                 <span className="kv-label">Polar Angle (θ)</span>
-                <span className="kv-val mono">{((active.theta * 180) / Math.PI).toFixed(1)}° ({(active.theta / Math.PI).toFixed(2)}π)</span>
+                <span className="kv-val mono">{Math.hypot(active.x, active.y, active.z) < 1e-8 ? 'Undefined (|r| = 0)' : `${((active.theta * 180) / Math.PI).toFixed(1)}° (${(active.theta / Math.PI).toFixed(2)}π)`}</span>
               </div>
               <div className="bloch-kv-cell">
                 <span className="kv-label">Azimuthal (φ)</span>
-                <span className="kv-val mono">{((active.phi * 180) / Math.PI).toFixed(1)}° ({(active.phi / Math.PI).toFixed(2)}π)</span>
+                <span className="kv-val mono">{Math.hypot(active.x, active.y, active.z) < 1e-8 ? 'Undefined (|r| = 0)' : `${((active.phi * 180) / Math.PI).toFixed(1)}° (${(active.phi / Math.PI).toFixed(2)}π)`}</span>
               </div>
             </div>
 
@@ -549,7 +573,7 @@ export function UnitaryMatrixViewer({ matrix, unitarity }: { matrix?: UnitaryCel
                       onMouseEnter={() => setHoveredCell({ row: rowIdx, col: colIdx })}
                       onMouseLeave={() => setHoveredCell(null)}
                       onClick={() => setSelectedCell({ row: rowIdx, col: colIdx, cell })}
-                      title={`|${formatBasis(rowIdx)}⟩ → |${formatBasis(colIdx)}⟩: ${formatComplex(cell)} (phase: ${(
+                      title={`⟨${formatBasis(rowIdx)}|U|${formatBasis(colIdx)}⟩: ${formatComplex(cell)} (phase: ${(
                         cell.phase / Math.PI
                       ).toFixed(2)}π)`}
                     >
