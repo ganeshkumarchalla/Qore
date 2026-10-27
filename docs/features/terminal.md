@@ -34,7 +34,7 @@ The `qiskit` prefix identifies QORE shortcuts. It does not launch an installed Q
 | `statevector`, `qiskit statevector` | Available ideal complex amplitudes |
 | `unitary`, `qiskit unitary` | Available circuit operator |
 | `qiskit qasm` | Backend-generated OpenQASM 2.0 |
-| `qiskit bloch`, `qiskit purity` | Per-qubit Bloch coordinates and reduced-state purity |
+| `qiskit bloch`, `qiskit purity` | Per-qubit Bloch coordinates and reduced-state purity; undefined polar or azimuthal angles are labeled rather than printed as zero |
 | `qiskit ideal` | Ideal reference probabilities attached to the current simulation |
 | `qiskit bitorder` | Recorded classical mapping and bitstring convention |
 | `qiskit noise` | Simulator method and applied noise configuration |

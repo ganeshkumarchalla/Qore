@@ -185,6 +185,7 @@ async function main() {
     await command('qiskit gates'); await page.locator('.terminal-log-scroll').getByText('"ccz"', { exact: false }).waitFor();
     await command('qiskit modules'); await page.locator('.terminal-log-scroll').getByText('AerSimulator', { exact: false }).waitFor();
     await command('qiskit bloch'); await page.locator('.terminal-log-scroll').getByText('q[0] x=0.00000000', { exact: false }).waitFor();
+    await page.locator('.terminal-log-scroll').getByText('theta=undefined phi=undefined', { exact: false }).waitFor();
     await command('qiskit ideal'); await page.locator('.terminal-log-scroll').getByText('Ideal reference probabilities:', { exact: false }).waitFor();
     await command('qiskit bitorder'); await page.locator('.terminal-log-scroll').getByText('UI fixture ordering', { exact: false }).waitFor();
     await command('tree'); await page.locator('.terminal-log-scroll .term-pre').filter({ hasText: '└─ my_first_qubits.py' }).waitFor();

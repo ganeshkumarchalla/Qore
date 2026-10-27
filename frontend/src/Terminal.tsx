@@ -226,7 +226,12 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
       case 'purity': {
         const vectors = result?.bloch_vectors;
         addLog(vectors?.length ? 'output' : 'warn', vectors?.length
-          ? vectors.map(vector => `q[${vector.qubit}] ${command === 'purity' ? `purity=${vector.purity.toFixed(8)} ${vector.is_pure ? 'pure' : 'mixed'}` : `x=${vector.x.toFixed(8)} y=${vector.y.toFixed(8)} z=${vector.z.toFixed(8)} theta=${vector.theta.toFixed(8)} phi=${vector.phi.toFixed(8)} purity=${vector.purity.toFixed(8)}`}`).join('\n')
+          ? vectors.map(vector => {
+            if (command === 'purity') return `q[${vector.qubit}] purity=${vector.purity.toFixed(8)} ${vector.is_pure ? 'pure' : 'mixed'}`;
+            const directionDefined = vector.direction_defined ?? Math.hypot(vector.x, vector.y, vector.z) >= 1e-8;
+            const azimuthDefined = vector.azimuth_defined ?? (directionDefined && Math.hypot(vector.x, vector.y) >= 1e-8);
+            return `q[${vector.qubit}] x=${vector.x.toFixed(8)} y=${vector.y.toFixed(8)} z=${vector.z.toFixed(8)} theta=${directionDefined ? vector.theta.toFixed(8) : 'undefined'} phi=${azimuthDefined ? vector.phi.toFixed(8) : 'undefined'} purity=${vector.purity.toFixed(8)}`;
+          }).join('\n')
           : 'No Bloch evidence is attached. Parse or run a circuit within the visualization limit.');
         break;
       }
