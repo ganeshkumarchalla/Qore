@@ -120,7 +120,13 @@ async function main() {
       'Escape must restore focus to the palette opener');
     await paletteTrigger.click();
     await searchCommands.fill('View: Open Simulation Diagnostics');
+    await page.waitForFunction(() => {
+      const options = document.querySelectorAll('#qore-command-list [role="option"]');
+      return options.length === 1 && options[0].getAttribute('aria-selected') === 'true';
+    });
     await searchCommands.press('Enter');
+    await palette.waitFor({ state: 'hidden' });
+    await page.locator('.lab-view-shell').waitFor();
     await page.getByRole('heading', { name: 'No Simulation Results' }).waitFor();
     await page.getByRole('button', { name: 'Circuit Editor', exact: true }).click();
     checks.push('Command palette contains keyboard focus, restores focus on Escape, and runs navigation commands');
