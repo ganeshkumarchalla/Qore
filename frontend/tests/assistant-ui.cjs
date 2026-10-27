@@ -19,7 +19,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, reducedMotion: 'reduce' });
     page.setDefaultTimeout(15000);
     const runtimeErrors = [], consoleErrors = [], requested = [];
-    page.on('pageerror', error => runtimeErrors.push(error.message));
+    page.on('pageerror', error => runtimeErrors.push(error.stack || error.message));
     page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
     page.on('request', request => requested.push(request.url()));
     const ir = { version: '1.0', num_qubits: 3, num_clbits: 3, global_phase: 0, operations: [
@@ -42,7 +42,7 @@ async function main() {
       source_hash: 'ui-contract-fixture', warnings: [], unitary_matrix: matrix,
       statevector_amplitudes: ['000', '111'].map(state => ({ state, real: Math.SQRT1_2, imag: 0,
         magnitude: Math.SQRT1_2, phase: 0, probability: 0.5 })),
-      bloch_vectors: [0, 1, 2].map(qubit => ({ qubit, x: 0, y: 0, z: 0, theta: 0, phi: 0, purity: 0.5, is_pure: false })),
+      bloch_vectors: [0, 1, 2].map(qubit => ({ qubit, x: 0, y: 0, z: 0, theta: 0, phi: 0, purity: 0.5, is_pure: false, direction_defined: false, azimuth_defined: false })),
     };
     let source = '', assistantRequest, runCount = 0, parseCount = 0;
     const workspace = workspaceFixture();

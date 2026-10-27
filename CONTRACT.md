@@ -17,6 +17,7 @@ Public functions returning JSON-compatible dictionaries:
 IR: `{version:"1.0", num_qubits:int, num_clbits:int, global_phase:number, operations:[{name:string, qubits:number[], clbits:number[], params:number[]}]}`.
 Metrics: `{qubits, clbits, gate_count, depth, two_qubit_gate_count, measurement_count, barrier_count, gate_types:{gate:number}, definition:string}`.
 Validation: `{status:"validated"|"failed"|"unavailable"|"inconclusive", method:string, details:string, ...actual quantitative evidence}`.
+Bloch vectors include `direction_defined:boolean` and `azimuth_defined:boolean`; `theta` is a compatibility placeholder when the direction is undefined, and `phi` is a placeholder when azimuth is undefined (including poles on the Z axis).
 Differences: keyed by metric, `{original:number,candidate:number,absolute:number,relative_percent:number|null}`; absolute is candidate minus original.
 Controlled gates use qubits in framework order (controls then targets); no independently interpreted UI source.
 Support constrained AST parsing, never exec/eval. Terminal measurements only, up to 10 qubits, 10 classical bits, 500 operations, 32 KiB source, 100000 shots. Equivalence full operator up to global phase <=6 qubits; larger cases honestly unavailable. Preserve global phase in IR/source or equivalence up to global phase. Enforce mapping comparison.

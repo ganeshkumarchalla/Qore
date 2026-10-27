@@ -84,6 +84,8 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
   }
 
   const active = vectors.find((vector) => vector.qubit === selectedQubit) ?? vectors[0];
+  const activeDirectionDefined = active.direction_defined ?? Math.hypot(active.x, active.y, active.z) >= 1e-8;
+  const activeAzimuthDefined = active.azimuth_defined ?? (activeDirectionDefined && Math.hypot(active.x, active.y) >= 1e-8);
   const cx = 95;
   const cy = 95;
   const R = 70;
@@ -266,7 +268,7 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                 </div>
                 <div className="bloch-grid-card-foot mono">
                   <span>Purity: {v.purity.toFixed(3)}</span>
-                  <span>θ: {Math.hypot(v.x, v.y, v.z) < 1e-8 ? 'undefined' : `${((v.theta * 180) / Math.PI).toFixed(0)}°`}</span>
+                  <span>θ: {(v.direction_defined ?? Math.hypot(v.x, v.y, v.z) >= 1e-8) ? `${((v.theta * 180) / Math.PI).toFixed(0)}°` : 'undefined'}</span>
                 </div>
               </button>
             );
@@ -416,11 +418,11 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
               </div>
               <div className="bloch-kv-cell">
                 <span className="kv-label">Polar Angle (θ)</span>
-                <span className="kv-val mono">{Math.hypot(active.x, active.y, active.z) < 1e-8 ? 'Undefined (|r| = 0)' : `${((active.theta * 180) / Math.PI).toFixed(1)}° (${(active.theta / Math.PI).toFixed(2)}π)`}</span>
+                <span className="kv-val mono">{activeDirectionDefined ? `${((active.theta * 180) / Math.PI).toFixed(1)}° (${(active.theta / Math.PI).toFixed(2)}π)` : 'Undefined (|r| = 0)'}</span>
               </div>
               <div className="bloch-kv-cell">
                 <span className="kv-label">Azimuthal (φ)</span>
-                <span className="kv-val mono">{Math.hypot(active.x, active.y, active.z) < 1e-8 ? 'Undefined (|r| = 0)' : `${((active.phi * 180) / Math.PI).toFixed(1)}° (${(active.phi / Math.PI).toFixed(2)}π)`}</span>
+                <span className="kv-val mono">{activeAzimuthDefined ? `${((active.phi * 180) / Math.PI).toFixed(1)}° (${(active.phi / Math.PI).toFixed(2)}π)` : activeDirectionDefined ? 'Undefined (on Z axis)' : 'Undefined (|r| = 0)'}</span>
               </div>
             </div>
 

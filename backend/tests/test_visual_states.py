@@ -21,6 +21,10 @@ def test_single_qubit_readout_is_a_density_matrix_with_physical_purity(gates, ex
     assert (vector["x"], vector["y"], vector["z"]) == pytest.approx(expected, abs=6e-5)
     assert vector["purity"] == pytest.approx(1)
     assert vector["is_pure"] is True
+    assert vector["direction_defined"] is True
+    assert vector["azimuth_defined"] is (math.hypot(expected[0], expected[1]) >= 1e-8)
+    if not vector["azimuth_defined"]:
+        assert vector["phi"] == 0
     assert len(result["unitary_matrix"]) == 2
     assert sum(amplitude["probability"] for amplitude in result["statevector_amplitudes"]) == pytest.approx(1, abs=.0002)
 
@@ -33,6 +37,10 @@ def test_entangled_reduced_state_has_purity_one_half_and_zero_bloch_radius():
         assert vector["purity"] == pytest.approx(.5)
         assert vector["is_pure"] is False
         assert vector["r"] == pytest.approx(0)
+        assert vector["direction_defined"] is False
+        assert vector["azimuth_defined"] is False
+        assert vector["theta"] == 0
+        assert vector["phi"] == 0
 
 
 def test_hadamard_unitary_is_verified_and_amplitudes_sum_to_one():

@@ -8,6 +8,8 @@ export type BlochVector = {
   y: number;
   z: number;
   r?: number;
+  direction_defined?: boolean;
+  azimuth_defined?: boolean;
   theta: number;
   phi: number;
   purity: number;

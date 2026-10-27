@@ -854,8 +854,11 @@ def _bloch_from_reduced(rho: DensityMatrix, qubit: int) -> dict[str, Any]:
     y = float(np.real(np.trace(data @ PAULI_Y)))
     z = float(np.real(np.trace(data @ PAULI_Z)))
     r = float(np.sqrt(max(0.0, x * x + y * y + z * z)))
-    theta = float(np.arccos(np.clip(z / r, -1.0, 1.0))) if r > 1e-12 else 0.0
-    phi = float(np.arctan2(y, x))
+    # Below displayed coordinate precision, a direction has no physical meaning.
+    direction_defined = r >= 1e-8
+    azimuth_defined = direction_defined and np.hypot(x, y) >= 1e-8
+    theta = float(np.arccos(np.clip(z / r, -1.0, 1.0))) if direction_defined else 0.0
+    phi = float(np.arctan2(y, x)) if azimuth_defined else 0.0
     purity = float(np.clip(np.real(np.trace(data @ data)), 0.0, 1.0))
     return {
         "qubit": qubit,
@@ -863,6 +866,8 @@ def _bloch_from_reduced(rho: DensityMatrix, qubit: int) -> dict[str, Any]:
         "y": _round_real(y),
         "z": _round_real(z),
         "r": _round_real(r),
+        "direction_defined": direction_defined,
+        "azimuth_defined": bool(azimuth_defined),
         "purity": _round_real(purity),
         "is_pure": bool(abs(purity - 1.0) < 1e-8),
         "theta": _round_real(theta),
