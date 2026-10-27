@@ -241,7 +241,8 @@ async function main() {
     const editor = page.locator('.monaco-editor textarea.inputarea').first();
     await editor.focus();
     await page.keyboard.type('\n# changed during the pending simulation');
-    await page.locator('.monaco-editor .view-lines').getByText('changed during the pending simulation', { exact: false }).waitFor();
+    await command('cat');
+    await page.locator('.terminal-log-scroll .term-pre').filter({ hasText: 'changed during the pending simulation' }).last().waitFor();
     assert(releaseSimulation, 'The mocked simulation response must be held while the source changes');
     releaseSimulation();
     await page.getByRole('button', { name: 'Run Kernel', exact: true }).waitFor();
