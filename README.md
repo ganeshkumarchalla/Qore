@@ -1,4 +1,6 @@
-# QORE
+# QORE 
+
+**Quantum Operations Research Engineering**
 
 **A quantum workspace for writing circuits, exploring states, and keeping the evidence.**
 
