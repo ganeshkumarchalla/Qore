@@ -1,6 +1,8 @@
-# QORE
+# QORE 
+*Quantum Operations Research Engineering*
 
-**A quantum workspace for writing circuits, exploring states, and keeping the evidence **
+
+**A quantum workspace for writing circuits, exploring states, and keeping the evidence**
 
 [Open QORE](https://qore-bmh1.onrender.com/) · [Documentation](https://qoredocs.vercel.app/) · [Manual sources](docs/README.md) · [Report an issue](https://github.com/ganeshkumarchalla/Qore/issues)
 
