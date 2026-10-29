@@ -6577,6 +6577,42 @@ input:focus, select:focus, textarea:focus {
   align-items: center !important;
   justify-content: center !important;
   z-index: 99999 !important;
+  overflow-y: auto;
+  cursor: default;
+}
+
+.intro-actions {
+  margin-top: 24px;
+}
+
+.intro-skip {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+}
+
+.intro-actions .clean-button,
+.intro-skip {
+  color: #e2e8f0;
+  background: #14233b;
+  border: 1px solid #476081;
+  padding: 10px 18px;
+  border-radius: 8px;
+}
+
+.intro-actions .clean-button:focus-visible,
+.intro-skip:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enhanced-quantum-entry *,
+  .quantum-onboarding-overlay * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 .quantum-nebula-pulse {
@@ -7637,11 +7673,11 @@ input:focus, select:focus, textarea:focus {
   z-index: 100000;
   background: radial-gradient(circle at 50% 30%, #0d1e38 0%, #060b17 55%, #02040a 100%);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 24px;
   transition: background 2s cubic-bezier(0.16, 1, 0.3, 1), opacity 2s cubic-bezier(0.16, 1, 0.3, 1), transform 2s cubic-bezier(0.16, 1, 0.3, 1);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* Phase 2: Radiant Brighter Quantum Theme Variant */
@@ -7667,6 +7703,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .quantum-onboarding-card {
+  flex-shrink: 0;
+  margin: auto 0;
   width: 94vw;
   max-width: 680px;
   border-radius: 20px;

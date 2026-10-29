@@ -40,6 +40,7 @@ Begin with an empty Explorer—no account is required. Create a blank file, or e
 - [Architecture](reference/architecture.md), [data model](reference/data-model.md), [configuration](reference/configuration.md).
 - [Core API](reference/api.md), [workspace API](reference/workspace-api.md).
 - [Circuit Python](reference/circuit-python.md), [OpenQASM](reference/openqasm.md), [gate catalog](reference/gate-catalog.md), [limits](reference/limits.md).
+- [Qiskit compatibility](reference/qiskit-compatibility.md): tested editor APIs, installed SDK inventory and repeatable checks.
 
 ## Operations
 

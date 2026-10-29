@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useIntroDialog } from './useIntroDialog';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
   const [stageIndex, setStageIndex] = useState(0);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const dialogRef = useIntroDialog(isOpen, onClose);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -25,8 +27,6 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
     setStageIndex(0);
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
 
     // Min 5 seconds duration requested by user:
     const totalDuration = reducedMotion ? 400 : 5200;
@@ -45,7 +45,6 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
       window.clearInterval(interval);
       window.clearTimeout(exitTimer);
       window.clearTimeout(closeTimer);
-      document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
 
@@ -53,9 +52,11 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className={`qore-entry-screen classical-entry enhanced-quantum-entry ${exiting ? 'entry-fade-out' : 'entry-fade-in'}`}
-      role="status"
-      aria-live="polite"
+      role="dialog"
+      aria-modal="true"
       aria-label="Welcome to QORE Quantum Studio"
     >
       <div className="classical-entry-light" aria-hidden="true" />
@@ -106,7 +107,7 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
         </div>
 
         <span className="classical-entry-brand">QORE · QUANTUM STUDIO</span>
-        <h1 className="enhanced-quantum-title">Welcome to Qore</h1>
+        <h1 className="enhanced-quantum-title">Welcome to QORE</h1>
         <p className="enhanced-quantum-lead">A high-performance workspace for quantum circuits, simulation & research.</p>
 
         {/* 5-Second Quantum Loading Track */}
@@ -114,9 +115,12 @@ export function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
           <span className="progress-fill-5s" />
         </div>
 
-        <div className="classical-entry-status-wrap">
+        <div className="classical-entry-status-wrap" role="status" aria-live="polite">
           <span className="quantum-status-dot" />
           <span className="classical-entry-status">{STATUS_STAGES[stageIndex]}</span>
+        </div>
+        <div className="intro-actions">
+          <button type="button" className="clean-button" onClick={onClose}>Continue</button>
         </div>
       </div>
     </div>

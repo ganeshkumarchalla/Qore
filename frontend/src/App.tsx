@@ -90,20 +90,15 @@ export default function App() {
   const [workspaceStatus, setWorkspaceStatus] = useState(getWorkspaceStatus);
   const [workspaceAction, setWorkspaceAction] = useState(false);
   const restoredOwner = useRef<string | null>(null);
-  // First-time visitor tracking: Onboarding appears ONLY on the very first visit, NEVER on refreshing
-  const isFirstVisit = (() => {
+  // Completed first visits stay dismissed on refresh; initialization must be read-only.
+  const [isFirstVisit] = useState(() => {
     try {
-      const alreadyVisited = localStorage.getItem('qore_has_visited') === 'true' || localStorage.getItem('qore_started') === 'true';
-      if (!alreadyVisited) {
-        // Mark immediately so that refreshing the browser NEVER triggers the welcome or questions
-        localStorage.setItem('qore_has_visited', 'true');
-        return true;
-      }
-      return false;
+      // Initialization must remain read-only: StrictMode may call it twice.
+      return localStorage.getItem('qore_has_visited') !== 'true' && localStorage.getItem('qore_started') !== 'true';
     } catch {
-      return false;
+      return true;
     }
-  })();
+  });
 
   const [hasStarted, setHasStarted] = useState(!isFirstVisit);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(isFirstVisit);
@@ -1378,6 +1373,16 @@ export default function App() {
               </button>
               {activeDropdown === 'Help' && (
                 <div className="classic-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="dropdown-item"
+                    onClick={() => {
+                      setActiveDropdown(null);
+                      setIsWelcomeOpen(true);
+                    }}
+                  >
+                    <span>Replay Welcome</span>
+                  </button>
                   <button
                     type="button"
                     className="dropdown-item"

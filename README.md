@@ -118,7 +118,7 @@ Open `http://127.0.0.1:8000`. No account setup is required. For hot reload, run 
 
 QORE supports its documented Qiskit circuit-building subset and OpenQASM 2, up to **10 qubits**, **10 classical bits**, **500 operations**, **32 KiB of source**, and **100,000 shots**. Bloch vectors and ideal amplitude displays are available up to six qubits; matrix display is available up to four. The command console exposes supported QORE actions and real attached results.
 
-Arbitrary Python, unrestricted imports, operating-system shell commands, dynamic mid-circuit control, and hardware submission are outside this runtime. Optional SDK packages do not expand the public editor allowlist. [Compatibility and limits](docs/reference/limits.md)
+Arbitrary Python, unrestricted imports, operating-system shell commands, dynamic mid-circuit control, and hardware submission are outside this runtime. Optional SDK packages do not expand the public editor allowlist. [Compatibility and limits](docs/reference/limits.md) · [Tested Qiskit support and installed packages](docs/reference/qiskit-compatibility.md)
 
 ## Documentation
 
