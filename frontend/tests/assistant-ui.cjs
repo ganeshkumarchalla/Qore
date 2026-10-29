@@ -47,6 +47,7 @@ async function main() {
     let source = '', assistantRequest, runCount = 0, parseCount = 0;
     let holdNextSimulation = false, releaseSimulation;
     let holdNextAssistant = false, releaseAssistant;
+    let failNextAssistant = false;
     const workspace = workspaceFixture();
     await page.route('**/api/**', async route => {
       if (await workspace.handle(route)) return;
@@ -68,11 +69,17 @@ async function main() {
       else if (pathname === '/api/parse') { parseCount++; source = request.postDataJSON().source; body = parsed; }
       else if (pathname === '/api/assistant') {
         assistantRequest = request.postDataJSON();
-        if (holdNextAssistant) {
-          holdNextAssistant = false;
-          await new Promise(resolve => { releaseAssistant = resolve; });
+        if (failNextAssistant) {
+          failNextAssistant = false;
+          body = { available: false, reason: 'provider_rate_limit',
+            answer: 'QORE Intelligence has reached its AI request limit. Please try again later.' };
+        } else {
+          if (holdNextAssistant) {
+            holdNextAssistant = false;
+            await new Promise(resolve => { releaseAssistant = resolve; });
+          }
+          body = { available: true, answer: 'The active circuit prepares a three-qubit GHZ state.', model: 'ui-fixture-model' };
         }
-        body = { available: true, answer: 'The active circuit prepares a three-qubit GHZ state.', model: 'ui-fixture-model' };
       } else if (pathname === '/api/simulate') {
         runCount++;
         if (runCount === 2) {
@@ -235,8 +242,15 @@ async function main() {
     await page.getByLabel('Ask QORE Intelligence').fill('Explain again');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
+    await sidebar.getByText('Assistant connected', { exact: true }).waitFor();
     assert.equal(assistantRequest.simulation_id, 'ui-fixture-run-1');
     await page.waitForFunction(() => !document.querySelector('#assistant-question')?.disabled);
+    failNextAssistant = true;
+    await page.getByLabel('Ask QORE Intelligence').fill('Check service availability');
+    await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
+    await sidebar.getByText('Assistant interrupted', { exact: true }).waitFor();
+    await sidebar.getByText('QORE Intelligence has reached its AI request limit. Please try again later.', { exact: true }).waitFor();
+    checks.push('A provider failure shows a clear service notice and honest availability state');
     holdNextAssistant = true;
     const delayedAssistant = page.waitForRequest(request => request.url().includes('/api/assistant') && request.method() === 'POST');
     await page.getByLabel('Ask QORE Intelligence').fill('Explain this draft');

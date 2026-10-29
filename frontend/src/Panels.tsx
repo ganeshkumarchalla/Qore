@@ -614,12 +614,13 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [available, setAvailable] = useState<boolean | null>(null);
+  const [serviceStatus, setServiceStatus] = useState<'configured' | 'connected' | 'unavailable'>('configured');
   const generation = useRef(0);
   const ready = Boolean(health?.ai_available);
 
   useEffect(() => {
     generation.current += 1;
-    setAnswer(''); setError(''); setAvailable(null); setPending(false);
+    setAnswer(''); setError(''); setAvailable(null); setServiceStatus('configured'); setPending(false);
     return () => { generation.current += 1; };
   }, [fileName, source, diagnostics, workspaceSummary, simulation?.id, optimization?.id, view]);
 
@@ -647,7 +648,7 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
     }
     const requestGeneration = generation.current;
     setQuestion(text);
-    setPending(true); setError(''); setAnswer('');
+    setPending(true); setError(''); setAnswer(''); setServiceStatus('configured');
     try {
       const data = await api<{ available: boolean; answer: string }>('/assistant', {
         question: text.trim(),
@@ -662,8 +663,12 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
       if (generation.current !== requestGeneration) return;
       setAnswer(data.answer);
       setAvailable(data.available);
+      setServiceStatus(data.available ? 'connected' : 'unavailable');
     } catch (reason) {
-      if (generation.current === requestGeneration) setError(reason instanceof Error ? reason.message : 'The assistant could not respond. Please try again.');
+      if (generation.current === requestGeneration) {
+        setServiceStatus('unavailable');
+        setError(reason instanceof Error ? reason.message : 'The assistant could not respond. Please try again.');
+      }
     } finally {
       if (generation.current === requestGeneration) setPending(false);
     }
@@ -678,8 +683,9 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
   return <div className="intelligence-layout">
     <section className="panel assistant">
       <div className="qore-assistant-availability">
-        <span className={'pill ' + (health?.ai_available ? 'success' : '')}>
-          <span className="dot" />{health ? health.ai_available ? 'Assistant available' : 'Assistant unavailable' : 'Checking availability'}
+        <span className={'pill ' + (health?.ai_available && serviceStatus === 'connected' ? 'success' : '')}>
+          <span className="dot" />{!health ? 'Checking AI configuration' : !health.ai_available ? 'AI not configured' :
+            serviceStatus === 'connected' ? 'Assistant connected' : serviceStatus === 'unavailable' ? 'Assistant interrupted' : 'AI configured'}
         </span>
         <span className="qore-assistant-readonly"><Icon name="code" size={12} />Backend connected</span>
       </div>

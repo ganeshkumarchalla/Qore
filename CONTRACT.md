@@ -46,7 +46,7 @@ Run `{id,kind:"simulation",created_at,project_id,source,...simulate result}`; pe
 - POST `/experiments` body `{name,project_id?:string,source,simulation_id?:string,optimization_id?:string}` -> immutable experiment snapshot
 - GET `/experiments` -> experiment summaries `[{id,name,project_id,created_at,source_hash}]`
 - GET `/experiments/{id}` -> `{id,name,project_id,created_at,source,source_hash,ir_version,versions,simulation:run|null,optimization:run|null}`
-- POST `/assistant` body `{question,source?:string,simulation_id?:string,optimization_id?:string,view,file_name?,workspace_summary?,diagnostics?}` -> `{available:boolean,answer:string,model?:string}`. Optional provider unavailable is an honest response. The Gemini key is server-only.
+- POST `/assistant` body `{question,source?:string,simulation_id?:string,optimization_id?:string,view,file_name?,workspace_summary?,diagnostics?}` -> `{available:boolean,answer:string,model?:string,reason?:string}`. A temporary upstream 502/503/504 response is retried at most twice; a final failure returns a safe reason without provider response text or credentials. Optional provider unavailable is an honest response. The Gemini key is server-only.
 
 UI must clear live results on code edit; reopen restores source and immutable historical snapshots visibly labeled historical; source actions leave read-only historical mode on new parse/run. Save experiment references backend run IDs and must match source hashes. Approve candidate is explicit source replacement; original remains in immutable optimization record. Do not silently save edits on project switch; in-app discard confirmation.
 

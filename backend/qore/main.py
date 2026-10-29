@@ -547,14 +547,14 @@ def create_app(db_path=None):
                 }
 
                 async def generate(chosen_model: str):
-                    for attempt in range(2):
+                    for attempt in range(3):
                         result = await client.post(
                             f"https://generativelanguage.googleapis.com/v1beta/models/{chosen_model}:generateContent",
                             headers={"x-goog-api-key": key}, json=request_body,
                         )
-                        if result.status_code not in (502, 503, 504) or attempt:
+                        if result.status_code not in (502, 503, 504) or attempt == 2:
                             return result
-                        await asyncio.sleep(0.4)
+                        await asyncio.sleep(0.4 * (attempt + 1))
                     raise AssertionError("unreachable")
 
                 response = await generate(model)
@@ -567,8 +567,22 @@ def create_app(db_path=None):
                 if not answer:
                     raise ValueError("No provider answer")
                 return {"available": True, "answer": answer, "model": model}
-        except (httpx.HTTPError, ValueError, KeyError, IndexError):
-            return {"available": False, "answer": "The AI service is unavailable or returned no answer. The quantum workflow remains available."}
+        except httpx.HTTPStatusError as failure:
+            status = failure.response.status_code
+            if status in (401, 403, 404):
+                return {"available": False, "reason": "configuration",
+                        "answer": "QORE Intelligence could not access its configured AI model. Check the server's AI settings."}
+            if status == 429:
+                return {"available": False, "reason": "provider_rate_limit",
+                        "answer": "QORE Intelligence has reached its AI request limit. Please try again later."}
+            return {"available": False, "reason": "provider_unavailable",
+                    "answer": "QORE Intelligence is temporarily unavailable. Please retry shortly."}
+        except httpx.HTTPError:
+            return {"available": False, "reason": "network_error",
+                    "answer": "QORE Intelligence could not reach its AI service. Please retry shortly."}
+        except (ValueError, KeyError, IndexError):
+            return {"available": False, "reason": "empty_response",
+                    "answer": "QORE Intelligence received no usable answer. Please retry shortly."}
         finally:
             slots.release()
 

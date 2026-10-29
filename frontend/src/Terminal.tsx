@@ -330,7 +330,9 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
         const selected = requestedFile
           ? workspaceFiles.find(file => file.path === requestedFile || file.name === requestedFile || file.id === requestedFile)
           : workspaceFiles.find(file => file.name === fileName || file.id === fileName);
-        const contents = selected?.source ?? (!requestedFile ? source : undefined);
+        // An unqualified read reflects the active editor buffer immediately,
+        // even while persistence of its Explorer entry is still pending.
+        const contents = requestedFile ? selected?.source : source;
         if (contents === undefined) { addLog('warn', 'Workspace file not found: ' + (requestedFile || fileName || '(none)')); break; }
         if (command === 'wc') {
           addLog('output', `${contents.split(/\r?\n/).length} lines  ${new TextEncoder().encode(contents).length} bytes  ${selected?.path ?? fileName ?? 'active buffer'}`);

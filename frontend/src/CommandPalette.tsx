@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icons';
 
 export type CommandItem = {
@@ -24,7 +24,7 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOpen) return;
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setQuery('');

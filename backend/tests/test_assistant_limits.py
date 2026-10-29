@@ -84,6 +84,37 @@ def test_transient_provider_unavailability_is_retried_once(local_ai, monkeypatch
     assert len(calls) == 2
 
 
+def test_two_transient_provider_failures_recover_without_exposing_provider_details(local_ai, monkeypatch):
+    calls = []
+
+    async def call():
+        calls.append(True)
+        return response(503 if len(calls) < 3 else 200)
+
+    provider_client(monkeypatch, call)
+    with TestClient(local_ai) as client:
+        result = client.post("/api/assistant", json=BODY)
+    assert result.status_code == 200
+    assert result.json()["available"] is True
+    assert len(calls) == 3
+
+
+def test_provider_rate_limit_returns_clear_safe_reason_without_retry(local_ai, monkeypatch):
+    calls = []
+
+    async def call():
+        calls.append(True)
+        return response(429)
+
+    provider_client(monkeypatch, call)
+    with TestClient(local_ai) as client:
+        result = client.post("/api/assistant", json=BODY)
+    assert result.status_code == 200
+    assert result.json()["available"] is False
+    assert result.json()["reason"] == "provider_rate_limit"
+    assert len(calls) == 1
+
+
 def test_unavailable_configured_model_falls_back_to_current_stable_model(local_ai, monkeypatch):
     monkeypatch.setenv("GEMINI_MODEL", "retired-model")
     requested = []
