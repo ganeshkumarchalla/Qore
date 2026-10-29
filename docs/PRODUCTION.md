@@ -55,6 +55,8 @@ QORE Intelligence uses `GEMINI_API_KEY` and `GEMINI_MODEL` from the backend proc
 
 Rate limits are process-local: ten assistant calls per browser workspace per minute, two simultaneous provider calls, a bounded admission wait, and a provider timeout. Configure provider-side budgets and monitoring separately. Multiple replicas need a shared rate limiter and job queue before horizontal scaling.
 
+The first-visit quantum lesson draws from a curated local question pool by default, preserving the shared AI quota for QORE Intelligence. Set `QORE_AI_QUIZ_ENABLED=true` only when the provider budget supports generated questions. A configured key does not guarantee model availability or remaining provider quota; unavailable requests return safe reasons without exposing provider payloads.
+
 ## Backups and recovery
 
 Back up the mounted SQLite database using a consistent snapshot method. Test restore into a separate service before treating backups as reliable. Browser source is separate: users should export important files before clearing site data or changing browser profiles. Trash provides a 48-hour application recovery window; it is not a replacement for database backups.

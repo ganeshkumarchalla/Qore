@@ -376,7 +376,10 @@ def create_app(db_path=None):
             }
         ]
 
-        if key and re.fullmatch(r"[a-zA-Z0-9_.-]{1,100}", model):
+        # Use the curated lesson pool by default so first visits do not spend
+        # the shared provider quota needed by QORE Intelligence.
+        if (os.environ.get("QORE_AI_QUIZ_ENABLED", "false").lower() == "true"
+                and key and re.fullmatch(r"[a-zA-Z0-9_.-]{1,100}", model)):
             prompt = (
                 "Generate an engaging, creative multiple-choice question testing fundamental quantum computing concepts "
                 "(such as superposition, entanglement, Hadamard / CNOT / Pauli gates, Bloch sphere, phase kickback, or measurement). "
