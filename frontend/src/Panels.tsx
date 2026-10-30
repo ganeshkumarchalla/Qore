@@ -373,7 +373,14 @@ export function Forge({
               </h3>
               <span className="mini-tag">{key === 'original' ? 'BASELINE' : 'OPTIMIZED'}</span>
             </div>
-            <Circuit ir={run[key].ir} compact />
+            <div
+              className="forge-circuit-viewport"
+              role="region"
+              aria-label={`${key === 'original' ? 'Original' : 'Candidate'} circuit diagram; scroll horizontally to view all gates`}
+              tabIndex={0}
+            >
+              <Circuit ir={run[key].ir} compact />
+            </div>
             <MetricCards metrics={run[key].metrics} />
             <details>
               <summary>Gate Type Distribution</summary>
