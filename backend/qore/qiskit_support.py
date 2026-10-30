@@ -21,6 +21,16 @@ DATA_GATES = {name: getattr(library, name) for name in (
 CIRCUIT_FACTORIES = {name: getattr(library, name) for name in (
     "RealAmplitudes", "EfficientSU2", "TwoLocal", "NLocal", "QFT", "ZZFeatureMap",
     "real_amplitudes", "efficient_su2", "n_local", "zz_feature_map", "pauli_feature_map",
+    "ZFeatureMap", "z_feature_map",
+    "PauliTwoDesign", "pauli_two_design",
+    "ExcitationPreserving", "excitation_preserving",
+    "EvolvedOperatorAnsatz", "evolved_operator_ansatz",
+    "QAOAAnsatz", "qaoa_ansatz",
+    "QuantumVolume", "quantum_volume",
+    "GroverOperator", "grover_operator",
+    "IQP", "iqp",
+    "FourierChecking", "fourier_checking",
+    "HiddenLinearFunction", "hidden_linear_function",
 )}
 PARAMETER_TYPES = {"Parameter": Parameter, "ParameterVector": ParameterVector}
 OPERATOR_TYPES = {"Pauli": Pauli, "SparsePauliOp": SparsePauliOp}
@@ -194,12 +204,79 @@ class BoundedQiskit:
                 self.integer(value, 1, self.qubits)
             elif key in ("reps", "approximation_degree"):
                 self.integer(value, 0, 20 if key == "reps" else self.qubits)
-            elif key in ("skip_unentangled_qubits", "skip_final_rotation_layer", "insert_barriers", "overwrite_block_parameters", "do_swaps", "inverse", "flatten"):
+            elif key in (
+                "skip_unentangled_qubits", "skip_final_rotation_layer", "insert_barriers",
+                "overwrite_block_parameters", "do_swaps", "inverse", "flatten",
+                "classical_permutation", "remove_identities"
+            ):
                 if value is not None and type(value) is not bool:
                     raise ValueError(f"{key} must be a boolean.")
-            elif key in ("name", "parameter_prefix"):
+            elif key in ("name", "parameter_prefix", "mcx_mode"):
                 if value is not None:
                     self.text(value, 64)
+            elif key == "mode":
+                if value not in ("iswap", "fsim"):
+                    raise ValueError("ExcitationPreserving mode must be 'iswap' or 'fsim'.")
+            elif key == "seed":
+                if value is not None:
+                    self.integer(value, 0, 2**32 - 1)
+            elif key == "depth":
+                if value is not None:
+                    self.integer(value, 1, self.operations)
+            elif key in ("oracle", "state_preparation", "zero_reflection"):
+                if value is not None:
+                    if isinstance(value, QuantumCircuit):
+                        self.circuit(value)
+                    elif isinstance(value, Gate):
+                        self.integer(value.num_qubits, 1, self.qubits)
+                    else:
+                        raise ValueError(f"{key} must be a QuantumCircuit or Gate.")
+            elif key == "reflection_qubits":
+                if value is not None:
+                    if not isinstance(value, (list, tuple, range)):
+                        raise ValueError("reflection_qubits must be a sequence of qubit indices.")
+                    for q in value:
+                        self.integer(q, 0, self.qubits - 1)
+            elif key in ("cost_operator", "mixer_operator"):
+                if value is not None:
+                    if isinstance(value, QuantumCircuit):
+                        self.circuit(value)
+                    elif isinstance(value, (Pauli, SparsePauliOp)):
+                        if value.num_qubits > self.qubits:
+                            raise ValueError(f"{key} exceeds qubit limit.")
+                    else:
+                        raise ValueError(f"{key} must be an operator or circuit.")
+            elif key == "operators":
+                ops = [value] if not isinstance(value, (list, tuple)) else value
+                if not 1 <= len(ops) <= self.operations:
+                    raise ValueError("operators must be a non-empty bounded collection.")
+                for op in ops:
+                    if isinstance(op, QuantumCircuit):
+                        self.circuit(op)
+                    elif isinstance(op, (Pauli, SparsePauliOp)):
+                        if op.num_qubits > self.qubits:
+                            raise ValueError("Operator exceeds qubit limit.")
+                    else:
+                        raise ValueError("Operators must be circuits or Pauli operators.")
+            elif key == "evolution":
+                if value is not None and not isinstance(value, (Gate, QuantumCircuit)) and not hasattr(value, "synthesize"):
+                    raise ValueError("evolution must be a valid evolution synthesis or None.")
+            elif key == "interactions":
+                data = self.array(value, 2)
+                if data.shape[0] != data.shape[1] or not 1 <= data.shape[0] <= self.qubits:
+                    raise ValueError("Interactions matrix must be square and within qubit limit.")
+            elif key == "adjacency_matrix":
+                data = self.array(value, 2)
+                if data.shape[0] != data.shape[1] or not 1 <= data.shape[0] <= self.qubits:
+                    raise ValueError("Adjacency matrix must be square and within qubit limit.")
+                if np.any(data.imag) or not np.all(np.isin(data.real, [0, 1])):
+                    raise ValueError("Adjacency matrices contain zero and one entries.")
+            elif key in ("f", "g"):
+                if not isinstance(value, (list, tuple, np.ndarray)):
+                    raise ValueError("Truth table must be a sequence or array.")
+                length = len(value)
+                if length < 2 or length > 2**self.qubits or (length & (length - 1)) != 0:
+                    raise ValueError("Truth table length must be a power of two within qubit limits.")
             elif key == "entanglement":
                 entries = 0
 

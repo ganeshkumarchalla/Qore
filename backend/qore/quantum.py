@@ -69,6 +69,10 @@ SUPPORTED_GATE_CLASSES: dict[str, type] = {
     "PhaseGate": qiskit_gate_lib.PhaseGate,
     "UGate": qiskit_gate_lib.UGate,
     "RGate": qiskit_gate_lib.RGate,
+    "U1Gate": qiskit_gate_lib.U1Gate,
+    "U2Gate": qiskit_gate_lib.U2Gate,
+    "U3Gate": qiskit_gate_lib.U3Gate,
+    "RVGate": qiskit_gate_lib.RVGate,
     # 2-qubit unitary gates
     "CXGate": qiskit_gate_lib.CXGate,
     "CYGate": qiskit_gate_lib.CYGate,
@@ -90,6 +94,8 @@ SUPPORTED_GATE_CLASSES: dict[str, type] = {
     "RZZGate": qiskit_gate_lib.RZZGate,
     "RZXGate": qiskit_gate_lib.RZXGate,
     "CUGate": qiskit_gate_lib.CUGate,
+    "CU1Gate": qiskit_gate_lib.CU1Gate,
+    "CU3Gate": qiskit_gate_lib.CU3Gate,
     # 3-qubit unitary gates
     "CCXGate": qiskit_gate_lib.CCXGate,
     "CCZGate": qiskit_gate_lib.CCZGate,
@@ -97,6 +103,16 @@ SUPPORTED_GATE_CLASSES: dict[str, type] = {
     "CSwapGate": qiskit_gate_lib.CSwapGate,
     # Multi-qubit controlled gates
     "MCXGate": qiskit_gate_lib.MCXGate,
+    "MCXGrayCode": qiskit_gate_lib.MCXGrayCode,
+    "MCXRecursive": qiskit_gate_lib.MCXRecursive,
+    "MCXVChain": qiskit_gate_lib.MCXVChain,
+    "MCMTGate": qiskit_gate_lib.MCMTGate,
+    # Boolean logic & arithmetic gates
+    "AndGate": qiskit_gate_lib.AndGate,
+    "OrGate": qiskit_gate_lib.OrGate,
+    "BitwiseXorGate": qiskit_gate_lib.BitwiseXorGate,
+    "FullAdderGate": qiskit_gate_lib.FullAdderGate,
+    "HalfAdderGate": qiskit_gate_lib.HalfAdderGate,
     # Composite unitary gates are lowered to the bounded u/cx representation.
     "IGate": qiskit_gate_lib.IGate,
     "C3XGate": qiskit_gate_lib.C3XGate,
@@ -632,8 +648,8 @@ class _SourceInterpreter:
         for name, value in bound.arguments.items():
             if name == "self":
                 continue
-            if name in ("num_ctrl_qubits", "num_qubits"):
-                _integer(value, name, 1, MAX_QUBITS - (name == "num_ctrl_qubits"))
+            if name in ("num_ctrl_qubits", "num_qubits", "num_variable_qubits", "num_state_qubits", "num_target_qubits", "amount"):
+                _integer(value, name, 0 if name == "amount" else 1, MAX_QUBITS - (name == "num_ctrl_qubits"))
             elif name == "label":
                 if value is not None and (not isinstance(value, str) or len(value) > 128):
                     raise _error("INVALID_ARGUMENTS", "Gate labels must be text of at most 128 characters.", node)
@@ -644,6 +660,21 @@ class _SourceInterpreter:
                             raise _error("INVALID_ARGUMENTS", "Control state must be a bounded binary string or integer.", node)
                     else:
                         _integer(value, "Control state", 0, 2**MAX_QUBITS - 1)
+            elif name in ("dirty_ancillas", "relative_phase", "action_only"):
+                if type(value) is not bool:
+                    raise _error("INVALID_ARGUMENTS", f"{name} must be a boolean.", node)
+            elif name == "basis":
+                if not isinstance(value, str) or len(value) > 16:
+                    raise _error("INVALID_ARGUMENTS", "basis must be a valid string.", node)
+            elif name == "gate":
+                if not isinstance(value, Gate):
+                    raise _error("INVALID_ARGUMENTS", "gate must be a valid Gate instance.", node)
+            elif name == "flags":
+                if value is not None and (not isinstance(value, (list, tuple)) or not all(isinstance(x, int) for x in value)):
+                    raise _error("INVALID_ARGUMENTS", "flags must be a list of integers.", node)
+            elif name == "_base_label":
+                if value is not None and not isinstance(value, str):
+                    raise _error("INVALID_ARGUMENTS", "_base_label must be a string.", node)
             else:
                 self.support.angle(value)
         try:

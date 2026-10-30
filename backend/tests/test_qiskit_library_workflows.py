@@ -49,23 +49,70 @@ def test_named_parameter_binding_and_numpy_sequence():
 
 @pytest.mark.parametrize("name", sorted(CIRCUIT_FACTORIES))
 def test_each_advertised_circuit_factory_binds_and_preserves_its_operator(name):
+    from qiskit.quantum_info import SparsePauliOp
     factory = CIRCUIT_FACTORIES[name]
-    kwargs = {"reps": 1}
+    imports = f"from qiskit.circuit.library import {name}"
+    pre_code = ""
+
     if name == "QFT":
-        kwargs = {}
+        call_expr = f"{name}(2)"
+        reference = factory(2)
     elif name in ("TwoLocal", "n_local"):
-        kwargs.update(rotation_blocks="ry", entanglement_blocks="cx")
+        call_expr = f"{name}(2, reps=1, rotation_blocks='ry', entanglement_blocks='cx')"
+        reference = factory(2, reps=1, rotation_blocks="ry", entanglement_blocks="cx")
     elif name == "NLocal":
-        kwargs.update(rotation_blocks=library.RYGate(0.125), entanglement_blocks=library.CXGate())
-    reference = factory(2, **kwargs)
+        imports += ", RYGate, CXGate"
+        pre_code = "rot = RYGate(0.125)\nent = CXGate()\n"
+        call_expr = f"{name}(2, reps=1, rotation_blocks=rot, entanglement_blocks=ent)"
+        reference = factory(2, reps=1, rotation_blocks=library.RYGate(0.125), entanglement_blocks=library.CXGate())
+    elif name in ("PauliTwoDesign", "pauli_two_design"):
+        call_expr = f"{name}(2, reps=1, seed=42)"
+        reference = factory(2, reps=1, seed=42)
+    elif name in ("QuantumVolume", "quantum_volume"):
+        call_expr = f"{name}(2, depth=2, seed=42)"
+        reference = factory(2, depth=2, seed=42)
+    elif name in ("QAOAAnsatz", "qaoa_ansatz"):
+        imports += "\nfrom qiskit.quantum_info import SparsePauliOp"
+        pre_code = "cost_op = SparsePauliOp.from_list([('ZZ', 1.0)])\n"
+        call_expr = f"{name}(cost_operator=cost_op, reps=1)"
+        reference = factory(cost_operator=SparsePauliOp.from_list([('ZZ', 1.0)]), reps=1)
+    elif name in ("EvolvedOperatorAnsatz", "evolved_operator_ansatz"):
+        imports += "\nfrom qiskit.quantum_info import SparsePauliOp"
+        pre_code = "ops = SparsePauliOp.from_list([('ZZ', 1.0)])\n"
+        call_expr = f"{name}(operators=ops, reps=1)"
+        reference = factory(operators=SparsePauliOp.from_list([('ZZ', 1.0)]), reps=1)
+    elif name in ("GroverOperator", "grover_operator"):
+        pre_code = "oracle = QuantumCircuit(2)\noracle.z(0)\n"
+        call_expr = f"{name}(oracle=oracle)"
+        oracle_ref = QuantumCircuit(2); oracle_ref.z(0)
+        reference = factory(oracle=oracle_ref)
+    elif name in ("IQP", "iqp"):
+        pre_code = "interactions = [[0, 1], [1, 0]]\n"
+        call_expr = f"{name}(interactions)"
+        reference = factory([[0, 1], [1, 0]])
+    elif name in ("FourierChecking", "fourier_checking"):
+        pre_code = "f = [1, -1, -1, 1]\ng = [1, 1, -1, -1]\n"
+        call_expr = f"{name}(f, g)"
+        reference = factory([1, -1, -1, 1], [1, 1, -1, -1])
+    elif name in ("HiddenLinearFunction", "hidden_linear_function"):
+        pre_code = "adj = [[0, 1], [1, 0]]\n"
+        call_expr = f"{name}(adj)"
+        reference = factory([[0, 1], [1, 0]])
+    elif name in ("ExcitationPreserving", "excitation_preserving"):
+        call_expr = f"{name}(2, reps=1, mode='iswap')"
+        reference = factory(2, reps=1, mode="iswap")
+    else:
+        call_expr = f"{name}(2, reps=1)"
+        reference = factory(2, reps=1)
+
     reference = reference.assign_parameters([0.125] * reference.num_parameters)
-    options = ', '.join(f'{key}={value!r}' for key, value in kwargs.items())
-    if name == "NLocal":
-        options = "reps=1, rotation_blocks=RYGate(0.125), entanglement_blocks=CXGate()"
-    source = (f"from qiskit import QuantumCircuit\nfrom qiskit.circuit.library import {name}, RYGate, CXGate\n"
-              f"ansatz={name}(2{', '+options if options else ''})\n"
-              "values=[0.125 for i in range(ansatz.num_parameters)]\n"
-              "bound=ansatz.assign_parameters(values)\nqc=QuantumCircuit(2)\nqc.compose(bound,inplace=True)")
+    source = (
+        f"from qiskit import QuantumCircuit\n{imports}\n{pre_code}"
+        f"ansatz = {call_expr}\n"
+        "values = [0.125 for i in range(ansatz.num_parameters)]\n"
+        "bound = ansatz.assign_parameters(values)\n"
+        "qc = QuantumCircuit(2)\nqc.compose(bound, inplace=True)"
+    )
     same_operator(source, reference)
     assert sum(simulate(source, shots=16, seed=7)["counts"].values()) == 16
     assert optimize(source)["validation"]["status"] == "validated"
@@ -265,3 +312,35 @@ def test_new_library_examples_run_compile_and_save_over_the_api(client, example_
     record = client.get('/api/experiments/' + saved.json()['id']).json()
     assert record["source"] == example["source"]
     assert record["simulation"]["counts"] == run["counts"]
+
+
+def test_expanded_gate_classes_append_and_simulate():
+    source = """from qiskit import QuantumCircuit
+from qiskit.circuit.library import (
+    U1Gate, U2Gate, U3Gate, CU1Gate, CU3Gate, RVGate,
+    MCXGrayCode, MCXRecursive, MCXVChain, MCMTGate,
+    AndGate, OrGate, BitwiseXorGate, FullAdderGate, HalfAdderGate,
+    ZGate
+)
+
+qc = QuantumCircuit(5)
+qc.append(U1Gate(0.5), [0])
+qc.append(U2Gate(0.1, 0.2), [0])
+qc.append(U3Gate(0.1, 0.2, 0.3), [0])
+qc.append(CU1Gate(0.5), [0, 1])
+qc.append(CU3Gate(0.1, 0.2, 0.3), [0, 1])
+qc.append(RVGate(0.1, 0.2, 0.3), [0])
+qc.append(MCXGrayCode(2), [0, 1, 2])
+qc.append(MCXRecursive(2), [0, 1, 2])
+qc.append(MCXVChain(2), [0, 1, 2])
+qc.append(MCMTGate(ZGate(), 2, 2), [0, 1, 2, 3])
+qc.append(AndGate(2), [0, 1, 2])
+qc.append(OrGate(2), [0, 1, 2])
+qc.append(BitwiseXorGate(2, 1), [0, 1])
+qc.append(FullAdderGate(1), [0, 1, 2, 3])
+qc.append(HalfAdderGate(1), [0, 1, 2])
+"""
+    result = simulate(source, shots=32, seed=42)
+    assert sum(result["counts"].values()) == 32
+    compiled = optimize(source)
+    assert compiled["validation"]["status"] == "validated"
