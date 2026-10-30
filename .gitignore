@@ -64,3 +64,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/settings.json
+
+# Local Presentations & Pitch Assets
+Presentation/

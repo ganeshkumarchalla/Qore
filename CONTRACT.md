@@ -24,6 +24,10 @@ Support constrained AST parsing, never exec/eval. Terminal measurements only, up
 
 The installed executable surface is reported by `GET /api/capabilities`. Qiskit support means the reported bounded circuit-building subset and OpenQASM 2.0, not arbitrary Python, all Qiskit packages, provider clients, pulse programs, primitives, dynamic circuits, hardware jobs, or future SDK APIs. Unsupported source must fail explicitly and must never fall through to `exec`, `eval`, a host shell, filesystem access, networking, or package installation.
 
+Capabilities also report installed Qiskit distribution versions separately from editor execution permissions. Gate constructor keywords must be validated and never silently ignored. Composite unitary library gates and open controls lower to bounded u/cx instructions before metrics and IR generation, preserving global phase; the expanded circuit remains subject to the existing operation limit. OpenQASM includes are restricted to built-in qelib1.inc. QASM 2 export/reimport equivalence is up to global phase.
+
+Supported library constructors may build reusable circuit fragments and bounded variational/feature-map templates. The primary circuit is `qc` when declared, otherwise the first constructed circuit, reported as `selected_circuit` (null for direct QASM). Only the primary circuit must be fully parameter-bound before analysis. Parameter, ParameterVector, explicit parameter binding, circuit composition and whitelisted quantum-object transforms are supported; copy and in-place semantics must match Qiskit. Numeric data is restricted to finite literal vectors/matrices of at most 500 entries, checked before NumPy materialization. Factory repetitions are capped at 20 and matrix-based powers at four qubits. No arbitrary callbacks, object access or provider execution is enabled by these adapters.
+
 ## API
 - QORE currently exposes no login, signup, OAuth, or account-management routes.
 - An opaque `qore_workspace` HttpOnly, SameSite cookie scopes SQLite projects, runs, experiments, and workspace records to one browser profile. It is a workspace boundary, not verified human identity.

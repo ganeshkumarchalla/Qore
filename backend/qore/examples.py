@@ -53,4 +53,28 @@ EXAMPLES = [
         "description": "Quantum Approximate Optimization Algorithm for combinatorial graph Max-Cut partition.",
         "source": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\n\nqreg q[4];\ncreg c[4];\n\nh q[0];\nh q[1];\nh q[2];\nh q[3];\n\ncx q[0], q[1];\nrz(0.45) q[1];\ncx q[0], q[1];\n\ncx q[1], q[2];\nrz(0.45) q[2];\ncx q[1], q[2];\n\nrx(0.62) q[0];\nrx(0.62) q[1];\nrx(0.62) q[2];\nrx(0.62) q[3];\n\nmeasure q -> c;\n",
     },
+    {
+        "id": "library-ansatz",
+        "name": "Bound variational circuit",
+        "description": "Construct a RealAmplitudes ansatz, bind four parameters and sample its state. This demonstrates an ansatz, not a full VQE optimization.",
+        "source": "from qiskit.circuit.library import real_amplitudes\n\nqc = real_amplitudes(2, reps=1)\nqc = qc.assign_parameters([0.1, 0.2, 0.3, 0.4])\nqc.measure_all()\n",
+    },
+    {
+        "id": "library-fragments",
+        "name": "Compose a circuit fragment",
+        "description": "Build a reusable Bell fragment and compose it into selected qubits of the primary circuit.",
+        "source": "from qiskit import QuantumCircuit\n\nfragment = QuantumCircuit(2)\nfragment.h(0)\nfragment.cx(0, 1)\n\nqc = QuantumCircuit(3, 3)\nqc.compose(fragment, qubits=[2, 0], inplace=True)\nqc.measure_all(add_bits=False)\n",
+    },
+    {
+        "id": "library-state",
+        "name": "Prepare a complex state",
+        "description": "Use a unitary StatePreparation gate for the positive-Y state and inspect the Bloch vector.",
+        "source": "from qiskit import QuantumCircuit\nfrom qiskit.circuit.library import StatePreparation\nfrom math import sqrt\n\nqc = QuantumCircuit(1, 1)\nqc.append(StatePreparation([1 / sqrt(2), 1j / sqrt(2)]), [0])\nqc.measure(0, 0)\n",
+    },
+    {
+        "id": "library-evolution",
+        "name": "Pauli evolution",
+        "description": "Construct a bounded Pauli operator and apply Qiskit's synthesized PauliEvolutionGate.",
+        "source": "from qiskit import QuantumCircuit\nfrom qiskit.quantum_info import SparsePauliOp\nfrom qiskit.circuit.library import PauliEvolutionGate\n\noperator = SparsePauliOp.from_list([('ZZ', 0.5), ('XX', 0.25)])\nqc = QuantumCircuit(2, 2)\nqc.h(0)\nqc.append(PauliEvolutionGate(operator, time=0.125), [0, 1])\nqc.measure_all(add_bits=False)\n",
+    },
 ]

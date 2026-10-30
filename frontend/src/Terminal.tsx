@@ -44,9 +44,12 @@ const ALL_COMMANDS = [
   'qiskit qasm', 'qiskit bloch', 'qiskit purity', 'qiskit ideal', 'qiskit bitorder',
   'qiskit noise', 'qiskit result', 'qiskit source-hash', 'qiskit capabilities',
   'qiskit gates', 'qiskit modules', 'qiskit methods', 'qiskit limits', 'qiskit forge',
-  'run', 'simulate', 'parse', 'validate', 'transpile', 'metrics', 'statevector', 'unitary', 'probs',
-  'ideal', 'counts', 'qasm', 'bloch', 'purity', 'bitorder', 'noise', 'result', 'source-hash',
-  'capabilities', 'gates', 'modules', 'methods', 'limits', 'ast', 'status', 'ls', 'tree', 'cat', 'head', 'wc', 'pwd', 'date', 'clear', 'echo',
+  'qiskit depth', 'qiskit qubits',
+  'run', 'simulate', 'parse', 'validate', 'transpile', 'metrics', 'depth', 'qubits', 'width',
+  'statevector', 'unitary', 'probs', 'ideal', 'counts', 'qasm', 'bloch', 'purity', 'bitorder',
+  'noise', 'result', 'source-hash', 'capabilities', 'gates', 'modules', 'methods', 'limits',
+  'ast', 'status', 'diagnostics', 'problems', 'warnings', 'history', 'python', 'pip', 'whoami',
+  'tvd', 'fidelity', 'shots', 'seed', 'ls', 'tree', 'cat', 'head', 'wc', 'pwd', 'date', 'clear', 'echo', 'exit', 'quit',
 ];
 
 function redact(text: string): string {
@@ -153,21 +156,72 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
       return;
     }
     if (command === 'qiskit') { command = (args.shift() ?? '--version').toLowerCase(); }
-    const aliases: Record<string, string> = { simulate: 'run', opt: 'transpile', optimize: 'transpile', forge: 'transpile',
+    const aliases: Record<string, string> = {
+      simulate: 'run', opt: 'transpile', optimize: 'transpile', forge: 'transpile',
       validate: 'parse', circuit: 'draw', ir: 'ast', targets: 'backends', version: '--version', '-v': '--version',
-      env: 'capabilities', dir: 'ls', cls: 'clear', '?': 'help' };
+      env: 'capabilities', dir: 'ls', cls: 'clear', '?': 'help',
+      problems: 'diagnostics', warnings: 'diagnostics', errors: 'diagnostics',
+      quit: 'exit', close: 'exit',
+      py: 'python', python3: 'python',
+      width: 'qubits',
+      fidelity: 'tvd',
+    };
     command = aliases[command] ?? command;
-    if (args.length && !['cat', 'head', 'wc', 'echo'].includes(command)) {
+    if (args.length && !['cat', 'head', 'wc', 'echo', 'help', 'ls', 'dir'].includes(command)) {
       addLog('warn', 'This command takes no arguments. Simulation and optimization use the settings selected in the workspace.');
       return;
     }
     switch (command) {
-      case 'help':
+      case 'help': {
+        const topic = args[0]?.toLowerCase();
+        if (topic) {
+          const topicHelp: Record<string, string> = {
+            run: 'run / simulate: Simulates the active circuit using Qiskit Aer (AerSimulator) with your configured shots and noise settings.',
+            simulate: 'simulate: Alias for run.',
+            parse: 'parse / validate: Parses the active circuit and generates QORE-IR and metrics without sampling shots.',
+            validate: 'validate: Alias for parse.',
+            transpile: 'transpile / optimize / forge: Runs the QORE Forge transpilation compiler with basis gate decomposition and operator equivalence checks.',
+            optimize: 'optimize: Alias for transpile.',
+            depth: 'depth / qiskit depth: Displays the critical path instruction depth of the parsed active circuit.',
+            qubits: 'qubits / width: Displays the number of quantum and classical register bits in the active circuit.',
+            metrics: 'metrics: Displays comprehensive circuit metrics including gate counts, 2-qubit count, depth, and operations.',
+            qasm: 'qasm: Exports the active circuit to standard OpenQASM 2.0 format.',
+            bloch: 'bloch: Displays reduced density matrix Bloch sphere vectors (x, y, z, theta, phi) and purity Tr(ρ²) per qubit.',
+            unitary: 'unitary: Displays the exact complex unitary operator matrix and unitarity deviation report.',
+            statevector: 'statevector: Displays the full statevector complex amplitudes and state probabilities.',
+            probs: 'probs: Displays sampled outcome probabilities from the latest simulation run.',
+            counts: 'counts: Displays raw measurement shot counts from the latest simulation run.',
+            ideal: 'ideal: Displays theoretical state probabilities computed from ideal statevector simulation.',
+            bitorder: 'bitorder: Explains the little-endian classical bitstring measurement convention.',
+            noise: 'noise: Displays the active depolarizing noise and readout error model settings.',
+            capabilities: 'capabilities: Queries the bounded quantum runtime contract (modules, gates, and features).',
+            status: 'status: Displays backend health, storage mode, and concurrency status.',
+            diagnostics: 'diagnostics / problems: Displays syntax errors, compiler warnings, and diagnostic problem locations.',
+            history: 'history: Lists recently entered console commands.',
+            python: 'python: Displays the Python runtime version and bounded AST execution mode information.',
+            pip: 'pip: Displays installed core quantum stack library versions reported by the server.',
+            whoami: 'whoami: Displays the current active workspace owner identity.',
+            ls: 'ls [path]: Lists browser-workspace files in the current workspace or under an optional path prefix.',
+            tree: 'tree: Visualizes the hierarchical directory structure of your browser-workspace files.',
+            cat: 'cat [path]: Displays the source contents of a workspace file or the active editor buffer.',
+            head: 'head [path]: Displays the first 20 lines of a workspace file or the active editor buffer.',
+            wc: 'wc [path]: Counts lines and bytes of a workspace file or the active editor buffer.',
+            pwd: 'pwd: Shows the current browser-workspace directory path.',
+            clear: 'clear: Clears the integrated console output buffer (Ctrl+L).',
+            exit: 'exit / quit: Closes the integrated console dock.',
+          };
+          if (topicHelp[topic]) {
+            addLog('output', topicHelp[topic]);
+            break;
+          }
+        }
         addLog('output', [
           'QORE command console',
           '  run, qiskit run       Simulate the active circuit using current settings',
           '  parse, qiskit validate Validate and parse active source without sampling',
           '  transpile            Optimize the active circuit using current settings',
+          '  depth, qiskit depth  Show circuit critical-path depth',
+          '  qubits, width        Show quantum and classical bit width',
           '  qiskit --version     Show server-reported package versions',
           '  qiskit backends      Show the last run backend and available engine limits',
           '  qiskit draw          List actual parsed circuit operations',
@@ -185,13 +239,20 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
           '  probs, counts        Show sampled probabilities or shot counts',
           '  ast                  Show the parsed intermediate representation',
           '  status               Show live server health and limits',
+          '  diagnostics          Show current circuit problems and warnings',
+          '  history              Show recent command history',
+          '  python, pip          Show Python runtime and installed package stack',
+          '  whoami               Show active workspace identity',
           '  ls, tree, pwd        Inspect browser-workspace files and paths',
           '  cat/head/wc [path]   Inspect a browser-workspace file without host access',
           '  date, echo, clear    Console utilities',
+          '  exit, quit           Close console dock',
           '',
+          'Type help <command> for detailed help on any command.',
           'Commands with the qiskit prefix are QORE shortcuts. This console executes supported circuit actions through the backend; it does not provide an operating system shell.',
         ].join('\n'));
         break;
+      }
       case 'run':
       case 'parse':
       case 'transpile':
@@ -205,6 +266,16 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
         break;
       case 'backends':
         addLog('output', 'Last execution backend: ' + (simulation?.backend ?? 'No run yet') + '\nServer-reported limits:\n' + (health ? JSON.stringify(health.limits, null, 2) : 'Health information unavailable.') + '\nCloud hardware connection is not exposed by this console.');
+        break;
+      case 'depth':
+        addLog(parsed ? 'output' : 'warn', parsed
+          ? `Circuit critical-path depth: ${parsed.metrics.depth}`
+          : 'Parse or run the active circuit first to calculate depth.');
+        break;
+      case 'qubits':
+        addLog(parsed ? 'output' : 'warn', parsed
+          ? `Circuit width: ${parsed.metrics.qubits} quantum bits (registers), ${parsed.metrics.clbits} classical bits`
+          : 'Parse or run the active circuit first to inspect width.');
         break;
       case 'draw':
         if (!parsed) { addLog('warn', 'Parse or run the active circuit first.'); break; }
@@ -310,9 +381,56 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
         addLog(sanitizedHealth ? 'output' : 'warn', sanitizedHealth ? JSON.stringify(sanitizedHealth, null, 2) : 'Server health is unavailable. No backend status has been confirmed.');
         break;
       }
-      case 'ls':
-        addLog('output', workspaceFiles.length ? workspaceFiles.map(file => file.path).sort().join('\n') : 'The browser workspace contains no files.');
+      case 'diagnostics': {
+        const issues = workspaceProblems.map(p => `[${p.severity.toUpperCase()}] Line ${p.line}:${p.col} ${p.message}`);
+        const warnings = parsed?.warnings ?? [];
+        const all = [...issues, ...warnings.map(w => `[WARNING] ${w}`)];
+        addLog(all.length ? 'output' : 'info', all.length
+          ? all.join('\n')
+          : 'No diagnostics, errors, or warnings detected in the active circuit.');
         break;
+      }
+      case 'history':
+        addLog('output', cmdHistory.length
+          ? cmdHistory.slice().reverse().map((cmd, i) => `  ${i + 1}  ${cmd}`).join('\n')
+          : 'No command history recorded yet.');
+        break;
+      case 'python':
+        addLog('output', `Python runtime:\n  Version: ${health?.versions?.python ?? '3.12'}\n  Execution: Bounded AST Interpreter (Zero exec/eval sandbox)`);
+        break;
+      case 'pip':
+        addLog('output', 'Core quantum packages reported by server:\n' + versionSummary(health?.versions ?? simulation?.versions ?? optimization?.versions));
+        break;
+      case 'whoami':
+        addLog('output', 'Current workspace owner: ' + (health?.storage === 'cloud' ? 'Cloud Authenticated User' : 'Guest (local browser-isolated workspace)'));
+        break;
+      case 'tvd':
+        addLog(simulation && simulation.tvd != null ? 'output' : 'warn', simulation && simulation.tvd != null
+          ? `Total Variation Distance (TVD): ${simulation.tvd.toFixed(6)}\nClassical statistical fidelity: ${(1 - simulation.tvd).toFixed(6)}`
+          : 'No simulation result available. Run a simulation first to measure statistical distance.');
+        break;
+      case 'shots':
+        addLog(simulation ? 'output' : 'info', simulation
+          ? `Last simulation shots: ${simulation.shots.toLocaleString()}`
+          : 'Default simulation shots: 1,024 (configurable in settings or Simulation panel)');
+        break;
+      case 'seed':
+        addLog(simulation ? 'output' : 'info', simulation
+          ? `Last simulation seed: ${simulation.seed}`
+          : 'Default simulation seed: 42 (configurable in settings)');
+        break;
+      case 'exit':
+        addLog('info', 'Closing integrated console…');
+        onClose();
+        break;
+      case 'ls': {
+        const prefix = args[0]?.replace(/^['"]|['"]$/g, '') ?? '';
+        const matching = workspaceFiles.filter(file => !prefix || file.path.startsWith(prefix));
+        addLog('output', matching.length
+          ? matching.map(file => file.path).sort().join('\n')
+          : prefix ? `No workspace files match path prefix "${prefix}".` : 'The browser workspace contains no files.');
+        break;
+      }
       case 'tree': {
         const paths = workspaceFiles.map(file => file.path).sort();
         addLog('output', paths.length ? paths.map(path => {

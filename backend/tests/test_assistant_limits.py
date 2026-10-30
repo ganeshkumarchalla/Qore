@@ -69,6 +69,21 @@ def test_provider_failure_does_not_leak_concurrency_slots(local_ai, monkeypatch)
         assert client.post("/api/assistant", json=BODY).json()["available"] is True
 
 
+def test_transient_provider_unavailability_is_retried_once(local_ai, monkeypatch):
+    calls = []
+
+    async def call():
+        calls.append(True)
+        return response(503 if len(calls) == 1 else 200)
+
+    provider_client(monkeypatch, call)
+    with TestClient(local_ai) as client:
+        result = client.post("/api/assistant", json=BODY)
+    assert result.status_code == 200
+    assert result.json()["available"] is True
+    assert len(calls) == 2
+
+
 def test_unavailable_configured_model_falls_back_to_current_stable_model(local_ai, monkeypatch):
     monkeypatch.setenv("GEMINI_MODEL", "retired-model")
     requested = []

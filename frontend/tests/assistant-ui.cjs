@@ -46,6 +46,7 @@ async function main() {
     };
     let source = '', assistantRequest, runCount = 0, parseCount = 0;
     let holdNextSimulation = false, releaseSimulation;
+    let holdNextAssistant = false, releaseAssistant;
     const workspace = workspaceFixture();
     await page.route('**/api/**', async route => {
       if (await workspace.handle(route)) return;
@@ -67,6 +68,10 @@ async function main() {
       else if (pathname === '/api/parse') { parseCount++; source = request.postDataJSON().source; body = parsed; }
       else if (pathname === '/api/assistant') {
         assistantRequest = request.postDataJSON();
+        if (holdNextAssistant) {
+          holdNextAssistant = false;
+          await new Promise(resolve => { releaseAssistant = resolve; });
+        }
         body = { available: true, answer: 'The active circuit prepares a three-qubit GHZ state.', model: 'ui-fixture-model' };
       } else if (pathname === '/api/simulate') {
         runCount++;
@@ -135,6 +140,10 @@ async function main() {
     const sidebar = page.locator('#qore-assistant-sidebar'); await sidebar.waitFor();
     assert.equal(await page.locator('.activity-bar').getByRole('button', { name: 'Assistant', exact: true }).count(), 0);
     await page.getByLabel('Ask QORE Intelligence').fill('Explain the active circuit');
+    const composerButton = await page.getByRole('button', { name: 'Ask assistant', exact: true }).boundingBox();
+    const assistantViewport = await sidebar.locator('.qore-assistant-scroll').boundingBox();
+        assert(composerButton && assistantViewport && composerButton.y + composerButton.height <= assistantViewport.y + assistantViewport.height,
+      'The send control must be visible without scrolling on a 1366 × 768 laptop');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
     await sidebar.getByRole('heading', { name: 'QORE Intelligence', exact: true }).waitFor();
@@ -228,6 +237,21 @@ async function main() {
     await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).waitFor();
     assert.equal(assistantRequest.simulation_id, 'ui-fixture-run-1');
     await page.waitForFunction(() => !document.querySelector('#assistant-question')?.disabled);
+    holdNextAssistant = true;
+    const delayedAssistant = page.waitForRequest(request => request.url().includes('/api/assistant') && request.method() === 'POST');
+    await page.getByLabel('Ask QORE Intelligence').fill('Explain this draft');
+    await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
+    await delayedAssistant;
+    await page.locator('.monaco-editor textarea.inputarea').first().focus();
+    await page.keyboard.type('\n# edited before the assistant responded');
+    await page.waitForFunction(() => !document.querySelector('#assistant-question')?.disabled);
+    assert(releaseAssistant, 'The mocked assistant response must be held while source changes');
+    const assistantResponse = page.waitForResponse(response => response.url().includes('/api/assistant'));
+    releaseAssistant();
+    await assistantResponse;
+    assert.equal(await sidebar.getByText('The active circuit prepares a three-qubit GHZ state.', { exact: true }).count(), 0,
+      'An answer for older source must not appear beside the edited draft');
+    checks.push('QORE Intelligence discards responses when the active source changes');
     await page.getByLabel('Ask QORE Intelligence').fill('open lab');
     await page.getByRole('button', { name: 'Ask assistant', exact: true }).click();
     await page.locator('.lab-view-shell').waitFor();

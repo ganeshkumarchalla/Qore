@@ -44,6 +44,7 @@ export type UnitaryCell = {
 
 export type Parsed = {
   ir: IR;
+  selected_circuit?: string | null;
   metrics: Metrics;
   source_hash: string;
   warnings: string[];
@@ -92,6 +93,12 @@ export type QuantumCapabilities = {
   modules: Record<string, string>;
   gates: Record<string, { parameters: number; qubits: number }>;
   gate_classes: string[];
+  circuit_factories?: string[];
+  parameter_constructors?: string[];
+  object_methods?: string[];
+  circuit_selection?: string;
+  installed_packages?: Record<string, string>;
+  package_execution?: Record<string, string>;
   circuit_methods: string[];
   workflows: string[];
   simulation_methods: string[];

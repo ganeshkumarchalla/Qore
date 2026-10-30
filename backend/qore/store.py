@@ -60,6 +60,10 @@ class Store(SQLiteWorkspace):
     def connect(self):
         db = sqlite3.connect(str(self.path), timeout=10)
         db.row_factory = sqlite3.Row
+        db.execute("PRAGMA journal_mode=WAL;")
+        db.execute("PRAGMA synchronous=NORMAL;")
+        db.execute("PRAGMA foreign_keys=ON;")
+        db.execute("PRAGMA busy_timeout=5000;")
         try:
             yield db
             db.commit()

@@ -621,7 +621,7 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
     generation.current += 1;
     setAnswer(''); setError(''); setAvailable(null); setPending(false);
     return () => { generation.current += 1; };
-  }, [fileName, simulation?.id, optimization?.id, view]);
+  }, [fileName, source, diagnostics, workspaceSummary, simulation?.id, optimization?.id, view]);
 
   const commands: Record<string, Parameters<typeof onAction>[0]> = {
     'open studio': 'studio', 'open lab': 'lab', 'open forge': 'forge', 'open ledger': 'research',
@@ -639,7 +639,12 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
       setAvailable(true);
       return;
     }
-    if (!ready) return;
+    if (!ready) {
+      setQuestion(text);
+      setAnswer('QORE Intelligence is unavailable. Workspace commands above still work.');
+      setAvailable(false);
+      return;
+    }
     const requestGeneration = generation.current;
     setQuestion(text);
     setPending(true); setError(''); setAnswer('');
@@ -683,6 +688,26 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         <div><Icon name={historical ? 'clock' : 'file'} size={14} /><strong>{fileName || 'No circuit open'}</strong></div>
         <span>{view} · {historical ? 'Historical snapshot' : source.trim() ? source.split('\n').length + ' editor lines' : 'No circuit required'}</span>
       </div>
+      <form onSubmit={event => { event.preventDefault(); void ask(); }}>
+        <label htmlFor="assistant-question">Ask QORE Intelligence</label>
+        <textarea id="assistant-question" value={question} maxLength={4000}
+          onChange={event => setQuestion(event.target.value)} rows={4} disabled={pending}
+          placeholder={source.trim() ? 'Explain this workspace, result, or next step…' : 'Ask about QORE, or type “open lab”…'}
+          aria-describedby="qore-assistant-review" />
+        <div className="assistant-action">
+          <span id="qore-assistant-review" className="tiny muted">Review explanations against your measured results.</span>
+          <button className="button primary small" type="submit" disabled={pending || !question.trim()}>
+            {pending ? <span className="spinner" /> : <Icon name="spark" size={14} />}
+            {pending ? 'Thinking…' : 'Ask assistant'}
+          </button>
+        </div>
+      </form>
+      {pending && <p className="help" role="status">Reading the active QORE context…</p>}
+      {error && <div className="error-box" role="alert">{error}</div>}
+      {answer && <div className="assistant-answer" role="status">
+        <div className="section-head"><Icon name="spark" size={15} /><h3>{available ? 'Assistant response' : 'Service notice'}</h3></div>
+        <p className="preserve-lines">{answer}</p>
+      </div>}
       <div className="qore-assistant-command-stack" aria-label="QORE Intelligence workspace actions">
         <button type="button" onClick={() => onAction('studio')}>Studio</button>
         <button type="button" onClick={() => onAction('lab')}>Lab</button>
@@ -702,26 +727,6 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
           {prompt.text}<Icon name="arrow" size={12} />
         </button>)}
       </div>
-      <form onSubmit={event => { event.preventDefault(); void ask(); }}>
-        <label htmlFor="assistant-question">Ask QORE Intelligence</label>
-        <textarea id="assistant-question" value={question} maxLength={4000}
-          onChange={event => setQuestion(event.target.value)} rows={4} disabled={pending || !ready}
-          placeholder={source.trim() ? 'Explain this workspace, result, or next step…' : 'Ask about QORE, or type “open lab”…'}
-          aria-describedby="qore-assistant-review" />
-        <div className="assistant-action">
-          <span id="qore-assistant-review" className="tiny muted">Review explanations against your measured results.</span>
-          <button className="button primary small" type="submit" disabled={pending || !ready || !question.trim()}>
-            {pending ? <span className="spinner" /> : <Icon name="spark" size={14} />}
-            {pending ? 'Thinking…' : 'Ask assistant'}
-          </button>
-        </div>
-      </form>
-      {pending && <p className="help" role="status">Reading the active QORE context…</p>}
-      {error && <div className="error-box" role="alert">{error}</div>}
-      {answer && <div className="assistant-answer" role="status">
-        <div className="section-head"><Icon name="spark" size={15} /><h3>{available ? 'Assistant response' : 'Service notice'}</h3></div>
-        <p className="preserve-lines">{answer}</p>
-      </div>}
     </section>
     <p className="qore-assistant-footnote"><Icon name="info" size={13} />QORE Intelligence receives the active view, workspace summary, diagnostics, and attached evidence—never the server API key.</p>
   </div>;

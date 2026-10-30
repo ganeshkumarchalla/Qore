@@ -540,19 +540,26 @@ def create_app(db_path=None):
             raise JobError("assistant_busy", "The assistant is busy. Please retry shortly.", status=429)
         try:
             async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                    headers={"x-goog-api-key": key}, json={
-                        "systemInstruction": {"parts": [{"text": instruction}]},
-                        "contents": [{"role": "user", "parts": [{"text": json.dumps({"context": context, "question": body.question})}]}],
-                        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 900},
-                    })
+                request_body = {
+                    "systemInstruction": {"parts": [{"text": instruction}]},
+                    "contents": [{"role": "user", "parts": [{"text": json.dumps({"context": context, "question": body.question})}]}],
+                    "generationConfig": {"temperature": 0.2, "maxOutputTokens": 900},
+                }
+
+                async def generate(chosen_model: str):
+                    for attempt in range(2):
+                        result = await client.post(
+                            f"https://generativelanguage.googleapis.com/v1beta/models/{chosen_model}:generateContent",
+                            headers={"x-goog-api-key": key}, json=request_body,
+                        )
+                        if result.status_code not in (502, 503, 504) or attempt:
+                            return result
+                        await asyncio.sleep(0.4)
+                    raise AssertionError("unreachable")
+
+                response = await generate(model)
                 if response.status_code == 404 and model != "gemini-3.6-flash":
-                    response = await client.post("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
-                        headers={"x-goog-api-key": key}, json={
-                            "systemInstruction": {"parts": [{"text": instruction}]},
-                            "contents": [{"role": "user", "parts": [{"text": json.dumps({"context": context, "question": body.question})}]}],
-                            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 900},
-                        })
+                    response = await generate("gemini-3.6-flash")
                     model = "gemini-3.6-flash"
                 response.raise_for_status()
                 parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])

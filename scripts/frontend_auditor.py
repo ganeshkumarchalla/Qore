@@ -10,6 +10,7 @@ import json
 import glob
 import re
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -94,15 +95,16 @@ def check_vite_build(node_bin: str) -> dict:
             "error": f"vite script not found at {vite_script}"
         }
         
-    cmd = [node_bin, str(vite_script), "build", str(FRONTEND_DIR)]
     try:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(FRONTEND_DIR),
-            capture_output=True,
-            text=True,
-            timeout=120
-        )
+        # Audit a fresh build without replacing a developer's existing dist/ tree.
+        with tempfile.TemporaryDirectory(prefix="qore-frontend-audit-") as build_dir:
+            proc = subprocess.run(
+                [node_bin, str(vite_script), "build", str(FRONTEND_DIR), "--outDir", build_dir],
+                cwd=str(FRONTEND_DIR),
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
         passed = (proc.returncode == 0)
         output_lines = [line.strip() for line in (proc.stdout + proc.stderr).splitlines() if line.strip()]
         return {
