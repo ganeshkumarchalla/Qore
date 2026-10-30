@@ -24,7 +24,7 @@ CIRCUIT_FACTORIES = {name: getattr(library, name) for name in (
 )}
 PARAMETER_TYPES = {"Parameter": Parameter, "ParameterVector": ParameterVector}
 OPERATOR_TYPES = {"Pauli": Pauli, "SparsePauliOp": SparsePauliOp}
-OBJECT_METHODS = {"assign_parameters", "compose", "inverse", "control", "power", "to_gate", "copy"}
+OBJECT_METHODS = {"assign_parameters", "compose", "inverse", "control", "power", "to_gate", "copy", "decompose"}
 
 
 class BoundedQiskit:
@@ -321,11 +321,17 @@ class BoundedQiskit:
                 raise ValueError("Power exponents must be real and at most 16 in magnitude.")
             if owner.num_qubits > 4:
                 raise ValueError("Gate and circuit powers are limited to four qubits for bounded matrix synthesis.")
-        elif name in ("inverse", "copy", "to_gate"):
-            if args or kwargs:
-                raise ValueError(f"Use {name}() without options.")
-            if name == "to_gate" and not isinstance(owner, QuantumCircuit):
-                raise ValueError("to_gate applies to circuits.")
+        elif name in ("inverse", "copy", "to_gate", "decompose"):
+            if name == "decompose":
+                if not isinstance(owner, QuantumCircuit):
+                    raise ValueError("decompose applies to circuits.")
+                if len(args) > 1 or set(kwargs) - {"gates_to_decompose", "reps"}:
+                    raise ValueError("decompose accepts optional gates_to_decompose or reps.")
+            else:
+                if args or kwargs:
+                    raise ValueError(f"Use {name}() without options.")
+                if name == "to_gate" and not isinstance(owner, QuantumCircuit):
+                    raise ValueError("to_gate applies to circuits.")
         result = getattr(owner, name)(*args, **kwargs)
         if isinstance(result, QuantumCircuit):
             self.circuit(result)

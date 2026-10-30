@@ -298,6 +298,14 @@ class _SourceInterpreter:
         if self.circuit is None:
             raise QuantumError("MISSING_CIRCUIT", "Declare one circuit with qc = QuantumCircuit(qubits, classical_bits).")
         if self.circuit.parameters:
+            # If the initial circuit had parameters but a subsequent assigned/bound circuit was created,
+            # select the most recent bound circuit as the primary circuit.
+            for name, val in reversed(list(self.values.items())):
+                if isinstance(val, QuantumCircuit) and not val.parameters:
+                    self.circuit = val
+                    self.circuit_name = name
+                    break
+        if self.circuit.parameters:
             raise QuantumError("UNBOUND_PARAMETERS", "Bind all active-circuit parameters with assign_parameters before parsing, simulation, or compilation.",
                                {"parameters": [str(p) for p in self.circuit.parameters]})
         return self.circuit
@@ -405,6 +413,9 @@ class _SourceInterpreter:
                 func = node.value.func
                 # Safely ignore print(...) calls
                 if isinstance(func, ast.Name) and func.id == "print":
+                    return
+                # Safely ignore inspection calls (e.g. qc.draw(), bound_circuit.decompose().draw('mpl'))
+                if isinstance(func, ast.Attribute) and func.attr in ("draw", "depth", "size", "width"):
                     return
                 if isinstance(func, ast.Attribute) and func.attr in OBJECT_METHODS:
                     self.expression(node.value)
@@ -772,14 +783,15 @@ class _SourceInterpreter:
                 name = gen.target.id
                 self.bindable(name, node)
                 iterable = self.expression(gen.iter)
-                if isinstance(iterable, (list, tuple, range)):
-                    if len(iterable) > MAX_OPERATIONS:
-                        raise _error("RESOURCE_LIMIT", "Comprehensions are limited to 500 entries.", node)
+                from collections.abc import Iterable as PyIterable
+                if isinstance(iterable, (list, tuple, range, PyIterable)):
                     items = []
                     absent = object()
                     previous = self.values.get(name, absent)
                     try:
-                        for val in iterable:
+                        for count, val in enumerate(iterable):
+                            if count >= MAX_OPERATIONS:
+                                raise _error("RESOURCE_LIMIT", "Comprehensions are limited to 500 entries.", node)
                             self.values[name] = val
                             items.append(self.expression(node.elt))
                     finally:
@@ -788,6 +800,32 @@ class _SourceInterpreter:
                         else:
                             self.values[name] = previous
                     return items
+        if isinstance(node, ast.DictComp):
+            if len(node.generators) == 1 and not node.generators[0].ifs and not node.generators[0].is_async and isinstance(node.generators[0].target, ast.Name):
+                gen = node.generators[0]
+                name = gen.target.id
+                self.bindable(name, node)
+                iterable = self.expression(gen.iter)
+                from collections.abc import Iterable as PyIterable
+                if isinstance(iterable, (list, tuple, range, PyIterable)):
+                    result = {}
+                    absent = object()
+                    previous = self.values.get(name, absent)
+                    try:
+                        for count, val in enumerate(iterable):
+                            if count >= MAX_OPERATIONS:
+                                raise _error("RESOURCE_LIMIT", "Comprehensions are limited to 500 entries.", node)
+                            self.values[name] = val
+                            key = self.expression(node.key)
+                            if not isinstance(key, (str, Parameter)):
+                                raise _error("INVALID_ARGUMENTS", "Binding keys must be parameter objects or names.", node)
+                            result[key] = self.support.angle(self.expression(node.value))
+                    finally:
+                        if previous is absent:
+                            self.values.pop(name, None)
+                        else:
+                            self.values[name] = previous
+                    return result
         if isinstance(node, ast.Call):
             if self.is_constructor(node.func):
                 return self.new_circuit(node)
