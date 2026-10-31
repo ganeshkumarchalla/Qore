@@ -1513,10 +1513,6 @@ def simulate(
         raise QuantumError("SIMULATION_FAILED", f"Qiskit Aer could not simulate the circuit: {exc}") from exc
     mapping_text = ", ".join(f"q[{q}] → c[{c}]" for q, c in mapping)
     sim_warnings = list(parsed.get("warnings", []))
-    if auto_measured:
-        sim_warnings.append(
-            "Source contained no measurements. QORE appended q[i] → c[i] for sampling only; Bloch vectors, amplitudes, and the unitary remain the pre-measurement ideal state."
-        )
     return {
         **parsed,
         "warnings": sim_warnings,
