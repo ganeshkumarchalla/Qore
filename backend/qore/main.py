@@ -444,6 +444,32 @@ def create_app(db_path=None):
         await check_project(ident)
         return await storage("save_project", body.name, body.source, ident)
 
+    @application.post("/api/worker")
+    async def worker_dispatch(request: Request):
+        from . import quantum
+        try:
+            payload = await request.json()
+        except Exception:
+            raise JobError("invalid_request", "Invalid JSON payload.", status=400)
+        operation = payload.get("operation")
+        args = payload.get("args", {})
+        functions = {"parse": quantum.parse_source, "simulate": quantum.simulate, "optimize": quantum.optimize}
+        if operation not in functions:
+            raise JobError("invalid_operation", f"Unknown operation: {operation}", status=400)
+        try:
+            result = await asyncio.to_thread(functions[operation], **args)
+            return {"result": result}
+        except quantum.QuantumError as error:
+            return JSONResponse(
+                {"error": {"code": error.code, "message": error.message, "details": getattr(error, "details", None)}},
+                status_code=422
+            )
+        except Exception:
+            return JSONResponse(
+                {"error": {"code": "quantum_failure", "message": "The quantum worker could not complete this operation.", "details": None}},
+                status_code=500
+            )
+
     @application.post("/api/parse")
     async def parse(body: SourceInput):
         return await execute("parse", body.model_dump())
