@@ -235,7 +235,8 @@ export function Circuit({ ir, compact = false }: { ir: IR | null; compact?: bool
         </div>
       </div>
 
-      <svg
+      <div className="circuit-canvas-wrap">
+        <svg
         role="img"
         aria-label={`Quantum Circuit with ${ir.num_qubits} qubits and ${ir.operations.length} operations`}
         width={width}
@@ -343,7 +344,8 @@ export function Circuit({ ir, compact = false }: { ir: IR | null; compact?: bool
         {ir.operations.map((op, i) => (
           <Gate key={i} op={op} x={128 + i * 72} qy={qy} cy={cy} index={i} animated={livePulse} />
         ))}
-      </svg>
+        </svg>
+      </div>
 
       {ir.global_phase !== 0 && (
         <span className="phase-note">

@@ -2301,8 +2301,69 @@ th {
   border: 1px solid var(--vscode-border);
 }
 
-.circuit-scroll svg {
+.circuit-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.circuit-canvas-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.4) rgba(15, 23, 42, 0.6);
+}
+
+.circuit-canvas-wrap::-webkit-scrollbar {
+  height: 8px;
+}
+
+.circuit-canvas-wrap::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 4px;
+}
+
+.circuit-canvas-wrap::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.4);
+  border-radius: 4px;
+}
+
+.circuit-canvas-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.7);
+}
+
+.circuit-scroll svg,
+.circuit-svg-canvas {
   display: block;
+  min-width: max-content;
+}
+
+.comparison-circuit {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.comparison-circuit .circuit-scroll {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.comparison-circuit .circuit-scroll.compact {
+  background: #0d1117;
+  border: 1px solid var(--vscode-border);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
 }
 .phase-note {
   display: inline-block;
