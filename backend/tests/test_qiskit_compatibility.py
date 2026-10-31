@@ -61,6 +61,11 @@ def test_every_advertised_library_class_preserves_its_operator(name):
         "HamiltonianGate": {"data": [[0, 1], [1, 0]], "time": 0.25},
         "StatePreparation": {"params": [0, 1]},
         "GraphStateGate": {"adjacency_matrix": [[0, 1], [1, 0]]},
+        "AndGate": {"num_variable_qubits": 2},
+        "OrGate": {"num_variable_qubits": 2},
+        "BitwiseXorGate": {"num_qubits": 2, "amount": 1},
+        "FullAdderGate": {"num_state_qubits": 1},
+        "HalfAdderGate": {"num_state_qubits": 1},
     }
     if name == "PauliEvolutionGate":
         from qiskit.quantum_info import SparsePauliOp
@@ -70,6 +75,18 @@ def test_every_advertised_library_class_preserves_its_operator(name):
         assert_operator("from qiskit import QuantumCircuit\nfrom qiskit.circuit.library import PauliEvolutionGate\n"
                         "from qiskit.quantum_info import SparsePauliOp\nqc=QuantumCircuit(2)\n"
                         "qc.append(PauliEvolutionGate(SparsePauliOp.from_list([('ZZ',0.5)]),time=0.25),[0,1])", expected)
+        return
+    if name == "MCMTGate":
+        from qiskit.circuit.library import ZGate
+        gate = cls(ZGate(), 2, 1)
+        expected = QuantumCircuit(3)
+        expected.append(gate, [0, 1, 2])
+        assert_operator(
+            "from qiskit import QuantumCircuit\nfrom qiskit.circuit.library import MCMTGate, ZGate\n"
+            "qc=QuantumCircuit(3)\n"
+            "qc.append(MCMTGate(ZGate(), 2, 1), [0, 1, 2])",
+            expected,
+        )
         return
     for parameter in inspect.signature(cls.__init__).parameters.values():
         if parameter.name == "self" or parameter.default is not inspect.Parameter.empty:

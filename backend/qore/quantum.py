@@ -432,6 +432,9 @@ class _SourceInterpreter:
                     return
                 # Safely ignore inspection calls (e.g. qc.draw(), bound_circuit.decompose().draw('mpl'))
                 if isinstance(func, ast.Attribute) and func.attr in ("draw", "depth", "size", "width"):
+                    target = self.expression(func.value)
+                    if not isinstance(target, QuantumCircuit):
+                        raise _error("UNSUPPORTED_SOURCE", "Inspection methods are only supported on quantum circuits.", node)
                     return
                 if isinstance(func, ast.Attribute) and func.attr in OBJECT_METHODS:
                     self.expression(node.value)
