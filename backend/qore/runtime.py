@@ -13,17 +13,31 @@ class JobError(Exception):
         super().__init__(message)
 
 
+_REMOTE_CLIENT = None
+
+
+def _get_remote_client(timeout=30):
+    global _REMOTE_CLIENT
+    if _REMOTE_CLIENT is None or _REMOTE_CLIENT.is_closed:
+        import httpx
+        _REMOTE_CLIENT = httpx.Client(
+            timeout=timeout,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=60.0)
+        )
+    return _REMOTE_CLIENT
+
+
 def run_worker(operation, args, timeout=30):
     worker_host = os.environ.get("QORE_WORKER_HOST", "").strip().rstrip("/")
     if worker_host:
         import httpx
         try:
-            with httpx.Client(timeout=timeout) as client:
-                resp = client.post(
-                    f"{worker_host}/api/worker",
-                    json={"operation": operation, "args": args},
-                    headers={"Content-Type": "application/json"}
-                )
+            client = _get_remote_client(timeout=timeout)
+            resp = client.post(
+                f"{worker_host}/api/worker",
+                json={"operation": operation, "args": args},
+                headers={"Content-Type": "application/json"}
+            )
                 if resp.status_code >= 400:
                     try:
                         err_data = resp.json().get("error", {})
