@@ -580,7 +580,7 @@ export default function App() {
             name: fileName,
             path,
             type: 'file',
-            kind: isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python',
+            kind: rawName.endsWith('.qs') ? 'qsharp' : isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python',
             source,
           };
           const nextFiles = [newFile, ...loadWorkspaceFiles().filter((f) => f.id !== path)];
@@ -682,7 +682,7 @@ export default function App() {
             name: fileName,
             path,
             type: 'file',
-            kind: isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python',
+            kind: rawName.endsWith('.qs') ? 'qsharp' : isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python',
             source,
           };
           const nextFiles = [newFile, ...loadWorkspaceFiles().filter((f) => f.id !== path)];
@@ -1833,7 +1833,7 @@ export default function App() {
                     <Suspense fallback={<div className="editor-loading"><span className="spinner" /> Loading editor…</div>}>
                     <Editor
                     height="100%"
-                      language={name.endsWith('.md') ? 'markdown' : name.endsWith('.json') ? 'json' : name.endsWith('.qasm') ? 'c' : 'python'}
+                      language={name.endsWith('.md') ? 'markdown' : name.endsWith('.json') ? 'json' : name.endsWith('.qs') ? 'qsharp' : name.endsWith('.qasm') ? 'c' : 'python'}
                     theme="qore"
                     value={source}
                     onMount={(editor) => { editorRef.current = editor; }}

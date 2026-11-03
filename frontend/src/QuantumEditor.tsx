@@ -8,6 +8,25 @@ import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
   getWorker: () => new EditorWorker(),
 };
 loader.config({ monaco });
+monaco.languages.register({ id: 'qsharp', extensions: ['.qs'], aliases: ['Q#', 'qsharp'] });
+monaco.languages.setMonarchTokensProvider('qsharp', {
+  keywords: ['namespace', 'open', 'operation', 'function', 'use', 'borrow', 'let', 'mutable', 'set', 'return', 'if', 'elif', 'else', 'for', 'in', 'while', 'repeat', 'until', 'fixup', 'within', 'apply', 'body', 'adjoint', 'controlled', 'Adjoint', 'Controlled', 'is'],
+  typeKeywords: ['Qubit', 'Result', 'Unit', 'Int', 'Double', 'Bool', 'String', 'Pauli', 'Range', 'Zero', 'One', 'true', 'false'],
+  tokenizer: {
+    root: [
+      [/\/\//, 'comment', '@lineComment'],
+      [/\/\*/, 'comment', '@comment'],
+      [/"/, 'string', '@string'],
+      [/@[A-Za-z_]\w*/, 'annotation'],
+      [/[A-Za-z_]\w*/, { cases: { '@keywords': 'keyword', '@typeKeywords': 'type', '@default': 'identifier' } }],
+      [/\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/, 'number'],
+      [/[{}()[\]]/, '@brackets'],
+    ],
+    lineComment: [[/.*$/, 'comment', '@pop']],
+    comment: [[/[^/*]+/, 'comment'], [/\*\//, 'comment', '@pop'], [/[/*]/, 'comment']],
+    string: [[/[^\\"]+/, 'string'], [/\\./, 'string.escape'], [/"/, 'string', '@pop']],
+  },
+});
 monaco.editor.defineTheme('qore', {
   base: 'vs-dark', inherit: true,
   rules: [

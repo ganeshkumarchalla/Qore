@@ -108,7 +108,7 @@ export type QuantumCapabilities = {
 
 export type WorkspaceEntry = {
   id: string; path: string; name: string; type: 'file' | 'folder';
-  source: string; kind: 'python' | 'qasm' | 'json' | 'markdown' | null;
+  source: string; kind: 'python' | 'qasm' | 'qsharp' | 'json' | 'markdown' | null;
   version: number; created_at: string; updated_at: string;
   deleted_at: string | null; expires_at: string | null;
 };

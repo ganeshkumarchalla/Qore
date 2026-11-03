@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8080 \
     PYTHONPATH=/app/backend \
     QORE_ENV=production \
+    QDK_PYTHON_TELEMETRY=none \
     QORE_STORAGE=sqlite \
     QORE_PUBLIC_URL=https://qore-bmh1.onrender.com
 
@@ -20,6 +21,11 @@ RUN pip install --no-cache-dir "setuptools>=75"
 COPY backend ./backend
 COPY frontend/dist ./frontend/dist
 RUN pip install --no-cache-dir --no-deps -e .
+
+# Optional compiler/importer and offline SDK libraries. Capabilities report
+# availability from the running image. Disable explicitly for a minimal image.
+ARG QORE_QUANTUM_SDKS=true
+RUN if [ "$QORE_QUANTUM_SDKS" = "true" ]; then pip install --no-cache-dir ".[qdk,qiskit-tools,quantum-runtime]"; fi
 
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn qore.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

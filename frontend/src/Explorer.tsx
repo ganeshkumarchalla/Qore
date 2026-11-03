@@ -19,7 +19,7 @@ export interface WorkspaceFile {
   name: string;
   path: string;
   type: 'file';
-  kind: 'python' | 'qasm' | 'json' | 'markdown';
+  kind: 'python' | 'qasm' | 'qsharp' | 'json' | 'markdown';
   source: string;
   qubits?: number;
   readOnly?: boolean;
@@ -396,10 +396,11 @@ export function Explorer({
       setFileError('Use a file name of 1–100 characters, without path separators or reserved characters.');
       return;
     }
+    const isQsharp = fileName.endsWith('.qs');
     const isQasm = fileName.endsWith('.qasm');
     const isJson = fileName.endsWith('.json');
     const isMd = fileName.endsWith('.md');
-    const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
+    const kind: WorkspaceFile['kind'] = isQsharp ? 'qsharp' : isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
     const folder = targetFolder || 'circuits';
     const path = `${folder}/${fileName}`;
 
@@ -451,10 +452,11 @@ export function Explorer({
     }
     const updated = customFiles.map((f) => {
       if (f.id === renamingId) {
+        const isQsharp = newName.endsWith('.qs');
         const isQasm = newName.endsWith('.qasm');
         const isJson = newName.endsWith('.json');
         const isMd = newName.endsWith('.md');
-        const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
+        const kind: WorkspaceFile['kind'] = isQsharp ? 'qsharp' : isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
         return { ...f, name: newName, path: newPath, kind };
       }
       return f;
@@ -608,10 +610,11 @@ export function Explorer({
           name = `${stem}_import_${suffix++}${extension}`;
           path = `${folder}/${name}`;
         }
+        const isQsharp = name.endsWith('.qs');
         const isQasm = name.endsWith('.qasm');
         const isJson = name.endsWith('.json');
         const isMd = name.endsWith('.md');
-        const kind: WorkspaceFile['kind'] = isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
+        const kind: WorkspaceFile['kind'] = isQsharp ? 'qsharp' : isQasm ? 'qasm' : isJson ? 'json' : isMd ? 'markdown' : 'python';
         const newFile: WorkspaceFile = {
           id: newWorkspaceId(),
           name,
@@ -647,6 +650,9 @@ export function Explorer({
           </svg>
         </span>
       );
+    }
+    if (file.kind === 'qsharp' || file.name.endsWith('.qs')) {
+      return <span className="clean-file-icon qasm" aria-label="Q sharp source">Q#</span>;
     }
     if (file.kind === 'qasm' || file.name.endsWith('.qasm')) {
       return (
@@ -955,7 +961,7 @@ export function Explorer({
                   ref={createFileRef}
                   type="text"
                   className="vs-create-input"
-                  placeholder="filename.py (or .qasm, .json, .md)"
+                  placeholder="filename.py (or .qs, .qasm, .json, .md)"
                   value={createFileName}
                   onChange={(e) => setCreateFileName(e.target.value)}
                   onKeyDown={(e) => {
@@ -987,7 +993,7 @@ export function Explorer({
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".py,.qasm,.json,.md,.txt"
+        accept=".py,.qs,.qasm,.json,.md,.txt"
         style={{ display: 'none' }}
         onChange={handleFileUpload}
       />

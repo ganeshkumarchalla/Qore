@@ -56,7 +56,7 @@ Explorer files and folders use a mutable browser workspace with a server workspa
 
 - GET `/workspace` -> `WorkspaceSnapshot`.
 - GET `/workspace/trash` -> `{trash,retention_hours:48,server_time}`.
-- PUT `/workspace/files/{uuid}` body `{path,source,kind,expected_version}` -> entry. `expected_version:0` creates an entry; updates require the current version. Empty source is valid; the UTF-8 source limit is 32768 bytes. `kind` is `python|qasm|json|markdown`.
+- PUT `/workspace/files/{uuid}` body `{path,source,kind,expected_version}` -> entry. `expected_version:0` creates an entry; updates require the current version. Empty source is valid; the UTF-8 source limit is 32768 bytes. `kind` is `python|qasm|qsharp|json|markdown`.
 - PUT `/workspace/folders/{uuid}` body `{path,expected_version}` -> entry. A folder rename/move updates its active subtree atomically.
 - DELETE `/workspace/files/{uuid}` or `/workspace/folders/{uuid}` body `{expected_version}` -> snapshot. Deletion is soft, increments versions, removes active entries, and records the last deletion. Folder deletion is an atomic trash batch.
 - POST `/workspace/files/{uuid}/restore` or `/workspace/folders/{uuid}/restore` -> snapshot. Restore never overwrites an occupied active path.

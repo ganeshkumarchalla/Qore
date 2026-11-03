@@ -19,7 +19,7 @@ from .runtime import JobError
 RETENTION_HOURS = 48
 MAX_ENTRIES = 1000
 MAX_WORKSPACE_BYTES = 16 * 1024 * 1024
-KINDS = {"python", "qasm", "json", "markdown"}
+KINDS = {"python", "qasm", "qsharp", "json", "markdown"}
 
 
 def clock():
@@ -60,7 +60,7 @@ def initialize_workspace(db):
           CHECK((deleted_at IS NULL AND expires_at IS NULL AND trash_batch_id IS NULL)
             OR (deleted_at IS NOT NULL AND expires_at IS NOT NULL AND trash_batch_id IS NOT NULL)),
           CHECK((entry_type='folder' AND kind IS NULL AND source='')
-            OR (entry_type='file' AND kind IN ('python','qasm','json','markdown')))
+            OR (entry_type='file' AND kind IN ('python','qasm','qsharp','json','markdown')))
         );
         CREATE UNIQUE INDEX IF NOT EXISTS workspace_active_path ON workspace_entries(owner_id,path) WHERE deleted_at IS NULL;
         CREATE INDEX IF NOT EXISTS workspace_owner ON workspace_entries(owner_id,updated_at);
@@ -72,6 +72,20 @@ def initialize_workspace(db):
           id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, removed_at TEXT NOT NULL
         );
     """)
+    # SQLite cannot alter CHECK constraints. Rebuild atomically, preserving
+    # every active and deleted entry, version, timestamp, and workspace state.
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        schema = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='workspace_entries'").fetchone()[0]
+        if "'qsharp'" not in schema:
+            upgraded = schema.replace("workspace_entries", "workspace_entries_qsharp", 1).replace("'qasm',", "'qasm','qsharp',", 1)
+            db.execute(upgraded)
+            db.execute("INSERT INTO workspace_entries_qsharp SELECT * FROM workspace_entries")
+            db.execute("DROP TABLE workspace_entries")
+            db.execute("ALTER TABLE workspace_entries_qsharp RENAME TO workspace_entries")
+            db.execute("CREATE UNIQUE INDEX workspace_active_path ON workspace_entries(owner_id,path) WHERE deleted_at IS NULL")
+            db.execute("CREATE INDEX workspace_owner ON workspace_entries(owner_id,updated_at)")
+            db.execute("CREATE INDEX workspace_expiry ON workspace_entries(expires_at) WHERE expires_at IS NOT NULL")
 
 
 def entry_dto(entry):
@@ -286,7 +300,7 @@ class FolderInput(WorkspaceModel):
 
 class FileInput(FolderInput):
     source: str = Field(default="", max_length=32768)
-    kind: Literal["python", "qasm", "json", "markdown"]
+    kind: Literal["python", "qasm", "qsharp", "json", "markdown"]
 
     @field_validator("source")
     @classmethod
