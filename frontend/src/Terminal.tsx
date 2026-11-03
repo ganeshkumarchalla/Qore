@@ -39,6 +39,8 @@ interface LogEntry {
 }
 
 const ALL_COMMANDS = [
+  'qsharp run', 'qsharp validate', 'qsharp transpile', 'qsharp capabilities',
+  'qasm run', 'qasm validate', 'qasm transpile',
   'help', 'qiskit --version', 'qiskit run', 'qiskit transpile', 'qiskit backends',
   'qiskit validate', 'qiskit draw', 'qiskit statevector', 'qiskit unitary', 'qiskit metrics',
   'qiskit qasm', 'qiskit bloch', 'qiskit purity', 'qiskit ideal', 'qiskit bitorder',
@@ -151,11 +153,11 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
     const parts = raw.split(/\s+/);
     let command = parts[0].toLowerCase();
     const args = parts.slice(1);
-    if (command === 'az' || command === 'qsharp') {
-      addLog('warn', (command === 'az' ? 'Azure Quantum CLI' : 'Q#') + ' is not connected to this command console. No cloud job or compiler command was executed.');
+    if (command === 'az') {
+      addLog('warn', 'Azure Quantum CLI is not connected to this command console. No cloud job or compiler command was executed.');
       return;
     }
-    if (command === 'qiskit') { command = (args.shift() ?? '--version').toLowerCase(); }
+    if (command === 'qiskit' || command === 'qsharp' || (command === 'qasm' && args.length > 0)) { command = (args.shift() ?? (command === 'qiskit' ? '--version' : 'capabilities')).toLowerCase(); }
     const aliases: Record<string, string> = {
       simulate: 'run', opt: 'transpile', optimize: 'transpile', forge: 'transpile',
       validate: 'parse', circuit: 'draw', ir: 'ast', targets: 'backends', version: '--version', '-v': '--version',
@@ -219,6 +221,8 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
           'QORE command console',
           '  run, qiskit run       Simulate the active circuit using current settings',
           '  parse, qiskit validate Validate and parse active source without sampling',
+          '  qsharp run/validate/transpile  Run supported Q# source through the backend',
+          '  qasm run/validate/transpile    Run supported OpenQASM source through the backend',
           '  transpile            Optimize the active circuit using current settings',
           '  depth, qiskit depth  Show circuit critical-path depth',
           '  qubits, width        Show quantum and classical bit width',
@@ -249,7 +253,7 @@ export function Terminal({ isOpen, onClose, onRunSimulation, onRunTranspile, onR
           '  exit, quit           Close console dock',
           '',
           'Type help <command> for detailed help on any command.',
-          'Commands with the qiskit prefix are QORE shortcuts. This console executes supported circuit actions through the backend; it does not provide an operating system shell.',
+          'Language-prefixed commands operate on the active file. Use capabilities to check supported syntax. This console does not provide an operating system shell or Azure CLI.',
         ].join('\n'));
         break;
       }

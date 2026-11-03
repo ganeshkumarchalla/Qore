@@ -42,7 +42,7 @@ jobs:
       - name: Install Python test dependencies
         run: |
           python -m venv .venv
-          .venv/bin/python -m pip install --disable-pip-version-check -e '.[test]'
+          .venv/bin/python -m pip install --disable-pip-version-check -e '.[test,qdk,qiskit-tools]'
       - name: Run daily baseline without external credentials
         run: .venv/bin/python scripts/daily_quality_report.py
       - name: Install isolated browser test runtime

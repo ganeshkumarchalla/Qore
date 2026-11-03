@@ -58,7 +58,7 @@ function isFile(value: unknown): value is WorkspaceFile {
   if (!value || typeof value !== 'object') return false;
   const file = value as Partial<WorkspaceFile>;
   return ['id', 'name', 'path', 'source'].every(field => typeof (file as Record<string, unknown>)[field] === 'string')
-    && file.type === 'file' && ['python', 'qasm', 'json', 'markdown'].includes(String(file.kind));
+    && file.type === 'file' && ['python', 'qasm', 'qsharp', 'json', 'markdown'].includes(String(file.kind));
 }
 function isFolder(value: unknown): value is WorkspaceEntry {
   if (!value || typeof value !== 'object') return false;

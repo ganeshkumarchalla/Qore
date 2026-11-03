@@ -13,6 +13,11 @@ import sys
 
 
 MODULES = {
+    "qdk": "qdk",
+    "qiskit-algorithms": "qiskit_algorithms",
+    "qiskit-optimization": "qiskit_optimization",
+    "qiskit-machine-learning": "qiskit_machine_learning",
+    "qiskit-nature": "qiskit_nature",
     "qiskit": "qiskit",
     "qiskit-aer": "qiskit_aer",
     "qiskit-ibm-runtime": "qiskit_ibm_runtime",
@@ -30,7 +35,7 @@ MODULES = {
 def main():
     environment = {key: value for key, value in os.environ.items()
                    if key.upper() in {"PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP"}}
-    environment.update({"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "QISKIT_PARALLEL": "FALSE"})
+    environment.update({"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "QISKIT_PARALLEL": "FALSE", "QDK_PYTHON_TELEMETRY": "none"})
     records = []
     program = "import importlib,sys; importlib.import_module(sys.argv[1])"
     for distribution, module in MODULES.items():

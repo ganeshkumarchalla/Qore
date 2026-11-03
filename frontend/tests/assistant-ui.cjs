@@ -226,10 +226,14 @@ async function main() {
     await command('qiskit ideal'); await page.locator('.terminal-log-scroll').getByText('Ideal reference probabilities:', { exact: false }).waitFor();
     await command('qiskit bitorder'); await page.locator('.terminal-log-scroll').getByText('UI fixture ordering', { exact: false }).waitFor();
     await command('tree'); await page.locator('.terminal-log-scroll .term-pre').filter({ hasText: '└─ my_first_qubits.py' }).waitFor();
-    const before = runCount; await command('az quantum execute'); await command('qsharp run');
-    assert.equal(runCount, before, 'Unsupported cloud/Q# commands must not dispatch Aer');
+    const before = runCount; await command('az quantum execute');
+    assert.equal(runCount, before, 'Unsupported cloud commands must not dispatch Aer');
+    const qsharpRequest = page.waitForRequest(request => request.url().endsWith('/api/parse'));
+    await command('qsharp validate'); await qsharpRequest;
+    assert.equal(parseCount, 2, 'Q# validation shortcut must dispatch the active source to the backend');
+    await page.waitForFunction(() => !document.querySelector('.terminal-input')?.disabled);
     await command('cat another_file.py'); await page.getByText('Workspace file not found:', { exact: false }).waitFor();
-    checks.push('Rapid Run clicks dispatch once; terminal executes capabilities, Bloch, ideal, bit-order and workspace-tree commands; unsupported cloud/Q# never execute');
+    checks.push('Rapid Run clicks dispatch once; terminal executes capabilities, Bloch, ideal, bit-order and workspace-tree commands; Q# validation routes to backend; unsupported cloud commands never execute');
 
     await page.locator('#qore-assistant-toggle').click();
     await page.getByLabel('Ask QORE Intelligence').fill('Explain again');

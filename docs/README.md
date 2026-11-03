@@ -53,3 +53,5 @@ Begin with an empty Explorer—no account is required. Create a blank file, or e
 Ideal amplitudes describe a noiseless state before measurement. Shot counts are finite samples from the selected simulator and noise settings. A Bloch sphere describes one reduced qubit, which can be mixed while the complete register is pure. An operator validation applies to its recorded method, size limit, and tolerance. These are related forms of evidence, but they answer different questions.
 
 Examples in this manual are optional learning material, never records inserted into an account by the documentation build. [Asset provenance](assets/BRAND_ASSETS.md) records the origins of brand marks and the illustrative nature of animation values. The actual API response is the authority for a particular execution.
+
+Q# integration: [Microsoft QDK, supported syntax, and execution](reference/qsharp.md).

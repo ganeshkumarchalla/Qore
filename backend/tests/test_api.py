@@ -29,7 +29,7 @@ def test_capabilities_describe_real_bounded_quantum_runtime(client):
     response = client.get("/api/capabilities")
     assert response.status_code == 200
     capability = response.json()
-    assert {"qiskit-circuit-python", "openqasm-2"} == {item["id"] for item in capability["languages"]}
+    assert {"qiskit-circuit-python", "openqasm-2", "openqasm-3", "qsharp"} == {item["id"] for item in capability["languages"]}
     assert all(item["arbitrary_python"] is False for item in capability["languages"])
     assert {"qiskit", "qiskit.circuit.library", "qiskit_aer", "math", "numpy"} <= set(capability["modules"])
     assert {"h", "cx", "cu", "ccz", "rccx", "cs", "csdg"} <= set(capability["gates"])

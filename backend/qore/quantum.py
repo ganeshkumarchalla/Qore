@@ -26,6 +26,7 @@ from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel, depolarizing_error
 import qiskit.circuit.library as qiskit_gate_lib
 from .qiskit_support import BoundedQiskit, CIRCUIT_FACTORIES, DATA_GATES, OBJECT_METHODS, OPERATOR_TYPES, PARAMETER_TYPES
+from .language_support import SourceLanguageError, available, load_qasm3, load_qsharp, strip_comments, QSHARP_GATES
 
 
 IR_VERSION = "1.0"
@@ -127,7 +128,7 @@ SUPPORTED_GATE_CLASSES: dict[str, type] = {
     "XXPlusYYGate": qiskit_gate_lib.XXPlusYYGate,
 }
 SUPPORTED_GATE_CLASSES.update(DATA_GATES)
-SOURCE_MODULES = {"qiskit", "qiskit.circuit", "qiskit.circuit.library", "qiskit.quantum_info", "math", "numpy"}
+SOURCE_MODULES = {"qiskit", "qiskit.circuit", "qiskit.circuit.library", "qiskit.quantum_info", "qiskit.qasm2", "qiskit.qasm3", "math", "numpy"}
 
 # name: (number of numerical parameters, number of qubits).
 GATES: dict[str, tuple[int, int]] = {
@@ -208,6 +209,7 @@ def _installed_qiskit_packages() -> tuple[tuple[str, str], ...]:
         (package.metadata["Name"], package.version)
         for package in importlib.metadata.distributions()
         if (package.metadata.get("Name") or "").lower().replace("_", "-").startswith("qiskit")
+        or (package.metadata.get("Name") or "").lower() == "qdk"
     ))
 
 
@@ -219,9 +221,17 @@ def capabilities() -> dict[str, Any]:
              "execution": "bounded_ast_interpreter", "arbitrary_python": False},
             {"id": "openqasm-2", "label": "OpenQASM 2.0",
              "execution": "qiskit_qasm2_parser", "arbitrary_python": False},
+            {"id": "openqasm-3", "label": "OpenQASM 3.0 static circuits",
+             "execution": "bounded_qiskit_qasm3_importer", "arbitrary_python": False,
+             "available": available("qiskit_qasm3_import")},
+            {"id": "qsharp", "label": "Q# static Main circuits",
+             "execution": "bounded_qsharp_adapter_and_qdk_compiler", "arbitrary_python": False,
+             "available": available("qdk")},
         ],
         "modules": {
-            "qiskit": "QuantumCircuit, QuantumRegister, ClassicalRegister",
+            "qiskit": "QuantumCircuit, QuantumRegister, ClassicalRegister, bounded transpile",
+            "qiskit.qasm2": "loads(source) with built-in qelib1.inc only; no file loaders",
+            "qiskit.qasm3": "loads(source) through the optional static circuit adapter; no file loaders",
             "qiskit.circuit": "QuantumCircuit, QuantumRegister, ClassicalRegister, Parameter, ParameterVector; library namespace",
             "qiskit.quantum_info": "Pauli(label), SparsePauliOp.from_list for bounded evolution operators",
             "qiskit.circuit.library": "listed unitary gate constructors with validated keywords and circuit.append; composite gates and open controls lower to u/cx",
@@ -240,16 +250,23 @@ def capabilities() -> dict[str, Any]:
         "circuit_selection": "Use qc when declared; otherwise use the first constructed circuit. Other named circuits are reusable fragments.",
         "circuit_methods": ["append", "mcx", "barrier", "measure", "measure_all", "draw", "depth", "size", "width", "compose", "assign_parameters", "inverse", "control", "power", "to_gate", "copy"],
         "installed_packages": dict(_installed_qiskit_packages()),
+        "language_subsets": {
+            "openqasm-3": "Literal-sized qubit/bit registers, standard gates, numeric parameters, inv/ctrl/negctrl, barriers, terminal measurements; stdgates.inc only. No loops, branches, custom gate definitions, resets, timing, or external includes.",
+            "qsharp": "One static Main() operation, optional namespace and standard opens, Qubit allocations, listed gates and Adjoint, numeric angles, terminal M/MResetZ/MResetEachZ returns. QDK Base-profile QIR compilation; Aer simulation through QORE. No project imports, helper operations, loops, branches, or arbitrary Python.",
+        },
+        "qsharp_gates": sorted(QSHARP_GATES),
         "package_execution": {
             "qiskit": "Only the reported circuit-building subset, not arbitrary SDK Python.",
             "qiskit-aer": "Simulation through QORE settings, not direct source imports.",
-            "optional_packages": "Installation does not enable editor execution of providers, primitives, algorithms, add-ons, or OpenQASM 3.",
+            "qdk": "Optional bounded static Q# adapter and per-request Microsoft QDK QIR compilation; no Azure job submission.",
+            "optional_packages": "Installation does not enable editor execution of providers, primitives, algorithms, or add-ons. QASM 3 and Q# use the separately reported bounded adapters.",
         },
         "workflows": [
             "parse and validate", "shot simulation", "ideal probabilities", "Bloch vectors and purity",
             "statevector amplitudes", "unitary matrix with U†U residual", "noise simulation",
             "classical fidelity and Hellinger distance", "Forge transpilation and equivalence",
             "OpenQASM 2.0 import and export", "immutable Ledger evidence",
+            "OpenQASM 3.0 static import (optional)", "Q# static circuit analysis and QIR compilation (optional)",
         ],
         "simulation_methods": ["statevector", "matrix_product_state", "stabilizer"],
         "limits": {
@@ -257,10 +274,12 @@ def capabilities() -> dict[str, Any]:
             "max_operations": MAX_OPERATIONS, "max_shots": MAX_SHOTS,
             "operator_validation_max_qubits": MAX_EQUIVALENCE_QUBITS,
             "max_array_elements": MAX_OPERATIONS, "max_factory_reps": 20, "matrix_power_max_qubits": 4,
+            "max_source_sdk_calls": 16,
         },
         "safety_boundary": (
-            "Circuit source is parsed and interpreted. It is never passed to exec/eval and cannot access the host "
-            "filesystem, network, subprocesses, package installation, provider credentials, or arbitrary imports."
+            "Circuit Python is parsed and interpreted. It is never passed to exec/eval and cannot access the host "
+            "filesystem, network, subprocesses, package installation, provider credentials, or arbitrary imports. "
+            "Q# is accepted only after a closed static-circuit grammar check, then compiled with the Microsoft QDK Q# API in a fresh context without a project."
         ),
     }
 
@@ -276,6 +295,8 @@ class _SourceInterpreter:
             "complex": "complex",
             "float": "float",
         }
+        self.sdk_functions: dict[str, str] = {}
+        self.sdk_calls = 0
         self.constructors: set[str] = set()
         self.qreg_constructors: set[str] = set()
         self.creg_constructors: set[str] = set()
@@ -327,7 +348,7 @@ class _SourceInterpreter:
         return self.circuit
 
     def bindable(self, name: str, node: ast.AST) -> None:
-        if (name == "range" or name in self.modules or name in self.constructors
+        if (name == "range" or name in self.sdk_functions or name in self.modules or name in self.constructors
                 or name in self.qreg_constructors or name in self.creg_constructors
                 or name in self.gate_constructors or name in self.quantum_registers
                 or name in self.library_factories or name in self.parameter_constructors
@@ -513,6 +534,14 @@ class _SourceInterpreter:
             self.values.pop(alias, None)
             if f"{node.module}.{item.name}" in SOURCE_MODULES:
                 self.modules[alias] = f"{node.module}.{item.name}"
+                continue
+            if node.module == "qiskit" and item.name == "transpile":
+                self.sdk_functions[alias] = "transpile"
+                continue
+            if node.module in ("qiskit.qasm2", "qiskit.qasm3"):
+                if item.name != "loads":
+                    raise _error("UNSUPPORTED_IMPORT", "Only in-memory loads(source) is supported; file access is unavailable.", node)
+                self.sdk_functions[alias] = f"{node.module}.loads"
                 continue
             if node.module == "qiskit.circuit" and item.name in PARAMETER_TYPES:
                 self.parameter_constructors[alias] = item.name
@@ -861,6 +890,15 @@ class _SourceInterpreter:
                             self.values[name] = previous
                     return result
         if isinstance(node, ast.Call):
+            sdk_function = self.sdk_functions.get(node.func.id) if isinstance(node.func, ast.Name) else None
+            if isinstance(node.func, ast.Attribute):
+                module = self.module_name(node.func.value)
+                if module == "qiskit" and node.func.attr == "transpile":
+                    sdk_function = "transpile"
+                elif module in ("qiskit.qasm2", "qiskit.qasm3") and node.func.attr == "loads":
+                    sdk_function = f"{module}.loads"
+            if sdk_function is not None:
+                return self.source_sdk_call(sdk_function, node)
             if self.is_constructor(node.func):
                 return self.new_circuit(node)
             gate_cls = self._resolve_gate_class(node.func)
@@ -932,6 +970,46 @@ class _SourceInterpreter:
                     raise _error("RESOURCE_LIMIT", "range is limited to 500 entries.", node)
                 return result
         raise _error("UNSUPPORTED_SOURCE", f"Unsupported expression: {type(node).__name__}. Use numeric literals, pi, indices, or basic arithmetic.", node)
+
+    def source_sdk_call(self, name: str, node: ast.Call) -> QuantumCircuit:
+        self.sdk_calls += 1
+        if self.sdk_calls > 16:
+            raise _error("RESOURCE_LIMIT", "At most 16 compiler/importer calls are allowed per source.", node)
+        if len(node.args) != 1:
+            raise _error("INVALID_ARGUMENTS", "Pass one circuit or source string as a positional argument.", node)
+        value = self.expression(node.args[0])
+        kwargs = self.keywords(node)
+        if name == "transpile":
+            circuit = self.support.circuit(value)
+            if set(kwargs) - {"optimization_level", "seed_transpiler", "basis_gates"}:
+                raise _error("INVALID_ARGUMENTS", "transpile accepts optimization_level, seed_transpiler, and basis_gates only; backend and callback access is unavailable.", node)
+            level = _integer(kwargs.get("optimization_level", 1), "Optimization level", 0, 3)
+            seed = _integer(kwargs.get("seed_transpiler", 42), "Transpiler seed", 0, 2**32 - 1)
+            basis = kwargs.get("basis_gates", ["u", "cx"])
+            if not isinstance(basis, (list, tuple)) or not 1 <= len(basis) <= len(GATES) or any(type(gate) is not str or gate not in GATES for gate in basis):
+                raise _error("INVALID_ARGUMENTS", "basis_gates must be a nonempty list of supported native unitary gate names.", node)
+            circuit = _normalize_library_gates(circuit)
+            try:
+                result = transpile(circuit, basis_gates=list(basis), optimization_level=level, seed_transpiler=seed)
+            except Exception as exc:
+                raise _error("INVALID_ARGUMENTS", "Qiskit could not transpile this circuit to the requested basis.", node) from exc
+            return self.support.circuit(result)
+        if kwargs or not isinstance(value, str):
+            raise _error("INVALID_ARGUMENTS", "loads expects one in-memory OpenQASM string and no extra arguments.", node)
+        if len(value.encode("utf-8")) > MAX_SOURCE_BYTES:
+            raise _error("RESOURCE_LIMIT", "OpenQASM source exceeds the byte limit.", node)
+        try:
+            if name == "qiskit.qasm3.loads":
+                result = load_qasm3(value, max_qubits=MAX_QUBITS, max_operations=MAX_OPERATIONS)
+            else:
+                result = _load_qasm(value)
+        except SourceLanguageError as exc:
+            raise _error(exc.code, exc.message, node) from exc
+        except QuantumError:
+            raise
+        except Exception as exc:
+            raise _error("SYNTAX_ERROR", "Invalid OpenQASM circuit source.", node) from exc
+        return self.support.circuit(result)
 
     def circuit_call(self, node: ast.Call) -> None:
         owner = self.named_circuit(node.func.value) if isinstance(node.func, ast.Attribute) else None
@@ -1379,19 +1457,30 @@ def parse_source(source: str) -> dict[str, Any]:
         raise QuantumError("RESOURCE_LIMIT", f"Source exceeds {MAX_SOURCE_BYTES} UTF-8 bytes.")
     qasm_source = source.lstrip("\ufeff \t\r\n")
     selected_circuit = None
-    qasm_start = qasm_source
-    while qasm_start.startswith("//"):
-        newline = qasm_start.find("\n")
-        if newline < 0:
-            break
-        qasm_start = qasm_start[newline + 1:].lstrip(" \t\r\n")
+    language_extra = {}
+    language = "qiskit-circuit-python"
+    qasm_start = strip_comments(qasm_source)
     if qasm_start.startswith("OPENQASM") or (qasm_start.startswith("include ") and ("qreg " in qasm_start or "qubit" in qasm_start)):
         try:
-            circuit = _load_qasm(qasm_source)
+            if re.match(r"OPENQASM\s+3(?:\.0)?\s*;", qasm_start):
+                circuit = load_qasm3(qasm_source, max_qubits=MAX_QUBITS, max_operations=MAX_OPERATIONS)
+                language = "openqasm-3"
+            else:
+                circuit = _load_qasm(qasm_source)
+                language = "openqasm-2"
+        except SourceLanguageError as exc:
+            raise QuantumError(exc.code, exc.message) from exc
         except QuantumError:
             raise
         except Exception as exc:
             raise QuantumError("SYNTAX_ERROR", f"OpenQASM parser error: {exc}") from exc
+    elif re.match(r"(?:namespace\s|open\s|operation\s|@EntryPoint\s*\()", qasm_start):
+        try:
+            circuit, language_extra = load_qsharp(qasm_source, max_qubits=MAX_QUBITS, max_operations=MAX_OPERATIONS)
+            language = "qsharp"
+            selected_circuit = "Main"
+        except SourceLanguageError as exc:
+            raise QuantumError(exc.code, exc.message) from exc
     else:
         interpreter = _SourceInterpreter()
         circuit = interpreter.run(source)
@@ -1403,9 +1492,11 @@ def parse_source(source: str) -> dict[str, Any]:
     # identity q[i] -> c[i] measurement map at execution time without changing
     # the saved source or the ideal-state evidence returned by parsing.
     extra = compute_circuit_bloch_and_unitary(circuit, ir)
-    extra_warnings = extra.pop("analysis_warnings", [])
+    extra_warnings = extra.pop("analysis_warnings", []) + language_extra.pop("language_warnings", [])
     return {
         "ir": ir,
+        "language": language,
+        **language_extra,
         "selected_circuit": selected_circuit,
         "metrics": metrics,
         "source_hash": hashlib.sha256(encoded).hexdigest(),

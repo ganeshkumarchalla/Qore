@@ -54,7 +54,7 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await page.getByTitle('Folder: quantum-algorithms_copy/').waitFor();
     await renamed.hover();
     await page.getByTitle('New File inside quantum-algorithms', { exact: true }).click();
-    const create = page.getByPlaceholder('filename.py (or .qasm, .json, .md)');
+    const create = page.getByPlaceholder('filename.py (or .qs, .qasm, .json, .md)');
     await create.fill('vqe.py'); await create.press('Enter');
     await page.getByRole('button', { name: 'Open quantum-algorithms/vqe.py', exact: true }).click();
     const editor = page.locator('.monaco-editor textarea.inputarea').first();
@@ -87,9 +87,9 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await nested.waitFor();
     await nested.hover();
     await page.getByTitle('New File inside quantum-algorithms/nested', { exact: true }).click();
-    await page.getByPlaceholder('filename.py (or .qasm, .json, .md)').fill('phase.py');
-    await page.getByPlaceholder('filename.py (or .qasm, .json, .md)').press('Enter');
-    await page.getByRole('button', { name: 'Open quantum-algorithms/nested/phase.py', exact: true }).waitFor();
+    await page.getByPlaceholder('filename.py (or .qs, .qasm, .json, .md)').fill('phase.qs');
+    await page.getByPlaceholder('filename.py (or .qs, .qasm, .json, .md)').press('Enter');
+    await page.getByRole('button', { name: 'Open quantum-algorithms/nested/phase.qs', exact: true }).waitFor();
     await page.reload();
     await page.getByTitle('Folder: quantum-algorithms/', { exact: true }).click();
     await page.getByTitle('Folder: quantum-algorithms/nested/').waitFor();
@@ -99,12 +99,12 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await page.getByLabel('Rename folder quantum-algorithms').press('Enter');
     await page.getByTitle('Folder: quantum-work/nested/').waitFor();
     await page.getByTitle('Folder: quantum-work/nested/').click();
-    await page.getByRole('button', { name: 'Open quantum-work/nested/phase.py', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Open quantum-work/nested/phase.qs', exact: true }).waitFor();
     await page.getByTitle('Folder: quantum-work/', { exact: true }).click({ button: 'right' });
     await page.getByRole('button', { name: 'Duplicate Folder', exact: true }).click();
     await page.getByTitle('Folder: quantum-work_copy/nested/').waitFor();
     await page.getByTitle('Folder: quantum-work_copy/nested/').click();
-    await page.getByRole('button', { name: 'Open quantum-work_copy/nested/phase.py', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Open quantum-work_copy/nested/phase.qs', exact: true }).waitFor();
     await page.getByTitle('Folder: quantum-work_copy/', { exact: true }).click({ button: 'right' });
     await page.getByRole('button', { name: 'Delete Folder', exact: true }).click();
     await page.getByTitle('Folder: quantum-work_copy/', { exact: true }).waitFor({ state: 'detached' });

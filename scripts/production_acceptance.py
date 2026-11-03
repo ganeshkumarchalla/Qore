@@ -220,7 +220,7 @@ def main():
             def invalid_check():
                 cases = [("/parse", {"source": "import os\nos.remove('never-created')"}),
                          ("/parse", {"source": "from qiskit import QuantumCircuit\nqc=QuantumCircuit(11,11)"}),
-                         ("/parse", {"source": "OPENQASM 3.0; qubit q;"}),
+                         ("/parse", {"source": "OPENQASM 3.0; qubit q; for int i in [0:10] { x q; }"}),
                          ("/simulate", {"source": GHZ, "shots": 0}),
                          ("/simulate", {"source": GHZ, "shots": 100001}),
                          ("/parse", {"source": "from qiskit import QuantumCircuit\nqc=QuantumCircuit(1,1)\nqc.unknown_gate(0)"})]

@@ -13,6 +13,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.egg-info/
+build/
 frontend/*.tsbuildinfo
 
 # Application Data & Databases
