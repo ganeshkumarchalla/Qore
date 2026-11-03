@@ -13,54 +13,10 @@ class JobError(Exception):
         super().__init__(message)
 
 
-_REMOTE_CLIENT = None
-
-
-def _get_remote_client(timeout=30):
-    global _REMOTE_CLIENT
-    if _REMOTE_CLIENT is None or _REMOTE_CLIENT.is_closed:
-        import httpx
-        _REMOTE_CLIENT = httpx.Client(
-            timeout=timeout,
-            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=60.0)
-        )
-    return _REMOTE_CLIENT
-
-
 def run_worker(operation, args, timeout=30):
-    worker_host = os.environ.get("QORE_WORKER_HOST", "").strip().rstrip("/")
-    if worker_host:
-        import httpx
-        try:
-            client = _get_remote_client(timeout=timeout)
-            resp = client.post(
-                f"{worker_host}/api/worker",
-                json={"operation": operation, "args": args},
-                headers={"Content-Type": "application/json"}
-            )
-            if resp.status_code >= 400:
-                try:
-                    err_data = resp.json().get("error", {})
-                    raise JobError(
-                        err_data.get("code", "remote_worker_error"),
-                        err_data.get("message", f"Remote worker error: {resp.status_code}"),
-                        details=err_data.get("details"),
-                        status=resp.status_code
-                    )
-                except (ValueError, TypeError):
-                    raise JobError("remote_worker_error", f"Remote worker failed with HTTP {resp.status_code}", status=500)
-            data = resp.json()
-            if "error" in data:
-                raise JobError(**data["error"])
-            return data["result"]
-        except httpx.TimeoutException:
-            raise JobError("execution_timeout", f"The remote quantum job exceeded the {timeout}-second limit.", status=408)
-        except JobError:
-            raise
-        except Exception:
-            # Fall back to local worker if remote host is unreachable
-            pass
-
+    # The removed public /api/worker route cannot serve as a trusted remote
+    # executor. Ignore any obsolete QORE_WORKER_HOST setting and always use the
+    # bounded local subprocess.
     # Credentials are deliberately absent from the quantum process environment.
     environment = {k: v for k, v in os.environ.items() if k.upper() in {
         "PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "VIRTUAL_ENV", "LD_LIBRARY_PATH",
