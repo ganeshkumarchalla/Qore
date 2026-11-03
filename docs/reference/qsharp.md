@@ -30,7 +30,7 @@ states, so its individual Bloch vectors have zero length.
 ## Installation
 
 Use `python -m pip install ".[qdk,qiskit-tools,quantum-runtime]"` in the project
-environment. The Docker build enables this SDK profile by default; a minimal
+environment. The Docker build enables the QDK and Qiskit tools profile by default; a minimal
 image can explicitly set `--build-arg QORE_QUANTUM_SDKS=false`.
 `/api/capabilities` reports what the running server actually has installed.
 

@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir --no-deps -e .
 # Optional compiler/importer and offline SDK libraries. Capabilities report
 # availability from the running image. Disable explicitly for a minimal image.
 ARG QORE_QUANTUM_SDKS=true
-RUN if [ "$QORE_QUANTUM_SDKS" = "true" ]; then pip install --no-cache-dir ".[qdk,qiskit-tools,quantum-runtime]"; fi
+RUN if [ "$QORE_QUANTUM_SDKS" = "true" ]; then pip install --no-cache-dir ".[qdk,qiskit-tools]"; fi
 
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn qore.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
