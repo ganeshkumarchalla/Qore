@@ -4,6 +4,7 @@
 supabase/.temp
 node_modules
 frontend/node_modules
+frontend/dist
 data
 evidence
 .env
@@ -16,9 +17,6 @@ Pictures
 media
 temp_edge_profile
 website_captures
-frontend/dist/captures
-frontend/dist/intro-video.html
-frontend/dist/*.mp4
 *.pem
 *.key
 credentials.json
