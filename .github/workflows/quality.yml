@@ -45,6 +45,8 @@ jobs:
           .venv/bin/python -m pip install --disable-pip-version-check -e '.[test,qdk,qiskit-tools]'
       - name: Run daily baseline without external credentials
         run: .venv/bin/python scripts/daily_quality_report.py
+      - name: Build current frontend for browser verification
+        run: pnpm --dir frontend build
       - name: Install isolated browser test runtime
         run: pnpm --dir frontend exec playwright install --with-deps chromium
       - name: Verify browser workflows against the production build

@@ -68,7 +68,9 @@ export function buildStateWorldNodes(run: Simulation): WorldNode[] {
     const group = byWeight.get(weight) ?? [state];
     const index = Math.max(0, group.indexOf(state));
     const azimuth = group.length === 1 ? 0 : (TAU * index) / group.length;
-    const polar = width <= 1 ? 0 : Math.PI * (weight / width);
+    // For one bit, 0 and 1 must occupy opposite poles too. This is a visual
+    // grouping by Hamming weight, not a Bloch coordinate or physical orbit.
+    const polar = Math.PI * (weight / width);
     return {
       state,
       probability: run.theoretical_probabilities[state] ?? 0,
@@ -78,6 +80,6 @@ export function buildStateWorldNodes(run: Simulation): WorldNode[] {
       z: Math.cos(polar),
       phase: phases.get(state) ?? null,
     };
-  }).filter(node => node.probability > 1e-8 || node.measured > 0)
-    .sort((a, b) => Math.max(b.probability, b.measured) - Math.max(a.probability, a.measured));
+  }).sort((a, b) => Math.max(b.probability, b.measured) - Math.max(a.probability, a.measured)
+    || a.state.localeCompare(b.state));
 }
