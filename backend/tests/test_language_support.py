@@ -116,6 +116,60 @@ def test_qsharp_bell_compiles_qir_and_runs_end_to_end(qdk, client):
     assert optimize(QSHARP_BELL)["validation"]["status"] == "validated"
 
 
+def test_qsharp_named_entrypoint_bound_result_and_terminal_reset(qdk):
+    source = '''namespace Superposition {
+        @EntryPoint()
+        operation MeasureOneQubit() : Result {
+            // Allocate a qubit in the zero state.
+            use q = Qubit();
+            H(q);
+            let result = M(q);
+            Reset(q);
+            return result;
+        }
+    }'''
+    source = source.replace("        @EntryPoint()", "\u00a0\u00a0\u00a0@EntryPoint()")
+    parsed = parse_source(source)
+    assert parsed["language"] == "qsharp"
+    assert parsed["selected_circuit"] == "MeasureOneQubit"
+    assert parsed["metrics"]["qubits"] == 1
+    assert parsed["warnings"] and "resets" in parsed["warnings"][0]
+    simulation = simulate(source, shots=256, seed=42)
+    assert set(simulation["counts"]) == {"0", "1"}
+    assert sum(simulation["counts"].values()) == 256
+    assert optimize(source)["validation"]["status"] == "validated"
+
+
+def test_qsharp_bound_results_follow_return_order(qdk):
+    source = '''@EntryPoint()
+    operation MeasurePair() : Result[] {
+        use q = Qubit[2];
+        X(q[0]);
+        let first = M(q[0]);
+        let second = M(q[1]);
+        Reset(q[0]);
+        Reset(q[1]);
+        return [second, first];
+    }'''
+    context = qdk.Context()
+    context.eval(source)
+    sdk_results = context.run("MeasurePair()", 4)
+    assert all(result == [qdk.Result.Zero, qdk.Result.One] for result in sdk_results)
+    assert simulate(source, shots=32)["counts"] == {"10": 32}
+
+
+def test_qsharp_rejects_gate_after_bound_measurement_before_compiler(qdk, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("Non-terminal Q# reached Microsoft compiler")
+    monkeypatch.setattr(qdk, "Context", forbidden)
+    with pytest.raises(QuantumError) as error:
+        parse_source('''@EntryPoint()
+            operation MeasureOne() : Result {
+                use q = Qubit(); let result = M(q); X(q); return result;
+            }''')
+    assert error.value.code == "UNSUPPORTED_SOURCE"
+
+
 def test_qsharp_exact_angles_and_adjoint(qdk):
     source = '''open Std.Math;
     operation Main() : Result[] {

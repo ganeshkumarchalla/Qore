@@ -224,7 +224,7 @@ def capabilities() -> dict[str, Any]:
             {"id": "openqasm-3", "label": "OpenQASM 3.0 static circuits",
              "execution": "bounded_qiskit_qasm3_importer", "arbitrary_python": False,
              "available": available("qiskit_qasm3_import")},
-            {"id": "qsharp", "label": "Q# static Main circuits",
+            {"id": "qsharp", "label": "Q# static entry-point circuits",
              "execution": "bounded_qsharp_adapter_and_qdk_compiler", "arbitrary_python": False,
              "available": available("qdk")},
         ],
@@ -252,7 +252,7 @@ def capabilities() -> dict[str, Any]:
         "installed_packages": dict(_installed_qiskit_packages()),
         "language_subsets": {
             "openqasm-3": "Literal-sized qubit/bit registers, standard gates, numeric parameters, inv/ctrl/negctrl, barriers, terminal measurements; stdgates.inc only. No loops, branches, custom gate definitions, resets, timing, or external includes.",
-            "qsharp": "One static Main() operation, optional namespace and standard opens, Qubit allocations, listed gates and Adjoint, numeric angles, terminal M/MResetZ/MResetEachZ returns. QDK Base-profile QIR compilation; Aer simulation through QORE. No project imports, helper operations, loops, branches, or arbitrary Python.",
+            "qsharp": "One static Main() or named @EntryPoint operation, optional namespace and standard opens, Qubit allocations, listed gates and Adjoint, numeric angles, terminal M/MResetZ/MResetEachZ results, bound measurement results, and post-measurement Reset. QDK Base-profile QIR compilation; Aer simulation through QORE. No project imports, helper operations, loops, branches, or arbitrary Python.",
         },
         "qsharp_gates": sorted(QSHARP_GATES),
         "package_execution": {
@@ -1478,7 +1478,7 @@ def parse_source(source: str) -> dict[str, Any]:
         try:
             circuit, language_extra = load_qsharp(qasm_source, max_qubits=MAX_QUBITS, max_operations=MAX_OPERATIONS)
             language = "qsharp"
-            selected_circuit = "Main"
+            selected_circuit = language_extra["entrypoint"]
         except SourceLanguageError as exc:
             raise QuantumError(exc.code, exc.message) from exc
     else:
