@@ -272,11 +272,9 @@ async function main() {
     const delayedRequest = page.waitForRequest(request => request.url().includes('/api/simulate') && request.method() === 'POST');
     await command('run');
     await delayedRequest;
-    const editor = page.locator('.monaco-editor textarea.inputarea').first();
-    await editor.focus();
+    await page.locator('.monaco-editor .view-lines').first().click();
     await page.keyboard.type('\n# changed during the pending simulation');
-    await command('cat');
-    await page.locator('.terminal-log-scroll .term-pre').filter({ hasText: 'changed during the pending simulation' }).last().waitFor();
+    await page.waitForFunction(() => document.querySelector('.monaco-editor .view-lines')?.textContent.replace(/\u00a0/g, ' ').includes('changed during the pending simulation'));
     assert(releaseSimulation, 'The mocked simulation response must be held while the source changes');
     releaseSimulation();
     await page.getByRole('button', { name: 'Run Kernel', exact: true }).waitFor();
