@@ -83,9 +83,13 @@ async function main() {
         }
         if (holdNextSimulation) await new Promise(resolve => { releaseSimulation = resolve; });
         source = request.postDataJSON().source;
+        const outcomes = Object.fromEntries(Array.from({ length: 8 }, (_, index) => {
+          const state = index.toString(2).padStart(3, '0');
+          return [state, state === '000' || state === '111' ? 0.5 : 0];
+        }));
         body = { ...parsed, id: 'ui-fixture-run-' + runCount, kind: 'simulation', source,
           created_at: '2026-10-25T08:00:00Z', counts: { '000': 512, '111': 512 },
-          probabilities: { '000': 0.5, '111': 0.5 }, theoretical_probabilities: { '000': 0.5, '111': 0.5 },
+          probabilities: outcomes, theoretical_probabilities: outcomes,
           shots: 1024, seed: 81, backend: 'ui-fixture-backend', versions: { qiskit: 'ui-fixture-version' },
           execution_ms: 12.34, bit_ordering: 'UI fixture ordering', tvd: 0,
         };
@@ -178,12 +182,25 @@ async function main() {
     await page.getByRole('button', { name: 'Run Kernel', exact: true }).evaluate(button => { button.click(); button.click(); });
     await page.locator('.workbench-banner.notice').getByText('Simulation complete', { exact: false }).waitFor();
     assert.equal(runCount, 1, 'A rapid repeated Run click must dispatch only one quantum job');
-    await page.getByRole('heading', { name: 'Measurement outcome orbital shells' }).waitFor();
-    await page.getByText('SELECTED MEASUREMENT OUTCOME', { exact: true }).waitFor();
-    await page.getByText('Phase is unavailable for partial measurement or circuits beyond the statevector display limit.', { exact: false }).waitFor();
-    await page.getByText('Accessible state-world data', { exact: true }).click();
-    await page.getByRole('cell', { name: 'c = 000', exact: true }).waitFor();
-    checks.push('State World labels classical outcomes and withholds phase when no complete amplitude map is available');
+    await page.getByRole('heading', { name: 'Measurement outcome orbit' }).waitFor();
+    await page.getByText('SELECTED CLASSICAL OUTCOME', { exact: true }).waitFor();
+    await page.getByText('This layout is illustrative; numerical results are below.', { exact: false }).waitFor();
+    await page.locator('.quantum-world-readout').getByText('512 / 1024', { exact: true }).waitFor();
+    await page.locator('.quantum-world-stage').screenshot({ path: path.join(EVIDENCE, 'state-world-stage-1366.png') });
+    await page.locator('.quantum-world-readout').screenshot({ path: path.join(EVIDENCE, 'state-world-readout-1366.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Toggle Explorer' }).click();
+    await page.locator('.quantum-world-stage').screenshot({ path: path.join(EVIDENCE, 'state-world-stage-390.png') });
+    await page.locator('.quantum-world-readout').screenshot({ path: path.join(EVIDENCE, 'state-world-readout-390.png') });
+    assert.equal(await page.locator('.quantum-world-readout').evaluate(element => element.scrollWidth <= element.clientWidth + 1), true);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.getByRole('button', { name: 'Toggle Explorer' }).click();
+    await page.getByText('All 8 classical outcomes · including zeros', { exact: true }).click();
+    await page.locator('.world-accessible-data tbody tr').first().waitFor();
+    assert.equal(await page.locator('.world-accessible-data tbody tr').count(), 8);
+    await page.getByRole('button', { name: 'c = 001', exact: true }).click();
+    await page.locator('.quantum-world-readout').getByText('0 / 1024', { exact: true }).waitFor();
+    checks.push('Orbit shows exact data for all eight GHZ outcomes, including zero states, and remains readable at laptop/mobile widths');
     await page.getByRole('button', { name: 'Bloch Spheres (3)', exact: true }).click();
     await page.getByText('Undefined (|r| = 0)', { exact: true }).first().waitFor();
     const focusedSphere = page.locator('.bloch-svg-wrap');

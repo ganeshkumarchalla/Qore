@@ -46,8 +46,9 @@ test('partial measurement has no unique outcome phase', () => {
     probabilities: { '0': 1 },
   };
   const nodes = buildStateWorldNodes(run);
-  assert.equal(nodes.length, 1);
-  assert.equal(nodes[0].phase, null);
+  assert.equal(nodes.length, 2);
+  assert.equal(nodes.find(node => node.state === '0').phase, null);
+  assert.equal(nodes.find(node => node.state === '1').probability, 0);
 });
 
 test('unused classical bits do not erase an injective measurement phase', () => {
@@ -90,4 +91,30 @@ test('relative phase is invariant under a global phase shift', () => {
   const nodes = buildStateWorldNodes(run);
   assert.equal(nodes.find(node => node.state === '00').phase, 0);
   assert.ok(Math.abs(nodes.find(node => node.state === '01').phase - Math.PI / 2) < 1e-10);
+});
+
+test('one-bit outcomes occupy opposite poles and zero outcomes remain inspectable', () => {
+  const run = {
+    auto_measured: true,
+    ir: { num_qubits: 1, num_clbits: 0, operations: [] },
+    statevector_amplitudes: [
+      { state: '0', probability: 1, phase: 0 },
+      { state: '1', probability: 0, phase: 0 },
+    ],
+    theoretical_probabilities: { '0': 1, '1': 0 },
+    probabilities: { '0': 1, '1': 0 },
+  };
+  const nodes = buildStateWorldNodes(run);
+  assert.equal(nodes.length, 2);
+  assert.equal(nodes.find(node => node.state === '0').z, 1);
+  assert.equal(nodes.find(node => node.state === '1').z, -1);
+});
+
+test('equal-probability outcomes have a deterministic bitstring order', () => {
+  const run = {
+    ir: { num_qubits: 2, num_clbits: 2, operations: [] },
+    theoretical_probabilities: { '11': 0.5, '00': 0.5, '10': 0, '01': 0 },
+    probabilities: { '11': 0.5, '00': 0.5 },
+  };
+  assert.deepEqual(buildStateWorldNodes(run).map(node => node.state), ['00', '11', '01', '10']);
 });
