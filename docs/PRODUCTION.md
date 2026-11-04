@@ -23,7 +23,7 @@ Never put a Gemini or database credential in a `VITE_*` variable, Dockerfile, co
 
 ## Render and Docker
 
-Build from the repository root with `Dockerfile`. The image installs the Python runtime, copies the built frontend, installs QORE, and starts Uvicorn on the platform-provided `PORT`. Attach a persistent disk and point `QORE_DB_PATH` into that mount. Without a disk, browser files still survive refreshes, but backend projects, runs, and Ledger records can disappear whenever Render replaces the container.
+Build from the repository root with `Dockerfile`. Its Node build stage installs locked frontend dependencies and compiles the current source; the Python runtime stage copies only those fresh assets, installs QORE, and starts Uvicorn on the platform-provided `PORT`. The local `frontend/dist` directory is excluded from the Docker context so stale checked-in assets cannot be deployed. Attach a persistent disk and point `QORE_DB_PATH` into that mount. Without a disk, browser files still survive refreshes, but backend projects, runs, and Ledger records can disappear whenever Render replaces the container.
 
 After deployment, inspect `/api/health`. It should report `status: ok`, `storage: sqlite`, `auth_configured: false`, and `auth_required: false`. `ai_available` confirms that the server process can see configuration; a real QI request verifies provider connectivity. Never expose the value while debugging.
 
