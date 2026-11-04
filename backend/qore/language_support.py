@@ -231,7 +231,7 @@ def _qsharp_number(text):
 
 
 def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
-    """Validate a straight-line Main operation, compile QIR, and build its circuit.
+    """Validate one straight-line entry point, compile QIR, and build its circuit.
 
     Reset after terminal measurement affects neither the recorded results nor
     the premeasurement state. It remains in QIR and is omitted in the QORE IR.
@@ -251,10 +251,12 @@ def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
         if not opened:
             _reject("Only standard Intrinsic, Measurement and Math Q# namespaces may be opened.", "UNSUPPORTED_IMPORT")
         clean = clean[opened.end():].strip()
-    operation = re.fullmatch(r"(?:@EntryPoint\s*\(\s*\)\s*)?operation\s+Main\s*\(\s*\)\s*:\s*(Unit|Result\s*\[\s*\]|Result)\s*\{([^{}]*)\}", clean, re.DOTALL)
+    operation = re.fullmatch(r"(@EntryPoint\s*\(\s*\)\s*)?operation\s+([A-Za-z_]\w*)\s*\(\s*\)\s*:\s*(Unit|Result\s*\[\s*\]|Result)\s*\{([^{}]*)\}", clean, re.DOTALL)
     if not operation:
-        _reject("Q# supports one straight-line operation Main() returning Unit, Result, or Result[].")
-    return_type, body = operation.groups()
+        _reject("Q# supports one straight-line Main() or named @EntryPoint operation returning Unit, Result, or Result[].")
+    entrypoint_attribute, operation_name, return_type, body = operation.groups()
+    if operation_name != "Main" and not entrypoint_attribute:
+        _reject("A named Q# operation must have @EntryPoint().")
     return_type = re.sub(r"\s", "", return_type)
     statements = [part.strip() for part in body.split(";")]
     # Q# permits its final expression without a trailing semicolon.
@@ -263,7 +265,9 @@ def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
         _reject("Q# exceeds the statement limit.", "RESOURCE_LIMIT")
     circuit = QuantumCircuit()
     registers = {}
+    measured_qubits = []
     measurements = []
+    result_variables = {}
     returned = False
     reset_used = False
 
@@ -291,18 +295,24 @@ def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
             _reject("Return measurements with M, MResetZ, or MResetEachZ.")
         qubits = reference(call[2], array=call[1] == "MResetEachZ")
         qubits = qubits if isinstance(qubits, list) else [qubits]
-        if any(qubit in measurements for qubit in qubits):
+        if any(qubit in measured_qubits for qubit in qubits):
             _reject("Each qubit may be measured only once.")
-        measurements.extend(qubits)
+        measured_qubits.extend(qubits)
         reset_used |= call[1] != "M"
-        return call[1] == "MResetEachZ"
+        return qubits, call[1] == "MResetEachZ"
+
+    def result(expression):
+        name = expression.strip()
+        if name in result_variables:
+            return result_variables[name]
+        return measure(expression)
 
     for statement in statements:
         if returned:
             _reject("Statements after the Q# return expression are unavailable.")
         allocation = re.fullmatch(r"use\s+([A-Za-z_]\w*)\s*=\s*Qubit\s*(\[\s*(\d+)\s*\]|\(\s*\))", statement)
         if allocation:
-            if circuit.data or measurements or allocation[1] in registers:
+            if circuit.data or measured_qubits or allocation[1] in registers:
                 _reject("Declare uniquely named Q# qubits before applying gates.")
             if allocation[3] is not None and len(allocation[3]) > 2:
                 _reject(f"Q# circuits support at most {max_qubits} qubits.", "RESOURCE_LIMIT")
@@ -313,6 +323,19 @@ def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
             circuit.add_register(register)
             registers[allocation[1]] = (register, allocation[3] is not None)
             continue
+        bound_result = re.fullmatch(r"let\s+([A-Za-z_]\w*)\s*=\s*((?:M|MResetZ|MResetEachZ)\s*\(.*\))", statement, re.DOTALL)
+        if bound_result:
+            if bound_result[1] in result_variables or bound_result[1] in registers:
+                _reject("Q# measurement result names must be unique.")
+            result_variables[bound_result[1]] = measure(bound_result[2])
+            continue
+        reset = re.fullmatch(r"Reset\s*\((.*)\)", statement, re.DOTALL)
+        if reset:
+            qubit = reference(reset[1])
+            if qubit not in measured_qubits:
+                _reject("Reset is supported only after a terminal measurement of the same qubit.")
+            reset_used = True
+            continue
         expression = re.sub(r"^return\s+", "", statement)
         if expression != statement or re.match(r"(?:M|MResetZ|MResetEachZ)\s*\(", statement):
             if expression == "()" and return_type == "Unit":
@@ -322,16 +345,19 @@ def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
                 if return_type != "Result[]":
                     _reject("Measurement return type must match the operation signature.")
                 for item in _split_arguments(expression[1:-1]):
-                    if measure(item):
+                    qubits, is_array = result(item)
+                    if is_array:
                         _reject("Return MResetEachZ directly, not inside an array.")
+                    measurements.extend(qubits)
             else:
-                is_array = measure(expression)
+                qubits, is_array = result(expression)
                 if return_type != ("Result[]" if is_array else "Result"):
                     _reject("Measurement return type must match the operation signature.")
+                measurements.extend(qubits)
             returned = True
             continue
         gate_call = re.fullmatch(r"(Adjoint\s+)?([A-Za-z_]\w*)\s*\((.*)\)", statement, re.DOTALL)
-        if not gate_call or gate_call[2] not in QSHARP_GATES or measurements:
+        if not gate_call or gate_call[2] not in QSHARP_GATES or measured_qubits:
             _reject("Only supported static Q# gates followed by terminal measurements are available.")
         method, parameter_count, qubit_count = QSHARP_GATES[gate_call[2]]
         arguments = _split_arguments(gate_call[3])
@@ -348,7 +374,9 @@ def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
         if len(circuit.data) > max_operations:
             _reject("Q# circuit exceeds the operation limit.", "RESOURCE_LIMIT")
     if not circuit.num_qubits or (return_type != "Unit" and not returned):
-        _reject("Q# Main must allocate qubits and return the declared measurement result.")
+        _reject("Q# entry point must allocate qubits and return the declared measurement result.")
+    if len(measurements) != len(measured_qubits) or set(measurements) != set(measured_qubits):
+        _reject("Return each measured result exactly once.")
     if len(circuit.data) + len(measurements) > max_operations:
         _reject("Q# circuit exceeds the operation limit.", "RESOURCE_LIMIT")
     if measurements:
@@ -365,7 +393,7 @@ def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
     try:
         context = Context(target_profile=TargetProfile.Base)
         context.eval(source)
-        qir = str(context.compile(f"{namespace + '.' if namespace else ''}Main()"))
+        qir = str(context.compile(f"{namespace + '.' if namespace else ''}{operation_name}()"))
     except Exception:
         failed = True
     finally:
@@ -378,6 +406,7 @@ def load_qsharp(source: str, *, max_qubits: int, max_operations: int):
     if failed:
         _reject("Microsoft QDK could not compile this Q# circuit. Check Q# syntax and gate types.", "SYNTAX_ERROR")
     return circuit, {
+        "entrypoint": operation_name,
         "qir": qir,
         "compiler": {"name": "Microsoft QDK", "version": importlib.metadata.version("qdk"), "target_profile": "Base"},
         "language_warnings": (["Terminal Q# resets are retained in QIR; QORE circuit analysis shows the premeasurement state and measurement results."] if reset_used else []),

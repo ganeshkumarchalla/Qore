@@ -36,9 +36,27 @@ image can explicitly set `--build-arg QORE_QUANTUM_SDKS=false`.
 
 ## Supported scope
 
-One static `Main()` operation, optional namespace and standard-library opens,
+One static `Main()` or named `@EntryPoint()` operation, optional namespace and standard-library opens,
 bounded qubit allocation, supported gates and adjoints, numeric rotation angles,
-and terminal `M`, `MResetZ`, or `MResetEachZ` results are supported. Existing
+and terminal `M`, `MResetZ`, or `MResetEachZ` results are supported. A measured
+result can be stored with `let`, its qubit reset after measurement, and the
+result returned. QORE represents the premeasurement state and omits that
+terminal reset from the circuit shown in Lab and Forge. For example:
+
+```qsharp
+namespace Superposition {
+    @EntryPoint()
+    operation MeasureOneQubit() : Result {
+        use q = Qubit();
+        H(q);
+        let result = M(q);
+        Reset(q);
+        return result;
+    }
+}
+```
+
+Existing
 source-size, qubit, operation, shot, timeout and Forge equivalence limits apply.
 Helper operations, external Q# projects, loops, branches, adaptive algorithms,
 Azure hardware submissions and arbitrary Python are outside this adapter.
