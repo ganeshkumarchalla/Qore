@@ -183,9 +183,11 @@ async function main() {
     await page.locator('.workbench-banner.notice').getByText('Simulation complete', { exact: false }).waitFor();
     assert.equal(runCount, 1, 'A rapid repeated Run click must dispatch only one quantum job');
     await page.getByRole('heading', { name: 'Measurement outcome orbit' }).waitFor();
-    await page.getByText('SELECTED CLASSICAL OUTCOME', { exact: true }).waitFor();
-    await page.getByText('This layout is illustrative; numerical results are below.', { exact: false }).waitFor();
-    await page.locator('.quantum-world-readout').getByText('512 / 1024', { exact: true }).waitFor();
+    const orbitReadout = page.locator('.quantum-world-readout');
+    await orbitReadout.scrollIntoViewIfNeeded();
+    assert.equal((await orbitReadout.locator('span').first().textContent()).trim(), 'SELECTED CLASSICAL OUTCOME');
+    assert.match(await page.locator('.quantum-world-head p').textContent(), /This layout is illustrative; numerical results are below\./);
+    await orbitReadout.getByText('512 / 1024', { exact: true }).waitFor();
     await page.locator('.quantum-world-stage').screenshot({ path: path.join(EVIDENCE, 'state-world-stage-1366.png') });
     await page.locator('.quantum-world-readout').screenshot({ path: path.join(EVIDENCE, 'state-world-readout-1366.png') });
     await page.setViewportSize({ width: 390, height: 844 });
