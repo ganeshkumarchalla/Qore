@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew QORE's short-lived IP TLS certificate
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker run --rm --name qore-cert-renew -v /etc/letsencrypt:/etc/letsencrypt -v /var/lib/letsencrypt:/var/lib/letsencrypt -v /var/www/qore-acme:/var/www/qore-acme certbot/certbot:latest renew --non-interactive --quiet
+ExecStartPost=/usr/bin/docker exec qore-ingress nginx -s reload
