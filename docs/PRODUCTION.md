@@ -27,6 +27,8 @@ Build from the repository root with `Dockerfile`. The image installs the Python 
 
 After deployment, inspect `/api/health`. It should report `status: ok`, `storage: sqlite`, `auth_configured: false`, and `auth_required: false`. `ai_available` confirms that the server process can see configuration; a real QI request verifies provider connectivity. Never expose the value while debugging.
 
+For the split Render/AWS deployment, keep `qore-bmh1.onrender.com` as the public frontend and use `Dockerfile.render-gateway` on Render. It serves the built static assets and forwards `/api/*` to the fixed HTTPS `QORE_AWS_API_ORIGIN`. The full `Dockerfile` and persistent SQLite volume run on AWS. Set `QORE_PUBLIC_URL` on the AWS backend to the Render URL and `QORE_ALLOWED_HOSTS` to the exact AWS ingress hostname. Complete the persistence and HTTPS migration in [the AWS operations guide](operations/aws.md) before switching Render; the live site must not proxy private source or cookies to a plain HTTP backend.
+
 ## Release verification
 
 From the repository root run:

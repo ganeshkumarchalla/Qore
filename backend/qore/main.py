@@ -171,6 +171,12 @@ class RequestGuard:
                 same_origin = False
             if os.environ.get("QORE_ENV", "").lower() == "production" or os.environ.get("RENDER"):
                 allowed = set()
+                # A static frontend may live at the public Render origin while
+                # the API runs on AWS. The fixed same-origin gateway preserves
+                # the browser Origin; accept only the configured public origin.
+                public_origin = os.environ.get("QORE_PUBLIC_URL", "").rstrip("/")
+                if public_origin.startswith("https://"):
+                    allowed.add(public_origin)
             if origin and origin not in allowed and not same_origin:
                 return await JSONResponse({"error": {"code": "origin_denied", "message": "Cross-origin writes are not allowed."}}, 403)(scope, receive, send)
             if headers.get(b"sec-fetch-site", b"") == b"cross-site":

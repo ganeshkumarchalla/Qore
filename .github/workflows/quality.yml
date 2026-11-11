@@ -45,8 +45,12 @@ jobs:
           .venv/bin/python -m pip install --disable-pip-version-check -e '.[test,qdk,qiskit-tools]'
       - name: Run daily baseline without external credentials
         run: .venv/bin/python scripts/daily_quality_report.py
+      - name: Verify Render gateway contracts
+        run: .venv/bin/python -m pytest gateway/test_gateway.py -q
       - name: Build current frontend for browser verification
         run: pnpm --dir frontend build
+      - name: Verify lightweight Render gateway image
+        run: docker build --file Dockerfile.render-gateway --tag qore-render-gateway-check .
       - name: Install isolated browser test runtime
         run: pnpm --dir frontend exec playwright install --with-deps chromium
       - name: Verify browser workflows against the production build
