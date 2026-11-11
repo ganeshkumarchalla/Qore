@@ -195,6 +195,35 @@ def test_render_host_and_same_origin_writes_are_allowed(client, bell_source):
     assert response.status_code == 201
 
 
+def test_aws_backend_accepts_only_configured_gateway_origin(tmp_path, monkeypatch, bell_source):
+    from qore.main import create_app
+
+    monkeypatch.setenv("QORE_ENV", "production")
+    monkeypatch.setenv("QORE_PUBLIC_URL", "https://qore-bmh1.onrender.com")
+    monkeypatch.setenv("QORE_ALLOWED_HOSTS", "api.qore.example")
+    with TestClient(create_app(tmp_path / "gateway-origin.sqlite3")) as hosted:
+        headers = {"Host": "api.qore.example", "Origin": "https://qore-bmh1.onrender.com"}
+        response = hosted.post("/api/projects", headers=headers, json={"name": "Hosted", "source": bell_source})
+        assert response.status_code == 201
+        headers["Origin"] = "https://untrusted.example"
+        rejected = hosted.post("/api/projects", headers=headers, json={"name": "Rejected", "source": bell_source})
+        assert rejected.status_code == 403
+
+
+def test_direct_backend_requires_gateway_token_when_configured(tmp_path, monkeypatch, bell_source):
+    from qore.main import create_app
+
+    token = "test-only-gateway-token-with-enough-length"
+    monkeypatch.setenv("QORE_GATEWAY_TOKEN", token)
+    with TestClient(create_app(tmp_path / "protected-backend.sqlite3")) as hosted:
+        assert hosted.get("/api/health").status_code == 200
+        assert hosted.get("/api/projects").status_code == 403
+        assert hosted.get("/api/projects", headers={"X-Qore-Gateway-Token": "wrong"}).status_code == 403
+        accepted = hosted.post("/api/projects", headers={"X-Qore-Gateway-Token": token},
+                               json={"name": "Gateway", "source": bell_source})
+        assert accepted.status_code == 201
+
+
 @pytest.mark.parametrize("chunked", [False, True])
 def test_request_size_limit_applies_without_trusting_content_length(client, chunked):
     oversized = b"x" * 100000
