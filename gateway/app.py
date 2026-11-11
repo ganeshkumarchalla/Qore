@@ -38,7 +38,8 @@ class GatewayHeaders:
                     if key not in names:
                         headers.append((key, value))
                 if b"cache-control" not in names:
-                    policy = b"public, max-age=31536000, immutable" if scope["path"].startswith("/assets/") else b"no-store"
+                    policy = (b"public, max-age=31536000, immutable"
+                              if message["status"] == 200 and scope["path"].startswith("/assets/") else b"no-store")
                     headers.append((b"cache-control", policy))
             await send(message)
 

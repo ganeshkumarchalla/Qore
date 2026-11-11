@@ -83,6 +83,12 @@ def test_static_assets_are_compressed_and_cacheable(static_dir):
     assert result.headers["cache-control"].endswith("immutable")
 
 
+def test_missing_assets_are_not_cached(static_dir):
+    result = run_request(static_dir, lambda _: pytest.fail("assets must not hit backend"), path="/assets/missing.js")
+    assert result.status_code == 404
+    assert result.headers["cache-control"] == "no-store"
+
+
 def test_gateway_health_does_not_depend_on_aws(static_dir):
     result = run_request(static_dir, lambda _: pytest.fail("health must not hit backend"), path="/healthz")
     assert result.status_code == 200
