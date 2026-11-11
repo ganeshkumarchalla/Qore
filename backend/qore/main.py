@@ -1,6 +1,7 @@
 """Local FastAPI application connecting Studio, Lab, Forge, and Research."""
 
 import asyncio
+import hmac
 import json
 import os
 import re
@@ -150,6 +151,11 @@ class RequestGuard:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = dict(scope.get("headers", []))
+        gateway_token = os.environ.get("QORE_GATEWAY_TOKEN", "")
+        if gateway_token and scope.get("path", "").startswith("/api/") and scope.get("path") != "/api/health":
+            received = headers.get(b"x-qore-gateway-token", b"").decode("latin1")
+            if not hmac.compare_digest(received, gateway_token):
+                return await JSONResponse({"error": {"code": "gateway_denied", "message": "API access is unavailable."}}, 403)(scope, receive, send)
         origin = headers.get(b"origin", b"").decode("latin1")
         if scope["method"] in {"POST", "PUT", "DELETE", "PATCH"}:
             allowed = {"http://localhost:8000", "http://127.0.0.1:8000",
@@ -222,6 +228,8 @@ class RequestGuard:
 
 
 def create_app(db_path=None):
+    if os.environ.get("QORE_GATEWAY_TOKEN") and len(os.environ["QORE_GATEWAY_TOKEN"]) < 32:
+        raise ValueError("QORE_GATEWAY_TOKEN must contain at least 32 characters")
     @asynccontextmanager
     async def lifespan(application):
         application.state.store = (Store(db_path or os.environ.get("QORE_DB_PATH", ROOT / "data" / "qore.sqlite3"))

@@ -21,9 +21,9 @@ def static_dir(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def run_request(static_dir: Path, handler, method="GET", path="/api/health", **kwargs):
+def run_request(static_dir: Path, handler, method="GET", path="/api/health", gateway_token="", **kwargs):
     app = create_app(backend_origin=BACKEND, public_origin=PUBLIC, static_dir=static_dir,
-                     transport=httpx.MockTransport(handler))
+                     gateway_token=gateway_token, transport=httpx.MockTransport(handler))
 
     async def check():
         async with app.router.lifespan_context(app):
@@ -98,6 +98,21 @@ def test_backend_failure_is_safe(static_dir):
     assert "private connection details" not in result.text
 
 
+def test_gateway_secret_reaches_only_the_backend(static_dir):
+    seen = []
+    token = "test-only-gateway-token-with-enough-length"
+
+    def backend(request):
+        seen.append(request.headers.get("x-qore-gateway-token"))
+        return httpx.Response(200, json={"ok": True})
+
+    result = run_request(static_dir, backend, gateway_token=token)
+    assert result.status_code == 200
+    assert seen == [token]
+    assert token not in result.text
+    assert token not in str(result.headers)
+
+
 def test_backend_origin_requires_https(static_dir):
     with pytest.raises(ValueError):
         create_app(backend_origin="http://backend.example.net", public_origin=PUBLIC, static_dir=static_dir)
@@ -109,3 +124,32 @@ def test_oversized_stream_is_rejected_before_backend(static_dir):
                          content=b"x" * (96 * 1024 + 1))
     assert result.status_code == 413
     assert called == []
+
+
+def test_real_backend_cookie_and_project_survive_gateway_round_trip(static_dir, tmp_path, monkeypatch):
+    from qore.main import create_app as create_backend
+
+    token = "test-only-gateway-token-with-enough-length"
+    monkeypatch.setenv("QORE_GATEWAY_TOKEN", token)
+    monkeypatch.setenv("QORE_ENV", "production")
+    monkeypatch.setenv("QORE_PUBLIC_URL", PUBLIC)
+    monkeypatch.setenv("QORE_ALLOWED_HOSTS", "backend.example.net")
+    backend = create_backend(tmp_path / "workspace.sqlite3")
+    gateway = create_app(backend_origin=BACKEND, public_origin=PUBLIC, static_dir=static_dir,
+                         gateway_token=token, transport=httpx.ASGITransport(app=backend))
+
+    async def check():
+        async with backend.router.lifespan_context(backend):
+            async with gateway.router.lifespan_context(gateway):
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway), base_url=PUBLIC) as client:
+                    source = "from qiskit import QuantumCircuit\nqc = QuantumCircuit(1)\nqc.h(0)\n"
+                    saved = await client.post("/api/projects", headers={"Origin": PUBLIC},
+                                              json={"name": "Live workspace", "source": source})
+                    assert saved.status_code == 201
+                    assert "qore_workspace" in client.cookies
+                    assert client.cookies.get("qore_workspace")
+                    listed = await client.get("/api/projects")
+                    assert listed.status_code == 200
+                    assert listed.json()[0]["name"] == "Live workspace"
+
+    asyncio.run(check())

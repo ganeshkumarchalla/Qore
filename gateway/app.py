@@ -16,14 +16,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
+from gateway.proxy import forward_api
 
-REQUEST_HEADERS = {"accept", "content-type", "cookie", "origin", "sec-fetch-site"}
-RESPONSE_HEADERS = {
-    "content-type", "cache-control", "set-cookie", "x-content-type-options",
-    "x-frame-options", "referrer-policy", "x-robots-tag",
-}
-MAX_REQUEST_BYTES = 96 * 1024
-MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 
 class GatewayHeaders:
@@ -62,7 +56,8 @@ def _origin(value: str, *, https_only: bool) -> str:
 
 
 def create_app(*, backend_origin: str, public_origin: str,
-               static_dir: Path, transport: httpx.AsyncBaseTransport | None = None) -> Starlette:
+               static_dir: Path, gateway_token: str = "",
+               transport: httpx.AsyncBaseTransport | None = None) -> Starlette:
     backend_origin = _origin(backend_origin, https_only=True)
     public_origin = _origin(public_origin, https_only=True)
     if not static_dir.joinpath("index.html").is_file():
@@ -85,38 +80,7 @@ def create_app(*, backend_origin: str, public_origin: str,
                 return JSONResponse({"error": {"code": "origin_denied", "message": "Cross-origin writes are not allowed."}}, status_code=403)
             if request.headers.get("sec-fetch-site") == "cross-site":
                 return JSONResponse({"error": {"code": "origin_denied", "message": "Cross-site writes are not allowed."}}, status_code=403)
-        if request.headers.get("content-length", "").isdigit() and int(request.headers["content-length"]) > MAX_REQUEST_BYTES:
-            return JSONResponse({"error": {"code": "request_too_large", "message": "Request exceeds 96 KiB."}}, status_code=413)
-        chunks, received = [], 0
-        async for chunk in request.stream():
-            received += len(chunk)
-            if received > MAX_REQUEST_BYTES:
-                return JSONResponse({"error": {"code": "request_too_large", "message": "Request exceeds 96 KiB."}}, status_code=413)
-            chunks.append(chunk)
-        body = b"".join(chunks)
-        headers = {key: value for key, value in request.headers.items() if key.lower() in REQUEST_HEADERS}
-        headers["accept-encoding"] = "identity"
-        target = backend_origin + request.url.path
-        if request.url.query:
-            target += "?" + request.url.query
-        try:
-            async with request.app.state.backend_client.stream(request.method, target,
-                                                                headers=headers, content=body) as upstream:
-                chunks, size = [], 0
-                async for chunk in upstream.aiter_bytes():
-                    size += len(chunk)
-                    if size > MAX_RESPONSE_BYTES:
-                        return JSONResponse({"error": {"code": "upstream_too_large", "message": "API response exceeded the gateway limit."}}, status_code=502)
-                    chunks.append(chunk)
-                response = Response(b"".join(chunks), status_code=upstream.status_code)
-                for key, value in upstream.headers.multi_items():
-                    if key.lower() in RESPONSE_HEADERS:
-                        response.raw_headers.append((key.encode("latin1"), value.encode("latin1")))
-                response.headers["x-robots-tag"] = "noindex, nofollow, noarchive"
-                response.headers["cache-control"] = "no-store"
-                return response
-        except (httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError):
-            return JSONResponse({"error": {"code": "backend_unavailable", "message": "The QORE backend is temporarily unavailable."}}, status_code=502)
+        return await forward_api(request, backend_origin, gateway_token=gateway_token)
 
     async def api_root(_request: Request) -> Response:
         return JSONResponse({"error": {"code": "not_found", "message": "API route not found."}}, status_code=404)
@@ -137,8 +101,12 @@ def create_app(*, backend_origin: str, public_origin: str,
 
 
 def create_from_env() -> Starlette:
+    gateway_token = os.environ.get("QORE_GATEWAY_TOKEN", "")
+    if len(gateway_token) < 32:
+        raise ValueError("QORE_GATEWAY_TOKEN must contain at least 32 characters")
     return create_app(
         backend_origin=os.environ.get("QORE_AWS_API_ORIGIN", ""),
         public_origin=os.environ.get("QORE_PUBLIC_URL", "https://qore-bmh1.onrender.com"),
         static_dir=Path(os.environ.get("QORE_FRONTEND_DIST", "/app/frontend/dist")),
+        gateway_token=gateway_token,
     )

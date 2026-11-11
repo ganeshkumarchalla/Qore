@@ -210,6 +210,20 @@ def test_aws_backend_accepts_only_configured_gateway_origin(tmp_path, monkeypatc
         assert rejected.status_code == 403
 
 
+def test_direct_backend_requires_gateway_token_when_configured(tmp_path, monkeypatch, bell_source):
+    from qore.main import create_app
+
+    token = "test-only-gateway-token-with-enough-length"
+    monkeypatch.setenv("QORE_GATEWAY_TOKEN", token)
+    with TestClient(create_app(tmp_path / "protected-backend.sqlite3")) as hosted:
+        assert hosted.get("/api/health").status_code == 200
+        assert hosted.get("/api/projects").status_code == 403
+        assert hosted.get("/api/projects", headers={"X-Qore-Gateway-Token": "wrong"}).status_code == 403
+        accepted = hosted.post("/api/projects", headers={"X-Qore-Gateway-Token": token},
+                               json={"name": "Gateway", "source": bell_source})
+        assert accepted.status_code == 201
+
+
 @pytest.mark.parametrize("chunked", [False, True])
 def test_request_size_limit_applies_without_trusting_content_length(client, chunked):
     oversized = b"x" * 100000
