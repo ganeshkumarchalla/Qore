@@ -4,15 +4,19 @@
 
 [Open QORE](https://qore-bmh1.onrender.com/) · [Documentation](https://qoredocs.vercel.app/) · [Manual sources](docs/README.md) · [Report an issue](https://github.com/ganeshkumarchalla/Qore/issues)
 
+[![QORE quality gates](https://github.com/ganeshkumarchalla/Qore/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/ganeshkumarchalla/Qore/actions/workflows/quality.yml)
+
+**Try it in one minute:** [Open the workspace](https://qore-bmh1.onrender.com/), choose **Get Started** to create an editable three-qubit circuit, run it in **Lab**, inspect the counts and Bloch views, then compare a candidate in **Forge**. The workspace starts empty; the example is added only when you choose it. [Follow the first experiment guide](docs/guides/first-experiment.md).
+
 ## Problem statement
 
-Quantum development is often split across disconnected editors, simulators, state visualizers, compiler tools, and experiment records. That fragmentation makes it easy to misread sampled output, lose execution context, compare stale results, or accept an optimization without evidence that it preserved the circuit. QORE brings source, bounded Qiskit and OpenQASM execution, ideal and sampled results, compiler validation, and reproducible experiment records into one traceable workspace.
+Quantum development is often split across disconnected editors, simulators, state visualizers, compiler tools, and experiment records. That fragmentation makes it easy to misread sampled output, lose execution context, compare stale results, or accept an optimization without evidence that it preserved the circuit. QORE brings source, bounded Qiskit, OpenQASM, and supported Q# execution, ideal and sampled results, compiler validation, and reproducible experiment records into one traceable workspace.
 
 In real-world education, research, and early-stage algorithm development, this connected workflow helps people move from an idea to evidence without manually transferring code and results between unrelated tools. Students can connect circuit changes to measurable outcomes, researchers can retain the exact source and execution settings behind a result, and engineering teams can review optimization candidates before applying them. QORE does not treat a visualization or a lower gate count as proof: it keeps simulator metadata, bit ordering, source identity, numerical output, and validation scope together so results can be explained, reproduced, and audited.
 
 QORE's future direction is to extend this evidence-first model from local simulation toward provider-neutral execution adapters, optional quantum-hardware jobs, collaborative experiment review, scalable queued workloads, richer noise and device models, and stronger experiment lineage. These are roadmap goals rather than current capabilities. As the platform grows, the same principles remain fixed: explicit limits, secure server-side credentials, review before mutation, clear separation between ideal, simulated, and hardware evidence, and reproducibility from source to result.
 
-QORE brings an editor, quantum simulator, visual laboratory, compiler workbench, and research ledger into one consistent glass interface. Write a circuit in the supported Qiskit Python subset or OpenQASM 2. Inspect actual simulator output, compare a compiler candidate, and preserve the source and evidence behind an experiment.
+QORE brings an editor, quantum simulator, visual laboratory, compiler workbench, and research ledger into one consistent glass interface. Write a circuit in the supported Qiskit Python subset, OpenQASM 2, or [single-file Q# scope](docs/reference/qsharp.md). Inspect actual simulator output, compare a compiler candidate, and preserve the source and evidence behind an experiment.
 
 The workspace starts empty. **Get Started** creates a three-qubit learning circuit only when requested. No account is required: editable source is retained in the browser workspace, while server-side projects and evidence are isolated by an opaque HttpOnly workspace cookie. Saved files have no automatic expiry; deleted files and folders remain recoverable for **48 hours** through Undo and Trash.
 
@@ -91,7 +95,7 @@ The build surface identifies the design and engineering tools used around QORE: 
 | Workbench | React 18, TypeScript, Vite, Monaco | Responsive editor and application state |
 | Interface | CSS, SVG, canvas and 3D views | Circuit diagrams, state inspection, glass surfaces |
 | API | Python 3.11–3.13, FastAPI, Pydantic, Uvicorn | Validated requests and orchestration |
-| Quantum runtime | Qiskit 2, Qiskit Aer | Construction, simulation, transpilation, operator analysis |
+| Quantum runtime | Qiskit 2, Qiskit Aer, Microsoft QDK | Bounded circuit construction, Q# compilation, simulation, transpilation, operator analysis |
 | Workspace data | Browser storage and SQLite | Editable files, projects, runs, and research records |
 | Delivery | Docker, Render, GitHub Actions | Container hosting and review checks |
 | Optional assistant | Server-side model-provider API | Circuit and result explanations |
@@ -114,7 +118,7 @@ Open `http://127.0.0.1:8000`. No account setup is required. For hot reload, run 
 
 ## Execution scope
 
-QORE supports its documented Qiskit circuit-building subset and OpenQASM 2, up to **10 qubits**, **10 classical bits**, **500 operations**, **32 KiB of source**, and **100,000 shots**. Bloch vectors and ideal amplitude displays are available up to six qubits; matrix display is available up to four. The command console exposes supported QORE actions and real attached results.
+QORE supports its documented Qiskit circuit-building subset, OpenQASM 2, and static single-file Q# circuits through Microsoft QDK, up to **10 qubits**, **10 classical bits**, **500 operations**, **32 KiB of source**, and **100,000 shots**. Bloch vectors and ideal amplitude displays are available up to six qubits; matrix display is available up to four. The command console exposes supported QORE actions and real attached results. [Q# compatibility](docs/reference/qsharp.md) lists unsupported project, adaptive, resource-estimation, and cloud-job workflows.
 
 Arbitrary Python, unrestricted imports, operating-system shell commands, dynamic mid-circuit control, and hardware submission are outside this runtime. Optional SDK packages do not expand the public editor allowlist. [Compatibility and limits](docs/reference/limits.md) · [Tested Qiskit support and installed packages](docs/reference/qiskit-compatibility.md)
 
@@ -157,4 +161,4 @@ docs/assets/          Animation sources and attributed logos
 .github/workflows/    Repository quality checks
 ```
 
-Credentials, environment files, databases, dependency trees, browser profiles, temporary reports, build caches, and promotional recordings stay outside published source. Backend secrets never belong in frontend bundles. Read the [security guide](docs/operations/security.md) before configuring a hosted instance.
+Credentials, environment files, databases, dependency trees, browser profiles, temporary reports, build caches, and promotional recordings stay outside published source. Backend secrets never belong in frontend bundles. Read the [security policy](SECURITY.md) and [contribution guide](CONTRIBUTING.md) before submitting changes or configuring a hosted instance.

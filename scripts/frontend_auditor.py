@@ -69,12 +69,12 @@ def check_typescript_compilation(node_bin: str) -> dict:
             timeout=60
         )
         passed = (proc.returncode == 0)
-        output_lines = [line.strip() for line in (proc.stdout + proc.stderr).splitlines() if line.strip()]
+        diagnostic_count = sum(bool(line.strip()) for line in (proc.stdout + proc.stderr).splitlines())
         return {
             "name": "TypeScript Type-Check",
             "passed": passed,
             "returncode": proc.returncode,
-            "output": output_lines[:50],
+            "diagnostic_count": diagnostic_count,
             "error": "" if passed else "TypeScript compilation errors detected."
         }
     except Exception as e:
@@ -106,12 +106,12 @@ def check_vite_build(node_bin: str) -> dict:
                 timeout=120
             )
         passed = (proc.returncode == 0)
-        output_lines = [line.strip() for line in (proc.stdout + proc.stderr).splitlines() if line.strip()]
+        diagnostic_count = sum(bool(line.strip()) for line in (proc.stdout + proc.stderr).splitlines())
         return {
             "name": "Vite Production Build",
             "passed": passed,
             "returncode": proc.returncode,
-            "output_summary": output_lines[-15:] if output_lines else [],
+            "diagnostic_count": diagnostic_count if not passed else 0,
             "error": "" if passed else "Vite build failed."
         }
     except Exception as e:
@@ -141,11 +141,11 @@ def check_client_secret_isolation() -> dict:
                 try:
                     content = file_path.read_text(encoding="utf-8", errors="ignore")
                     for pat in secret_patterns:
-                        matches = pat.findall(content)
-                        if matches:
+                        match_count = sum(1 for _ in pat.finditer(content))
+                        if match_count:
                             findings.append({
                                 "file": str(file_path.relative_to(WORKSPACE_ROOT)),
-                                "matches": [m[:6] + "...[REDACTED]" for m in matches]
+                                "match_count": match_count
                             })
                 except Exception as e:
                     findings.append({
@@ -286,10 +286,8 @@ def generate_reports(summary: dict):
             lines.append(f"> **Error**: {check.get('error', 'Unknown failure')}")
         if "violations" in check and check["violations"]:
             lines.append(f"- Violations: `{json.dumps(check['violations'])}`")
-        if "output_summary" in check and check["output_summary"]:
-            lines.append("```text")
-            lines.extend(check["output_summary"][-8:])
-            lines.append("```")
+        if check.get("diagnostic_count"):
+            lines.append(f"- Diagnostic lines: {check['diagnostic_count']}. Run the check locally for details; raw output is not stored.")
         lines.append("")
         
     lines.append("---")
