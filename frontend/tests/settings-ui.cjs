@@ -26,11 +26,7 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     });
     await page.goto(base);
-    await page.getByRole('status', { name: 'Welcome to qubit' }).waitFor({ state: 'hidden' });
-    await page.locator('.quantum-onboarding-overlay').waitFor({ state: 'visible' });
-    await page.getByRole('radio', { name: /Quantum Superposition/ }).click();
-    await page.getByRole('button', { name: /Initialize Quantum Experience/ }).click();
-    await page.locator('.quantum-onboarding-overlay').waitFor({ state: 'hidden', timeout: 30000 });
+    await page.getByRole('dialog', { name: 'Opening QORE' }).waitFor({ state: 'hidden' });
     const trigger = page.getByRole('button', { name: 'Open Settings', exact: true });
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: 'Settings & Preferences' }); await dialog.waitFor();

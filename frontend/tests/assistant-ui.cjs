@@ -97,12 +97,9 @@ async function main() {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     });
     await page.goto(base);
-    await page.getByRole('status', { name: 'Welcome to qubit' }).waitFor({ state: 'hidden' });
-    await page.locator('.quantum-onboarding-overlay').waitFor({ state: 'visible', timeout: 10000 });
-    await page.getByRole('radio', { name: /Quantum Superposition/ }).click();
-    await page.getByRole('button', { name: /Initialize Quantum Experience/ }).click();
-    await page.locator('.quantum-onboarding-overlay').waitFor({ state: 'hidden', timeout: 30000 });
+    await page.getByRole('dialog', { name: 'Opening QORE' }).waitFor({ state: 'hidden' });
     await page.getByRole('button', { name: 'Get Started', exact: true }).waitFor();
+    assert.equal(requested.some(url => url.includes('/api/quantum/onboarding-question')), false);
     assert.equal(requested.some(url => /QuantumEditor|monaco-editor|\/monaco[.-]/i.test(url)), false, 'Monaco must be deferred on an empty workspace');
     checks.push('Empty welcome/workspace does not request Monaco');
     await page.getByRole('button', { name: 'Get Started', exact: true }).click();

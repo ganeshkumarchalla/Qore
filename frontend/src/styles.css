@@ -8354,3 +8354,209 @@ input:focus, select:focus, textarea:focus {
   color: #cbd5e1;
   line-height: 1.4;
 }
+
+/* Portfolio graphite: match ganeshkumar.xyz's black, charcoal and warm-white palette. */
+:root,
+[data-theme] {
+  --vscode-bg: #0b0b0c;
+  --vscode-sidebar-bg: #111112;
+  --vscode-activity-bg: #0a0a0b;
+  --vscode-panel-bg: #171718;
+  --vscode-card-bg: #202022;
+  --vscode-border: #343436;
+  --vscode-border-subtle: #29292b;
+  --vscode-highlight: #303033;
+  --vscode-text: #f4f2ee;
+  --vscode-text-muted: #c9c7c3;
+  --vscode-text-dim: #a5a5a7;
+  --vscode-accent: #eeeae4;
+  --vscode-accent-violet: #c9c6c1;
+  --qore-glass: rgba(18, 18, 19, .82);
+  --qore-glass-strong: rgba(29, 29, 31, .9);
+  --qore-glass-soft: rgba(255, 255, 255, .045);
+  --qore-glass-border: rgba(244, 242, 238, .14);
+  --qore-glass-shadow: 0 18px 48px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+
+html, body, #root, .vscode-root {
+  color: var(--vscode-text) !important;
+  background-color: var(--vscode-bg) !important;
+}
+
+.vscode-root,
+.vscode-main,
+.workspace-start,
+.documentation-view,
+.forge-view-shell,
+.research-view-shell,
+.intelligence-view-shell,
+.lab-view-shell {
+  background: radial-gradient(ellipse at 52% 0%, #272729 0%, #151516 38%, #0b0b0c 76%) !important;
+}
+
+.workbench-topbar,
+.activity-bar,
+.vscode-sidebar,
+.vscode-statusbar,
+.panel,
+.editor-pane,
+.preview-pane,
+.terminal-panel,
+.settings-card-window,
+.modal-card,
+.metric-card,
+.inspector-card,
+.glass-panel,
+.quantum-world-card {
+  background: linear-gradient(145deg, rgba(34, 34, 36, .9), rgba(15, 15, 16, .9)) !important;
+  border-color: var(--qore-glass-border) !important;
+  box-shadow: var(--qore-glass-shadow) !important;
+}
+
+.workbench-topbar,
+.vscode-statusbar {
+  background: linear-gradient(90deg, rgba(11, 11, 12, .96), rgba(35, 35, 37, .94), rgba(11, 11, 12, .96)) !important;
+}
+
+.activity-bar,
+.vscode-sidebar {
+  background: linear-gradient(180deg, rgba(24, 24, 25, .96), rgba(10, 10, 11, .96)) !important;
+}
+
+.tab-item.active,
+.settings-nav-item.active,
+.tree-file-row.active,
+.menu-dropdown-container .classic-dropdown-menu {
+  background: linear-gradient(135deg, rgba(244, 242, 238, .14), rgba(244, 242, 238, .055)) !important;
+  border-color: rgba(244, 242, 238, .27) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+}
+
+.run-main-btn,
+.primary-btn,
+.clean-button.primary,
+.qore-enter-studio-btn {
+  background: linear-gradient(135deg, #f4f2ee, #c8c6c2) !important;
+  color: #0b0b0c !important;
+  border-color: rgba(255, 255, 255, .45) !important;
+  box-shadow: 0 9px 26px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255, 255, 255, .62) !important;
+}
+
+.run-main-btn:hover,
+.primary-btn:hover,
+.clean-button.primary:hover,
+.qore-enter-studio-btn:hover {
+  background: linear-gradient(135deg, #ffffff, #dedbd6) !important;
+  transform: translateY(-1px);
+}
+
+input, select, textarea, .settings-search-box-wrap {
+  color: #f4f2ee !important;
+  background: rgba(9, 9, 10, .72) !important;
+  border-color: rgba(244, 242, 238, .2) !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #d8d6d2 !important;
+  box-shadow: 0 0 0 3px rgba(244, 242, 238, .12) !important;
+}
+.muted, .text-muted, .status-item, .helper-text, .empty-state-copy {
+  color: #bcbcbc !important;
+}
+
+.qore-entry-screen,
+.qore-entry-screen.classical-entry {
+  color: #f4f2ee !important;
+  background: radial-gradient(ellipse at 50% 42%, #303033 0%, #171718 38%, #080809 78%) !important;
+}
+.classical-entry-light {
+  background: linear-gradient(125deg, transparent 25%, rgba(244, 242, 238, .08) 48%, transparent 68%) !important;
+}
+.qore-entry-screen .classical-entry-symbol svg { filter: grayscale(1); }
+.classical-entry h1 { color: #f4f2ee !important; }
+.classical-entry p, .classical-entry-status { color: #bcbcbc !important; }
+.classical-entry-brand, .qore-entry-hint { color: #e2e0dc !important; }
+.classical-entry-progress { background: rgba(244, 242, 238, .16) !important; }
+.classical-entry-progress span { background: linear-gradient(90deg, #8f8f91, #f4f2ee) !important; }
+
+.quantum-world-stage,
+.bloch-svg-wrap {
+  background: radial-gradient(circle at 50% 42%, rgba(88, 88, 91, .23), transparent 42%), linear-gradient(145deg, #222224, #101011) !important;
+  border-color: rgba(244, 242, 238, .18) !important;
+}
+.lab-view-shell .quantum-world-readout,
+.lab-explain-strip {
+  color: #e2e0dc !important;
+  background: linear-gradient(145deg, rgba(39, 39, 41, .9), rgba(17, 17, 18, .9)) !important;
+  border-color: rgba(244, 242, 238, .17) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-main-btn:hover, .primary-btn:hover, .clean-button.primary:hover, .qore-enter-studio-btn:hover {
+    transform: none;
+  }
+}
+
+
+/* Icon-only opening: the existing QORE mark introduces the graphite workspace. */
+.qore-entry-screen.qore-icon-entry {
+  background: radial-gradient(circle at 50% 46%, #29292c 0%, #171719 36%, #0b0b0c 78%) !important;
+  cursor: default;
+}
+.qore-icon-entry-halo {
+  position: absolute;
+  width: clamp(220px, 30vw, 380px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(244, 242, 238, .1);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(244, 242, 238, .12), transparent 68%);
+  box-shadow: 0 0 100px rgba(244, 242, 238, .06), inset 0 0 65px rgba(244, 242, 238, .04);
+  animation: qoreHaloOpen 1.3s ease-out both;
+}
+.qore-icon-entry-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(100px, 14vw, 156px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(244, 242, 238, .24);
+  border-radius: 30%;
+  background: linear-gradient(145deg, rgba(244, 242, 238, .13), rgba(244, 242, 238, .025));
+  box-shadow: 0 22px 70px rgba(0, 0, 0, .45), inset 0 1px 1px rgba(255, 255, 255, .17);
+  backdrop-filter: blur(20px);
+  animation: qoreMarkOpen 1.25s cubic-bezier(.2, .8, .2, 1) both;
+}
+.qore-icon-entry-mark svg {
+  width: 54%;
+  height: 54%;
+  filter: grayscale(1) brightness(1.8) drop-shadow(0 0 16px rgba(244, 242, 238, .22));
+}
+.qore-icon-entry-mark svg circle,
+.qore-icon-entry-mark svg ellipse,
+.qore-icon-entry-mark svg path {
+  stroke: #f4f2ee;
+}
+.qore-icon-entry-mark svg circle:last-child { fill: #f4f2ee; }
+.qore-icon-entry .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@keyframes qoreMarkOpen {
+  from { opacity: 0; transform: scale(.7) rotate(-10deg); filter: blur(10px); }
+  65% { opacity: 1; transform: scale(1.04) rotate(0); filter: blur(0); }
+  to { opacity: 1; transform: scale(1) rotate(0); filter: blur(0); }
+}
+@keyframes qoreHaloOpen {
+  from { opacity: 0; transform: scale(.75); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qore-icon-entry-halo,
+  .qore-icon-entry-mark { animation: none !important; }
+}
