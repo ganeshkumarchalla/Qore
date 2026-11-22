@@ -69,7 +69,7 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     assert.equal(await page.getByTitle('Folder: quantum-algorithms/').count(), 1);
     assert.equal((await page.locator('.vscode-sidebar').count()), 1);
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
-    await page.getByRole('button', { name: 'Clear Editor Buffer', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Clear editor', exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('.monaco-editor .view-lines')?.textContent.includes('QuantumCircuit'));
     await page.waitForTimeout(800);
     await page.reload();

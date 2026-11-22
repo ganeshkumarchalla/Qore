@@ -118,16 +118,7 @@ export type WorkspaceSnapshot = {
   retention_hours: number; server_time: string;
 };
 
-export type Theme =
-  | 'obsidian-void'
-  | 'hyperion-cyan'
-  | 'cobalt-singularity'
-  | 'boreal-cryo'
-  | 'plasma-nebula'
-  | 'dark-modern'
-  | 'antigravity'
-  | 'azure-quantum'
-  | 'nordic-frost';
+export type Theme = 'obsidian-void';
 
 export type Settings = {
   theme: Theme;
