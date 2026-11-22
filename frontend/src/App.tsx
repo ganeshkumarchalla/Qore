@@ -14,7 +14,6 @@ import { addBlankFile, addStarterFile, flushWorkspaceChanges, getActiveWorkspace
   initializeWorkspace, keepWorkspaceDraftAsCopy, loadWorkspaceFiles, newWorkspaceId, retryWorkspaceSync, saveWorkspaceFiles,
   setActiveWorkspaceFile, setWorkspaceOwner, undoWorkspaceDeletion, updateWorkspaceBuffer, WORKSPACE_CHANGED_EVENT } from './workspace';
 import { TrashPanel } from './TrashPanel';
-import { QuantumOnboardingModal } from './QuantumOnboardingModal';
 import {
   api,
   formatDate,
@@ -100,9 +99,7 @@ export default function App() {
     }
   });
 
-  const [hasStarted, setHasStarted] = useState(!isFirstVisit);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(isFirstVisit);
-  const [onboardingState, setOnboardingState] = useState<{ name: string } | null>(null);
   const identityEpoch = useRef(0);
   const initializationRequest = useRef(0);
   const [inspectorTab, setInspectorTab] = useState<'circuit' | 'bloch' | 'unitary' | 'qasm'>('circuit');
@@ -278,7 +275,6 @@ export default function App() {
     safeSwitch(() => {
       try {
         try { localStorage.setItem('qore_started', 'true'); } catch {}
-        setHasStarted(true);
         const file = kind === 'guided' ? addStarterFile() : addBlankFile();
         void loadSource(file.source, file.name, null, file.id);
         if (kind === 'guided') setNotice('Your three-qubit circuit is ready. Run Kernel to explore the 000 and 111 outcomes.');
@@ -2091,7 +2087,7 @@ export default function App() {
       </div>
     </footer>
 
-      {/* Welcome to QORE Animated Splash Modal (First-time visitors only) */}
+      {/* Brief icon transition on the first visit. */}
       <WelcomeModal
         isOpen={isWelcomeOpen}
         onClose={() => {
@@ -2099,27 +2095,8 @@ export default function App() {
           try {
             localStorage.setItem('qore_has_visited', 'true');
           } catch {}
-          if (!hasStarted) {
-            setOnboardingState({ name: 'Quantum Explorer' });
-          }
         }}
       />
-
-      {/* Interactive Quantum Calibration & Onboarding Journey */}
-      {onboardingState && (
-        <QuantumOnboardingModal
-          isOpen={true}
-          userName={onboardingState.name}
-          onComplete={() => {
-            try {
-              localStorage.setItem('qore_has_visited', 'true');
-              localStorage.setItem('qore_started', 'true');
-            } catch {}
-            setHasStarted(true);
-            setOnboardingState(null);
-          }}
-        />
-      )}
 
       <TrashPanel key="trash-panel" isOpen={isTrashOpen} onClose={() => setIsTrashOpen(false)}
         onRestored={id => { const file = loadWorkspaceFiles().find(item => item.id === id); if (file) void loadSource(file.source, file.name, null, file.id); }} />
