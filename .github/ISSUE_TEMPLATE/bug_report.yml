@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible QORE defect without sharing private workspace data.
+body:
+  - type: markdown
+    attributes:
+      value: For credentials or a security vulnerability, use the private reporting link in SECURITY.md instead.
+  - type: input
+    id: area
+    attributes:
+      label: Affected area
+      description: Studio, Lab, Forge, Ledger, QORE Intelligence, documentation, or deployment.
+      placeholder: Quantum Lab
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use a minimal public circuit or sample. Remove cookies, tokens, and private source.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and safe diagnostics
+      description: Browser, QORE version or commit, and redacted terminal errors.

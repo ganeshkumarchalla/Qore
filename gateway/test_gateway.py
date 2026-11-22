@@ -72,6 +72,10 @@ def test_frontend_served_locally_without_backend(static_dir):
     assert "QORE" in result.text
     assert result.headers["x-content-type-options"] == "nosniff"
     assert result.headers["cache-control"] == "no-store"
+    assert result.headers["strict-transport-security"] == "max-age=31536000"
+    assert "frame-ancestors 'none'" in result.headers["content-security-policy"]
+    assert "object-src 'none'" in result.headers["content-security-policy"]
+    assert "camera=()" in result.headers["permissions-policy"]
 
 
 def test_static_assets_are_compressed_and_cacheable(static_dir):

@@ -34,7 +34,10 @@ class GatewayHeaders:
                 names = {key.lower() for key, _ in headers}
                 for key, value in ((b"x-content-type-options", b"nosniff"),
                                    (b"x-frame-options", b"DENY"),
-                                   (b"referrer-policy", b"no-referrer")):
+                                   (b"referrer-policy", b"no-referrer"),
+                                   (b"strict-transport-security", b"max-age=31536000"),
+                                   (b"content-security-policy", b"base-uri 'self'; frame-ancestors 'none'; object-src 'none'"),
+                                   (b"permissions-policy", b"camera=(), microphone=(), geolocation=(), payment=()")):
                     if key not in names:
                         headers.append((key, value))
                 if b"cache-control" not in names:

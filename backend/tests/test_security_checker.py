@@ -123,6 +123,36 @@ def test_daily_aggregation_retains_counts_without_unknown_secret_formats():
     assert marker not in json.dumps(summary)
 
 
+def test_frontend_audit_retains_counts_without_raw_build_output_or_secret_matches(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("qore_frontend_auditor", Path(__file__).resolve().parents[2] / "scripts" / "frontend_auditor.py")
+    auditor = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(auditor)
+    frontend = tmp_path / "frontend"
+    (frontend / "src").mkdir(parents=True)
+    tsc = frontend / "node_modules" / "typescript" / "bin" / "tsc"
+    tsc.parent.mkdir(parents=True)
+    tsc.touch()
+    (frontend / "tsconfig.json").write_text("{}", encoding="utf-8")
+    fixture = "AIzaSy" + "A" * 33
+    (frontend / "src" / "fixture.ts").write_text(fixture, encoding="utf-8")
+    monkeypatch.setattr(auditor, "FRONTEND_DIR", frontend)
+    monkeypatch.setattr(auditor, "WORKSPACE_ROOT", tmp_path)
+    monkeypatch.setattr(auditor.subprocess, "run", lambda *args, **kwargs: type("Run", (), {"returncode": 1, "stdout": fixture, "stderr": ""})())
+
+    checks = [auditor.check_typescript_compilation("node"), auditor.check_client_secret_isolation()]
+    assert checks[0]["diagnostic_count"] == 1
+    assert checks[1]["violations"][0]["match_count"] == 1
+    assert fixture not in json.dumps(checks)
+    assert fixture[:8] not in json.dumps(checks)
+
+    monkeypatch.setattr(auditor, "EVIDENCE_DIR", tmp_path / "evidence")
+    monkeypatch.setattr(auditor, "REPORT_JSON", tmp_path / "evidence" / "frontend_health_report.json")
+    monkeypatch.setattr(auditor, "REPORT_MD", tmp_path / "evidence" / "frontend_health_report.md")
+    auditor.generate_reports({"timestamp": "fixture", "status": "DEGRADED", "passed_checks": 0, "total_checks": 2, "node_binary": "node", "checks": checks})
+    for report in (auditor.REPORT_JSON, auditor.REPORT_MD):
+        assert fixture not in report.read_text(encoding="utf-8")
+
+
 def test_daily_children_cannot_inherit_provider_credentials(monkeypatch):
     spec = importlib.util.spec_from_file_location("qore_daily_environment", Path(__file__).resolve().parents[2] / "scripts" / "daily_quality_report.py")
     daily = importlib.util.module_from_spec(spec)

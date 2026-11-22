@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose a focused quantum workflow or product improvement.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Who needs this, and what blocks them today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed workflow
+      description: Describe the user action, expected result, and how it could be verified.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Runtime and security considerations
+      description: Note new languages, compute cost, provider credentials, or data persistence needs.
