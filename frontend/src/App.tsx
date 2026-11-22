@@ -43,18 +43,6 @@ const tabs: { name: Tab; icon: IconName; label: string; shortLabel: string }[] =
 
 const blankSource = '# Write your quantum circuit here.\n';
 
-const THEME_NAMES: Record<string, string> = {
-  'obsidian-void': 'Obsidian Void',
-  'hyperion-cyan': 'Hyperion Luminescence',
-  'cobalt-singularity': 'Cobalt Singularity',
-  'boreal-cryo': 'Zero-Kelvin Cryo',
-  'plasma-nebula': 'Plasma Nebula',
-  'dark-modern': 'Obsidian Void',
-  'antigravity': 'Hyperion Luminescence',
-  'azure-quantum': 'Cobalt Singularity',
-  'nordic-frost': 'Zero-Kelvin Cryo',
-};
-
 export default function App() {
   const [tab, setTab] = useState<Tab>('Studio');
   const [sidebar, setSidebar] = useState(true);
@@ -103,7 +91,7 @@ export default function App() {
   const identityEpoch = useRef(0);
   const initializationRequest = useRef(0);
   const [inspectorTab, setInspectorTab] = useState<'circuit' | 'bloch' | 'unitary' | 'qasm'>('circuit');
-  const [activeDropdown, setActiveDropdown] = useState<'File' | 'Edit' | 'Quantum' | 'View' | 'Terminal' | 'Help' | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<'File' | 'Edit' | 'View' | 'Help' | null>(null);
   const [isRunMenuOpen, setIsRunMenuOpen] = useState(false);
 
   const [shots, setShots] = useState(() => String(settings.defaultShots));
@@ -230,12 +218,8 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'obsidian-void');
-    document.documentElement.style.setProperty('--vscode-accent', '#6ea8d8');
-    if (settings.glassmorphism) {
-      document.documentElement.setAttribute('data-glass', 'true');
-    } else {
-      document.documentElement.removeAttribute('data-glass');
-    }
+    document.documentElement.style.setProperty('--vscode-accent', '#d8d6d2');
+    document.documentElement.setAttribute('data-glass', 'true');
   }, [settings.theme, settings.accentColor, settings.glassmorphism]);
 
   useEffect(() => {
@@ -901,6 +885,40 @@ export default function App() {
     },
   ];
 
+  type MenuName = 'File' | 'Edit' | 'View' | 'Help';
+  type MenuItem = { label?: string; shortcut?: string; disabled?: boolean; action?: () => void; divider?: true };
+  const menuDefinitions: { title: MenuName; items: MenuItem[] }[] = [
+    { title: 'File', items: [
+      { label: 'New circuit', shortcut: 'Ctrl+N', action: () => safeSwitch(() => showModal('new', 'Untitled project')) },
+      { label: 'Open project', shortcut: 'Ctrl+O', action: () => setIsPaletteOpen(true) },
+      { label: 'Save file', shortcut: 'Ctrl+S', disabled: !source.trim(), action: () => { void saveCurrent(); } },
+      { label: 'Save snapshot', shortcut: 'Ctrl+Shift+S', disabled: !parsed, action: () => showModal('experiment', `${name} · ${new Date().toLocaleDateString()}`.slice(0, 100)) },
+      { divider: true },
+      { label: 'Copy source', disabled: !source.trim(), action: () => { void navigator.clipboard.writeText(source); setNotice('Active source copied to clipboard.'); } },
+      { label: 'Copy OpenQASM', disabled: !parsed?.qasm, action: () => { if (parsed?.qasm) { void navigator.clipboard.writeText(parsed.qasm); setNotice('OpenQASM copied to clipboard.'); } } },
+    ] },
+    { title: 'Edit', items: [
+      { label: 'Format code', shortcut: 'Shift+Alt+F', disabled: !source.trim(), action: formatCode },
+      { label: 'Clear editor', disabled: !source.trim(), action: () => safeSwitch(() => editSource('')) },
+    ] },
+    { title: 'View', items: [
+      { label: 'Studio', action: () => setTab('Studio') },
+      { label: 'Simulation Lab', action: () => setTab('Lab') },
+      { label: 'Transpiler Forge', action: () => setTab('Forge') },
+      { label: 'Research Ledger', action: () => setTab('Research') },
+      { divider: true },
+      { label: sidebar ? 'Hide Explorer' : 'Show Explorer', shortcut: 'Ctrl+B', action: () => setSidebar(!sidebar) },
+      { label: isTerminalOpen ? 'Hide Terminal' : 'Show Terminal', shortcut: 'Ctrl+`', action: () => setIsTerminalOpen(v => !v) },
+      { label: isAssistantOpen ? 'Hide Assistant' : 'Show Assistant', action: () => setIsAssistantOpen(v => !v) },
+      { label: isHudOpen ? 'Hide Circuit HUD' : 'Show Circuit HUD', action: () => setIsHudOpen(v => !v) },
+    ] },
+    { title: 'Help', items: [
+      { label: 'Command palette', shortcut: 'Ctrl+K', action: () => setIsPaletteOpen(true) },
+      { label: 'Documentation ↗', action: () => window.open('https://qoredocs.vercel.app/', '_blank', 'noopener,noreferrer') },
+      { label: 'About QORE ↗', action: () => window.open('/about.html', '_blank', 'noopener,noreferrer') },
+    ] },
+  ];
+
   return (
     <div className="vscode-root">
       {/* Top Primary Bar */}
@@ -911,552 +929,49 @@ export default function App() {
             <span className="brand-title">QORE</span>
           </div>
 
-          {/* Classic Menubar: File, Edit, Quantum, View, Terminal, Help */}
-          <div className="topbar-menubar" role="menubar">
-            {/* File Menu */}
-            <div className="menu-dropdown-container">
-              <button
-                type="button"
-                className={`menu-text-btn ${activeDropdown === 'File' ? 'active-menu' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveDropdown((cur) => cur === 'File' ? null : 'File');
-                }}
-                onMouseEnter={() => {
-                  if (activeDropdown !== null) setActiveDropdown('File');
-                }}
-              >
-                File
-              </button>
-              {activeDropdown === 'File' && (
-                <div className="classic-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      safeSwitch(() => showModal('new', 'Untitled project'));
-                    }}
-                  >
-                    <span>New Circuit Project</span>
-                    <span className="dropdown-shortcut">Ctrl+N</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsPaletteOpen(true);
-                    }}
-                  >
-                    <span>Open Project...</span>
-                    <span className="dropdown-shortcut">Ctrl+O</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    disabled={!source.trim()}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      void saveCurrent();
-                    }}
-                  >
-                    <span>Save Project</span>
-                    <span className="dropdown-shortcut">Ctrl+S</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    disabled={!parsed}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      showModal('experiment', `${name} · ${new Date().toLocaleDateString()}`.slice(0, 100));
-                    }}
-                  >
-                    <span>Save Experiment Snapshot...</span>
-                    <span className="dropdown-shortcut">Ctrl+Shift+S</span>
-                  </button>
-                  <div className="dropdown-divider" />
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      void navigator.clipboard.writeText(source);
-                      setNotice('Python circuit code copied to clipboard');
-                    }}
-                  >
-                    <span>Copy Qiskit Python Code</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    disabled={!parsed?.qasm}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      if (parsed?.qasm) {
-                        void navigator.clipboard.writeText(parsed.qasm);
-                        setNotice('OpenQASM 2.0 copied to clipboard');
-                      }
-                    }}
-                  >
-                    <span>Copy OpenQASM 2.0</span>
-                  </button>
-                  <div className="dropdown-divider" />
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsSettingsOpen(true);
-                    }}
-                  >
-                    <span>Preferences & Settings</span>
-                    <span className="dropdown-shortcut">Ctrl+,</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Edit Menu */}
-            <div className="menu-dropdown-container">
-              <button
-                type="button"
-                className={`menu-text-btn ${activeDropdown === 'Edit' ? 'active-menu' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveDropdown((cur) => cur === 'Edit' ? null : 'Edit');
-                }}
-                onMouseEnter={() => {
-                  if (activeDropdown !== null) setActiveDropdown('Edit');
-                }}
-              >
-                Edit
-              </button>
-              {activeDropdown === 'Edit' && (
-                <div className="classic-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      formatCode();
-                    }}
-                  >
-                    <span>Format Circuit Code</span>
-                    <span className="dropdown-shortcut">Shift+Alt+F</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      safeSwitch(() => {
-                        editSource('');
-                      });
-                    }}
-                  >
-                    <span>Clear Editor Buffer</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Quantum Menu (All quantum simulation, transpilation & analysis consolidated) */}
-            <div className="menu-dropdown-container">
-              <button
-                type="button"
-                className={`menu-text-btn ${activeDropdown === 'Quantum' ? 'active-menu' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveDropdown((cur) => cur === 'Quantum' ? null : 'Quantum');
-                }}
-                onMouseEnter={() => {
-                  if (activeDropdown !== null) setActiveDropdown('Quantum');
-                }}
-              >
-                Quantum
-              </button>
-              {activeDropdown === 'Quantum' && (
-                <div className="classic-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    disabled={!!busy || !source.trim()}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      void execute('simulate');
-                    }}
-                  >
-                    <span>▶ Run AerSimulator Kernel</span>
-                    <span className="dropdown-shortcut">F5</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    disabled={!!busy || !source.trim()}
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      void execute('optimize');
-                    }}
-                  >
-                    <span>⚡ Transpile & Optimize Circuit</span>
-                    <span className="dropdown-shortcut">Ctrl+Shift+B</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsHudOpen((v) => !v);
-                    }}
-                  >
-                    <span>{isHudOpen ? 'Hide' : 'Show'} Circuit Live HUD</span>
-                  </button>
-                  <div className="dropdown-divider" />
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setInspectorTab('bloch');
-                    }}
-                  >
-                    <span>Inspect 3D Bloch Spheres</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setInspectorTab('unitary');
-                    }}
-                  >
-                    <span>Inspect Unitary Operator Matrix (U)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setInspectorTab('circuit');
-                    }}
-                  >
-                    <span>Inspect Circuit Wire Diagram</span>
-                  </button>
-                  <div className="dropdown-divider" />
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setLevel('1');
-                      void execute('optimize');
-                    }}
-                  >
-                    <span>Transpiler: Level 1 (Light)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setLevel('2');
-                      void execute('optimize');
-                    }}
-                  >
-                    <span>Transpiler: Level 2 (Balanced Default)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setLevel('3');
-                      void execute('optimize');
-                    }}
-                  >
-                    <span>Transpiler: Level 3 (Aggressive Synthesis)</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* View Menu */}
-            <div className="menu-dropdown-container">
-              <button
-                type="button"
-                className={`menu-text-btn ${activeDropdown === 'View' ? 'active-menu' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveDropdown((cur) => cur === 'View' ? null : 'View');
-                }}
-                onMouseEnter={() => {
-                  if (activeDropdown !== null) setActiveDropdown('View');
-                }}
-              >
-                View
-              </button>
-              {activeDropdown === 'View' && (
-                <div className="classic-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setSidebar(!sidebar);
-                    }}
-                  >
-                    <span>Toggle Workspace Explorer</span>
-                    <span className="dropdown-shortcut">Ctrl+B</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsTerminalOpen((v) => !v);
-                    }}
-                  >
-                    <span>Toggle Integrated Terminal</span>
-                    <span className="dropdown-shortcut">Ctrl+`</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsHudOpen((v) => !v);
-                    }}
-                  >
-                    <span>Toggle Wire Map Live HUD</span>
-                  </button>
-                  <div className="dropdown-divider" />
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setTab('Studio');
-                    }}
-                  >
-                    <span>Studio (Editor & Circuit)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setTab('Lab');
-                    }}
-                  >
-                    <span>Lab (Aer Simulation & Sampling)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setTab('Forge');
-                    }}
-                  >
-                    <span>Forge (Transpilation Depth & Gates)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setTab('Research');
-                    }}
-                  >
-                    <span>Research (Experiment Snapshots)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsAssistantOpen(open => !open);
-                    }}
-                  >
-                    <span>{isAssistantOpen ? 'Close' : 'Open'} Assistant Sidebar</span>
-                  </button>
-                  <div className="dropdown-divider" />
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsPaletteOpen(true);
-                    }}
-                  >
-                    <span>Command Palette...</span>
-                    <span className="dropdown-shortcut">Ctrl+K</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Terminal Menu */}
-            <div className="menu-dropdown-container">
-              <button
-                type="button"
-                className={`menu-text-btn ${activeDropdown === 'Terminal' ? 'active-menu' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveDropdown((cur) => cur === 'Terminal' ? null : 'Terminal');
-                }}
-                onMouseEnter={() => {
-                  if (activeDropdown !== null) setActiveDropdown('Terminal');
-                }}
-              >
-                Terminal
-              </button>
-              {activeDropdown === 'Terminal' && (
-                <div className="classic-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsTerminalOpen(true);
-                    }}
-                  >
-                    <span>Open Quantum Terminal</span>
-                    <span className="dropdown-shortcut">Ctrl+`</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsTerminalOpen(true);
-                      void execute('simulate');
-                    }}
-                  >
-                    <span>Run Kernel in Terminal</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsTerminalOpen(true);
-                      void execute('optimize');
-                    }}
-                  >
-                    <span>Run Transpile in Terminal</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Help Menu */}
-            <div className="menu-dropdown-container">
-              <button
-                type="button"
-                className={`menu-text-btn ${activeDropdown === 'Help' ? 'active-menu' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveDropdown((cur) => cur === 'Help' ? null : 'Help');
-                }}
-                onMouseEnter={() => {
-                  if (activeDropdown !== null) setActiveDropdown('Help');
-                }}
-              >
-                Help
-              </button>
-              {activeDropdown === 'Help' && (
-                <div className="classic-dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsPaletteOpen(true);
-                    }}
-                  >
-                    <span>Command Palette & Shortcuts</span>
-                    <span className="dropdown-shortcut">Ctrl+K</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setNotice(health ? Object.entries(health.versions).map(([key, value]) => `${key}: ${value}`).join(' · ') : 'The backend has not connected yet. Refresh the connection to load diagnostics.');
-                    }}
-                  >
-                    <span>Qiskit Aer Diagnostics</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      setIsSettingsOpen(true);
-                    }}
-                  >
-                    <span>Settings & Preferences</span>
-                    <span className="dropdown-shortcut">Ctrl+,</span>
-                  </button>
-                  <button type="button" className="dropdown-item" onClick={() => { setActiveDropdown(null); window.open('/about.html', '_blank', 'noopener,noreferrer'); }}>
-                    <span>Documentation & Overview ↗</span>
-                  </button>
-                  <div className="dropdown-divider" />
-                  <button
-                    type="button"
-                    className="dropdown-item"
-                    onClick={() => {
-                      setActiveDropdown(null);
-                      window.open('/about.html', '_blank', 'noopener,noreferrer');
-                    }}
-                  >
-                    <span>About QORE Quantum Studio</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          <nav className="topbar-menubar" aria-label="Workspace menu">
+            {menuDefinitions.map(menu => (
+              <div className={`menu-dropdown-container menu-${menu.title.toLowerCase()}`} key={menu.title}>
+                <button
+                  type="button"
+                  className={`menu-text-btn ${activeDropdown === menu.title ? 'active-menu' : ''}`}
+                  aria-haspopup="menu"
+                  aria-expanded={activeDropdown === menu.title}
+                  aria-controls={`qore-menu-${menu.title.toLowerCase()}`}
+                  onClick={event => { event.stopPropagation(); setIsRunMenuOpen(false); setActiveDropdown(current => current === menu.title ? null : menu.title); }}
+                  onMouseEnter={() => { if (activeDropdown !== null) setActiveDropdown(menu.title); }}
+                >{menu.title}</button>
+                {activeDropdown === menu.title && (
+                  <div id={`qore-menu-${menu.title.toLowerCase()}`} className="classic-dropdown-menu" role="menu" aria-label={menu.title} onClick={event => event.stopPropagation()}>
+                    {menu.items.map((item, index) => item.divider
+                      ? <div className="dropdown-divider" role="separator" key={`${menu.title}-divider-${index}`} />
+                      : <button key={`${menu.title}-${item.label}`} type="button" role="menuitem" className="dropdown-item" disabled={item.disabled}
+                          onClick={() => { setActiveDropdown(null); item.action?.(); }}>
+                          <span>{item.label}</span>
+                          {item.shortcut && <span className="dropdown-shortcut">{item.shortcut}</span>}
+                        </button>)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </nav>
         </div>
 
-        {/* Centered QORE Studio Command Center */}
-        <div
+        {/* Active file opens the command palette. */}
+        <button type="button"
           className="topbar-command-center"
           onClick={() => setIsPaletteOpen(true)}
+          aria-label="Open command palette"
           title="Open Command Palette (Ctrl+K or Ctrl+Shift+P)"
         >
           <Icon name="search" size={13} />
           <span className="command-center-title">{!activeFileId && !source ? 'Your workspace' : name.includes('.') ? name : `${name}.py`}</span>
           <kbd className="command-kbd">Ctrl+K</kbd>
-        </div>
+        </button>
 
-        {/* Right Workbench Actions: Consolidated Quantum Execution Hub & Telemetry */}
+        {/* Execution and workspace actions */}
         <div className="workbench-actions">
-          {/* Clean Telemetry Readout */}
-          <div className="topbar-telemetry">
-            <span className="telemetry-item highlight" title="Active Quantum Register Width">
-              {parsed ? `${parsed.metrics.qubits} Qubits` : 'No active circuit'}
-            </span>
-            <span className="telemetry-dot">·</span>
-            <span className="telemetry-item" title="Circuit Depth">
-              Depth: {parsed?.metrics?.depth ?? 0}
-            </span>
-            <span className="telemetry-dot">·</span>
-            <span className="telemetry-item" title="Total Gate Count">
-              {parsed?.metrics?.gate_count ?? 0} Gates
-            </span>
-            <span className="telemetry-dot">·</span>
-            <span
-              className={`telemetry-item ${(parsed?.metrics?.two_qubit_gate_count ?? 0) > 0 ? 'entangled-text' : ''}`}
-              title="Two-qubit gate count describes circuit structure; it does not prove entanglement."
-            >
-              {parsed ? `${parsed.metrics.two_qubit_gate_count} two-qubit gates` : 'Ready to create'}
-            </span>
-          </div>
-
-          <div className="toolbar-divider" />
+          {parsed && <span className="topbar-compact-metrics" aria-label="Circuit metrics">{parsed.metrics.qubits} qubits · depth {parsed.metrics.depth}</span>}
 
           {/* Unified Primary Quantum Run Action Hub */}
           <div className="unified-run-group">
@@ -1483,57 +998,39 @@ export default function App() {
               type="button"
               className={`run-chevron-btn ${isRunMenuOpen ? 'active' : ''}`}
               disabled={!!busy}
-              onClick={() => setIsRunMenuOpen(!isRunMenuOpen)}
-              title="Quantum execution options"
+              onClick={() => { setActiveDropdown(null); setIsRunMenuOpen(!isRunMenuOpen); }}
+              aria-label="Run options"
+              aria-haspopup="menu"
+              aria-expanded={isRunMenuOpen}
+              aria-controls="qore-run-menu"
+              title="Run options"
             >
               <Icon name="chevron" size={12} />
             </button>
 
             {isRunMenuOpen && (
-              <div className="classic-dropdown-menu run-dropdown-menu">
+              <div id="qore-run-menu" className="classic-dropdown-menu run-dropdown-menu" role="menu" aria-label="Run options">
                 <button
                   type="button"
-                  className="dropdown-item"
+                  className="dropdown-item" role="menuitem" disabled={!source.trim()}
                   onClick={() => {
                     setIsRunMenuOpen(false);
                     void execute('simulate');
                   }}
                 >
-                  <span>Run AerSimulator (Default)</span>
+                  <span>Run simulation</span>
                   <span className="dropdown-shortcut">F5</span>
                 </button>
                 <button
                   type="button"
-                  className="dropdown-item"
+                  className="dropdown-item" role="menuitem" disabled={!source.trim()}
                   onClick={() => {
                     setIsRunMenuOpen(false);
                     void execute('optimize');
                   }}
                 >
-                  <span>Transpile & Optimize</span>
+                  <span>Transpile in Forge</span>
                   <span className="dropdown-shortcut">Ctrl+Shift+B</span>
-                </button>
-                <button
-                  type="button"
-                  className="dropdown-item"
-                  onClick={() => {
-                    setIsRunMenuOpen(false);
-                    setIsHudOpen((v) => !v);
-                  }}
-                >
-                  <span>Toggle Live Circuit HUD</span>
-                </button>
-                <div className="dropdown-divider" />
-                <button
-                  type="button"
-                  className="dropdown-item"
-                  onClick={() => {
-                    setIsRunMenuOpen(false);
-                    showModal('experiment', `${name} · ${new Date().toLocaleDateString()}`.slice(0, 100));
-                  }}
-                >
-                  <span>Save Experiment Snapshot</span>
-                  <span className="dropdown-shortcut">Ctrl+Shift+S</span>
                 </button>
               </div>
             )}
