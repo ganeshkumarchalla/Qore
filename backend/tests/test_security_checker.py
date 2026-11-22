@@ -144,6 +144,8 @@ def test_frontend_audit_retains_counts_without_raw_build_output_or_secret_matche
     assert checks[1]["violations"][0]["match_count"] == 1
     assert fixture not in json.dumps(checks)
     assert fixture[:8] not in json.dumps(checks)
+    checks[0]["error"] = fixture
+    checks[1]["unmatched_routes"] = [fixture]
 
     monkeypatch.setattr(auditor, "EVIDENCE_DIR", tmp_path / "evidence")
     monkeypatch.setattr(auditor, "REPORT_JSON", tmp_path / "evidence" / "frontend_health_report.json")
