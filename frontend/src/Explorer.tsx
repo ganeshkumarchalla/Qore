@@ -1078,7 +1078,7 @@ export function Explorer({
       <div className="vs-explorer-scroll">
         {fileError && <p className="vs-workspace-error" role="alert">{fileError}</p>}
         {noticeMessage && (
-          <div className="vs-workspace-notice" role="status" style={{ padding: '4px 10px', fontSize: '11px', color: '#57D9FF', background: 'rgba(87, 217, 255, 0.08)', borderBottom: '1px solid rgba(87, 217, 255, 0.2)' }}>
+          <div className="vs-workspace-notice" role="status">
             {noticeMessage}
           </div>
         )}

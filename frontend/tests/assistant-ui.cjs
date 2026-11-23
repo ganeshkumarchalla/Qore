@@ -179,6 +179,16 @@ async function main() {
     await page.getByRole('button', { name: 'Run Kernel', exact: true }).evaluate(button => { button.click(); button.click(); });
     await page.locator('.workbench-banner.notice').getByText('Simulation complete', { exact: false }).waitFor();
     assert.equal(runCount, 1, 'A rapid repeated Run click must dispatch only one quantum job');
+    await page.getByRole('button', { name: 'Circuit Editor', exact: true }).click();
+    const circuitCanvas = page.locator('.circuit-canvas-wrap').first();
+    assert.equal(await circuitCanvas.isVisible(), true, 'The completed circuit must remain visible in the editor');
+    assert.match(await circuitCanvas.evaluate(element => getComputedStyle(element).backgroundImage), /radial-gradient/);
+    await circuitCanvas.screenshot({ path: path.join(EVIDENCE, 'circuit-graphite-1366.png') });
+    assert.equal(await circuitCanvas.evaluate(element => {
+      element.scrollLeft = element.scrollWidth;
+      return element.scrollWidth > element.clientWidth && element.scrollLeft > 0;
+    }), true, 'Wide circuits must remain horizontally scrollable');
+    await page.getByRole('button', { name: 'Simulation', exact: true }).click();
     await page.getByRole('heading', { name: 'Measurement outcome orbit' }).waitFor();
     const orbitReadout = page.locator('.quantum-world-readout');
     await orbitReadout.scrollIntoViewIfNeeded();
@@ -222,7 +232,19 @@ async function main() {
     await page.getByRole('button', { name: 'Unitary Matrix (U)', exact: true }).click();
     assert.match(await page.locator('.unitary-matrix-table tbody tr').nth(7).locator('td').first().getAttribute('title'),
       /^⟨111\|U\|000⟩:/, 'Matrix tooltip must use the same row/column convention as the selected cell');
-    checks.push('Unitary cell tooltips use ⟨row|U|column⟩ basis ordering');
+    const matrixCell = page.locator('.unitary-matrix-table tbody tr').nth(7).locator('td').first();
+    assert.equal(await matrixCell.evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)');
+    assert.match(await matrixCell.textContent(), /0\.707/, 'Graphite cells still show the exact complex amplitude');
+    await page.locator('.unitary-viewer-card').screenshot({ path: path.join(EVIDENCE, 'unitary-graphite-1366.png') });
+    checks.push('Unitary cells retain exact values and basis ordering in the graphite matrix');
+    await page.getByRole('button', { name: 'Amplitudes', exact: true }).click();
+    assert.equal(await page.locator('.amplitude-row').count(), 2);
+    await page.locator('.amplitude-row').first().getByText('50.00%', { exact: true }).waitFor();
+    await page.locator('.amplitudes-viewer-card').screenshot({ path: path.join(EVIDENCE, 'amplitudes-graphite-1366.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.locator('.amplitudes-viewer-card').evaluate(element => element.scrollWidth <= element.clientWidth + 1), true);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    checks.push('Amplitude values and probability bars remain readable at laptop/mobile widths');
     await page.locator('.topbar-util-btn').filter({ has: page.locator('svg') }).last().click();
     const consoleInput = page.getByRole('textbox', { name: 'QORE console command' });
     if (!await consoleInput.isVisible()) await page.locator('.topbar-util-btn').last().click();

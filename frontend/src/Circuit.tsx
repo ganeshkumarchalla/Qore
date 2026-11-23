@@ -51,14 +51,14 @@ function Gate({
       {op.name === 'barrier' ? (
         <>
           {ys.map((y) => (
-            <rect key={y} x={x - 4} y={y - 22} width="8" height="44" fill="#71809c" opacity=".35" rx="2" />
+            <rect key={y} x={x - 4} y={y - 22} width="8" height="44" fill="#aaa8a4" opacity=".35" rx="2" />
           ))}
           <line
             x1={x}
             y1={Math.min(...ys) - 22}
             x2={x}
             y2={Math.max(...ys) + 22}
-            stroke="#71809c"
+            stroke="#aaa8a4"
             strokeDasharray="4 4"
             className="barrier-dash"
           />
@@ -69,13 +69,13 @@ function Gate({
             <g key={c} className="measure-wire-flow">
               <path
                 d={`M${x - 2} ${ys[i] + 18}V${cy(c) - 4}m4 ${-(cy(c) - ys[i] - 22)}V${cy(c) - 4}`}
-                stroke="#A18BE9"
+                stroke="#d8c6a7"
                 fill="none"
                 strokeWidth="1.5"
                 strokeDasharray="5 3"
                 className="measure-dash-line"
               />
-              <path d={`m${x - 6} ${cy(c) - 7} 6 7 6-7`} fill="none" stroke="#A18BE9" strokeWidth="1.5" />
+              <path d={`m${x - 6} ${cy(c) - 7} 6 7 6-7`} fill="none" stroke="#d8c6a7" strokeWidth="1.5" />
             </g>
           ))}
           {ys.map((y) => (
@@ -86,25 +86,25 @@ function Gate({
                 width="36"
                 height="36"
                 rx="6"
-                fill="#201a34"
-                stroke="#9A83FF"
+                fill="#302c28"
+                stroke="#ddc9a8"
                 strokeWidth="1.5"
                 className="gate-rect glow-violet"
               />
               {/* Dial arc */}
-              <path d={`M${x - 10} ${y + 6}a10 10 0 0 1 20 0`} stroke="#D4C8FF" strokeWidth="1.5" fill="none" />
+              <path d={`M${x - 10} ${y + 6}a10 10 0 0 1 20 0`} stroke="#f0e2cd" strokeWidth="1.5" fill="none" />
               {/* Oscillating measurement needle */}
               <line
                 x1={x}
                 y1={y + 6}
                 x2={x + 7}
                 y2={y - 6}
-                stroke="#57D9FF"
+                stroke="#f1e4cf"
                 strokeWidth="1.8"
                 strokeLinecap="round"
                 className="measure-animated-needle"
               />
-              <circle cx={x} cy={y + 6} r="2" fill="#D4C8FF" />
+              <circle cx={x} cy={y + 6} r="2" fill="#f0e2cd" />
             </g>
           ))}
         </>
@@ -118,7 +118,7 @@ function Gate({
                 y1={Math.min(...ys)}
                 x2={x}
                 y2={Math.max(...ys)}
-                stroke="#57D9FF"
+                stroke="#e4e1dc"
                 strokeWidth="2"
                 className="coupling-beam-base"
               />
@@ -127,7 +127,7 @@ function Gate({
                 y1={Math.min(...ys)}
                 x2={x}
                 y2={Math.max(...ys)}
-                stroke="#A78BFA"
+                stroke="#b9b6b0"
                 strokeWidth="2.5"
                 strokeDasharray="6 4"
                 className="coupling-beam-laser"
@@ -138,17 +138,17 @@ function Gate({
           {ys.map((y, index) =>
             index < controlCount ? (
               <g key={y} className="control-node-group">
-                <circle cx={x} cy={y} r="5" fill="#57D9FF" className="control-dot glow-cyan" />
-                <circle cx={x} cy={y} r="9" fill="none" stroke="#57D9FF" strokeWidth="1" opacity="0.4" className="control-ring" />
+                <circle cx={x} cy={y} r="5" fill="#f4f2ee" className="control-dot glow-cyan" />
+                <circle cx={x} cy={y} r="9" fill="none" stroke="#f4f2ee" strokeWidth="1" opacity="0.4" className="control-ring" />
               </g>
             ) : isSwap ? (
               <g key={y} className="swap-cross-group">
-                <path d={`m${x - 7} ${y - 7} 14 14m-14 0 14-14`} stroke="#57D9FF" strokeWidth="2.2" strokeLinecap="round" />
+                <path d={`m${x - 7} ${y - 7} 14 14m-14 0 14-14`} stroke="#f4f2ee" strokeWidth="2.2" strokeLinecap="round" />
               </g>
             ) : op.name === 'cx' || op.name === 'ccx' || op.name === 'mcx' ? (
               <g key={y} className="target-cx-group">
-                <circle cx={x} cy={y} r="15" fill="#0c1d2c" stroke="#57D9FF" strokeWidth="1.8" className="cx-circle glow-cyan" />
-                <path d={`M${x - 9} ${y}h18M${x} ${y - 9}v18`} stroke="#57D9FF" strokeWidth="2" strokeLinecap="round" />
+                <circle cx={x} cy={y} r="15" fill="#242426" stroke="#f4f2ee" strokeWidth="1.8" className="cx-circle glow-cyan" />
+                <path d={`M${x - 9} ${y}h18M${x} ${y - 9}v18`} stroke="#f4f2ee" strokeWidth="2" strokeLinecap="round" />
               </g>
             ) : (
               <g key={y} className="unitary-gate-box">
@@ -158,8 +158,8 @@ function Gate({
                   width="38"
                   height="36"
                   rx="6"
-                  fill="#0e1f30"
-                  stroke="#38bdf8"
+                  fill="#29292b"
+                  stroke="#d8d6d2"
                   strokeWidth="1.5"
                   className="gate-rect glow-cyan"
                 />
@@ -167,7 +167,7 @@ function Gate({
                   x={x}
                   y={y + 5}
                   textAnchor="middle"
-                  fill="#E0F7FF"
+                  fill="#f4f2ee"
                   fontSize="12.5"
                   fontWeight="700"
                   fontFamily="'JetBrains Mono', monospace"
@@ -180,7 +180,7 @@ function Gate({
                     x={x}
                     y={y - 23}
                     textAnchor="middle"
-                    fill="#94a3b8"
+                    fill="#b9b6b0"
                     fontSize="9.5"
                     fontFamily="'JetBrains Mono', monospace"
                   >
@@ -265,16 +265,16 @@ export function Circuit({ ir, compact = false }: { ir: IR | null; compact?: bool
 
           {/* Linear Quantum Laser Gradient */}
           <linearGradient id="laserBeamGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.9" />
-            <stop offset="50%" stopColor="#a78bfa" stopOpacity="1" />
-            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.9" />
+            <stop offset="0%" stopColor="#d8d6d2" stopOpacity="0.9" />
+            <stop offset="50%" stopColor="#f4f2ee" stopOpacity="1" />
+            <stop offset="100%" stopColor="#d8d6d2" stopOpacity="0.9" />
           </linearGradient>
 
           {/* Wire Wave Gradient */}
           <linearGradient id="wirePulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
-            <stop offset="50%" stopColor="#38bdf8" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+            <stop offset="0%" stopColor="#f4f2ee" stopOpacity="0" />
+            <stop offset="50%" stopColor="#f4f2ee" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#f4f2ee" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -285,22 +285,22 @@ export function Circuit({ ir, compact = false }: { ir: IR | null; compact?: bool
           return (
             <g key={`q${q}`} className="quantum-wire-row">
               {/* Register Label */}
-              <text x="22" y={y + 5} fill="#B4C2D9" fontSize="12" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+              <text x="22" y={y + 5} fill="#e4e1dc" fontSize="12" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                 q[{q}]
               </text>
-              <text x="67" y={y + 5} fill="#65718A" fontSize="11" fontFamily="'JetBrains Mono', monospace">
+              <text x="67" y={y + 5} fill="#a5a29e" fontSize="11" fontFamily="'JetBrains Mono', monospace">
                 |0⟩
               </text>
 
               {/* Base Qubit Wire Line */}
-              <line x1="96" y1={y} x2={width - 24} y2={y} stroke="#222b3d" strokeWidth="2" className="wire-base" />
+              <line x1="96" y1={y} x2={width - 24} y2={y} stroke="#444447" strokeWidth="2" className="wire-base" />
 
               {/* Glowing Active Wire Line */}
-              <line x1="96" y1={y} x2={width - 24} y2={y} stroke="#334155" strokeWidth="1.2" className="wire-glow-line" />
+              <line x1="96" y1={y} x2={width - 24} y2={y} stroke="#777579" strokeWidth="1.2" className="wire-glow-line" />
 
               {/* Live Quantum Wave Particle Traversal */}
               {livePulse && (
-                <circle cx="96" cy={y} r="3.2" fill="#38bdf8" filter="url(#cyanGlow)" className="quantum-live-particle">
+                <circle cx="96" cy={y} r="3.2" fill="#f4f2ee" filter="url(#cyanGlow)" className="quantum-live-particle">
                   <animate
                     attributeName="cx"
                     from="96"
@@ -331,11 +331,11 @@ export function Circuit({ ir, compact = false }: { ir: IR | null; compact?: bool
           const y = cy(c);
           return (
             <g key={`c${c}`} className="classical-wire-row">
-              <text x="22" y={y + 5} fill="#9688BE" fontSize="12" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
+              <text x="22" y={y + 5} fill="#d8c6a7" fontSize="12" fontWeight="600" fontFamily="'JetBrains Mono', monospace">
                 c[{c}]
               </text>
-              <line x1="96" y1={y - 1.5} x2={width - 24} y2={y - 1.5} stroke="#393049" strokeWidth="1.2" />
-              <line x1="96" y1={y + 1.5} x2={width - 24} y2={y + 1.5} stroke="#393049" strokeWidth="1.2" />
+              <line x1="96" y1={y - 1.5} x2={width - 24} y2={y - 1.5} stroke="#6d6256" strokeWidth="1.2" />
+              <line x1="96" y1={y + 1.5} x2={width - 24} y2={y + 1.5} stroke="#6d6256" strokeWidth="1.2" />
             </g>
           );
         })}

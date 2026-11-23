@@ -61,15 +61,15 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
       const angle = angleRef.current;
 
       const background = context.createRadialGradient(cx, cy, 10, cx, cy, radius * 1.55);
-      background.addColorStop(0, 'rgba(41, 102, 148, 0.2)');
-      background.addColorStop(0.52, 'rgba(33, 31, 89, 0.11)');
-      background.addColorStop(1, 'rgba(3, 6, 17, 0)');
+      background.addColorStop(0, 'rgba(207, 204, 198, 0.12)');
+      background.addColorStop(0.52, 'rgba(126, 124, 121, 0.07)');
+      background.addColorStop(1, 'rgba(11, 11, 12, 0)');
       context.fillStyle = background;
       context.fillRect(0, 0, width, height);
 
       context.save();
       context.translate(cx, cy);
-      context.strokeStyle = 'rgba(117, 147, 191, 0.14)';
+      context.strokeStyle = 'rgba(214, 211, 205, 0.17)';
       context.lineWidth = 1;
       for (let ring = 1; ring <= 3; ring += 1) {
         context.beginPath();
@@ -95,9 +95,9 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
         const measuredRadius = (BASE_NODE_RADIUS + Math.sqrt(node.measured) * PROBABILITY_RADIUS) * node.scale;
         const glowRadius = Math.max(idealRadius, measuredRadius) * 2.2;
         const glow = context.createRadialGradient(node.px, node.py, 0, node.px, node.py, glowRadius);
-        glow.addColorStop(0, 'rgba(141, 216, 255, 0.28)');
-        glow.addColorStop(0.45, 'rgba(95, 159, 232, 0.1)');
-        glow.addColorStop(1, 'rgba(95, 159, 232, 0)');
+        glow.addColorStop(0, 'rgba(244, 242, 238, 0.22)');
+        glow.addColorStop(0.45, 'rgba(195, 192, 186, 0.08)');
+        glow.addColorStop(1, 'rgba(195, 192, 186, 0)');
         context.fillStyle = glow;
         context.beginPath();
         context.arc(node.px, node.py, glowRadius, 0, TAU);
@@ -107,11 +107,11 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
           node.px - idealRadius * 0.35, node.py - idealRadius * 0.35, 0,
           node.px, node.py, idealRadius,
         );
-        core.addColorStop(0, selected === node.state ? '#ffffff' : '#e8f8ff');
-        core.addColorStop(0.52, '#90d9ff');
-        core.addColorStop(1, '#3475ad');
+        core.addColorStop(0, selected === node.state ? '#ffffff' : '#f0ede7');
+        core.addColorStop(0.52, '#bdbab4');
+        core.addColorStop(1, '#656467');
         context.fillStyle = core;
-        context.strokeStyle = selected === node.state ? '#ffffff' : 'rgba(228, 244, 255, 0.85)';
+        context.strokeStyle = selected === node.state ? '#ffffff' : 'rgba(236, 233, 227, 0.85)';
         context.lineWidth = selected === node.state ? 2.5 : 1;
         context.beginPath();
         context.arc(node.px, node.py, idealRadius, 0, TAU);
@@ -121,7 +121,7 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
         if (node.measured > 0) {
           context.beginPath();
           context.arc(node.px, node.py, measuredRadius + 3, 0, TAU);
-          context.strokeStyle = '#d6adff';
+          context.strokeStyle = '#f0d8ac';
           context.lineWidth = selected === node.state ? 3 : 2;
           context.stroke();
         }
@@ -145,9 +145,9 @@ export function QuantumStateWorld({ run }: { run: Simulation }) {
         if (box.left < 4 || box.right > width - 4 || box.top < 4 || box.bottom > height - 4) continue;
         if (placed.some(other => box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top)) continue;
         placed.push(box);
-        context.fillStyle = 'rgba(7, 18, 33, 0.87)';
+        context.fillStyle = 'rgba(15, 15, 16, 0.9)';
         context.fillRect(box.left, box.top, labelWidth, 19);
-        context.fillStyle = '#f8fbff';
+        context.fillStyle = '#f4f2ee';
         context.textAlign = 'center';
         context.fillText(label, node.px, labelY);
       }
