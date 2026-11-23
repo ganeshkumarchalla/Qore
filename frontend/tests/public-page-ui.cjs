@@ -24,6 +24,11 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     assert.equal(canonicalUrl.pathname, '/about.html');
     const description = await page.locator('meta[name="description"]').getAttribute('content');
     assert(description.length >= 50);
+    const publicCopy = await page.locator('body').innerText();
+    assert.match(publicCopy, /no account sign-in/i);
+    assert.match(publicCopy, /browser profile/i);
+    assert.doesNotMatch(publicCopy, /verified account|new accounts|owner-scoped cloud|workspace stays private/i);
+    assert.doesNotMatch(description, /private experiment records/i);
     const robots = await page.locator('meta[name="robots"]').getAttribute('content');
     assert(!/noindex/i.test(robots));
     const sitemapResponse = await page.request.get(base + '/sitemap.xml');

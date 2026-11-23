@@ -21,6 +21,31 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     await page.goto(base);
     await page.getByRole('button', { name: 'Get Started', exact: true }).click();
     await page.locator('.monaco-editor').waitFor();
+    for (const width of [1366, 900, 390]) {
+      await page.setViewportSize({ width, height: 768 });
+      const title = await page.locator('.editor-pane .pane-titlebar').evaluate(element => {
+        const filename = element.querySelector('.pane-name');
+        const metadata = element.querySelector('.pane-meta');
+        const actions = element.querySelector('.pane-title-actions');
+        const nameBox = filename.getBoundingClientRect();
+        const metaBox = metadata.getBoundingClientRect();
+        const actionsBox = actions.getBoundingClientRect();
+        const barBox = element.getBoundingClientRect();
+        return { nameRight: nameBox.right, metaLeft: metaBox.left, metaRight: metaBox.right,
+          actionsLeft: actionsBox.left, barRight: barBox.right, nameTitle: filename.title,
+          nameOverflow: getComputedStyle(filename).textOverflow };
+      });
+      assert(title.metaLeft - title.nameRight >= 6, `Filename and language need a visible gap at ${width}px`);
+      assert(title.metaRight <= title.actionsLeft, `Metadata must not overlap actions at ${width}px`);
+      assert(title.actionsLeft <= title.barRight, `Editor actions must fit at ${width}px`);
+      assert.equal(title.nameTitle, 'my_first_qubits.py');
+      assert.equal(title.nameOverflow, 'ellipsis');
+    }
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const fileRow = page.locator('.vs-file-row[tabindex="0"]').first();
+    await fileRow.focus();
+    assert.equal(await fileRow.locator('.vs-hover-tools').evaluate(element => getComputedStyle(element).display), 'flex',
+      'Explorer file actions must appear on keyboard focus');
     for (const width of [1366, 900]) {
       await page.setViewportSize({ width, height: 768 });
       await page.getByRole('button', { name: 'File', exact: true }).click();
@@ -60,6 +85,6 @@ const base = process.argv[2] || process.env.QORE_TEST_URL || 'http://127.0.0.1:8
     assert.match(palette.terminal, /linear-gradient/);
     assert.match(palette.editor, /radial-gradient/);
     assert.deepEqual(errors, []);
-    console.log('PASS: graphite menus, editor, gates and terminal remain readable at 1366px and 900px');
+    console.log('PASS: graphite menus, editor, gates and terminal; title spacing at 1366px, 900px and 390px');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -852,13 +852,27 @@ code, pre, .mono,
   font-family: 'JetBrains Mono', monospace;
   color: var(--vscode-text-dim);
 }
+.pane-title-left {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+}
 .pane-name {
   font-weight: 600;
   color: var(--vscode-text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pane-meta {
   color: var(--vscode-text-dim);
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
+.pane-title-actions { display: flex; align-items: center; flex: 0 0 auto; }
 
 /* Primary Topbar Menubar & Clean Actions */
 .topbar-brand {
@@ -3989,7 +4003,7 @@ textarea:focus,
 }
 
 .vs-file-row.active {
-  background: rgba(56, 189, 248, 0.12) !important;
+  background: rgba(238, 235, 230, 0.12) !important;
   color: var(--vscode-accent) !important;
   font-weight: 600 !important;
 }
@@ -4023,7 +4037,7 @@ textarea:focus,
   font-weight: 700;
   padding: 1px 4px;
   border-radius: 3px;
-  background: rgba(56, 189, 248, 0.12);
+  background: rgba(238, 235, 230, 0.12);
   color: var(--vscode-accent);
 }
 
@@ -4041,8 +4055,17 @@ textarea:focus,
   flex-shrink: 0;
 }
 .vs-file-row:hover .vs-hover-tools,
-.vs-folder-row:hover .vs-hover-tools {
+.vs-folder-row:hover .vs-hover-tools,
+.vs-file-row:focus-within .vs-hover-tools,
+.vs-folder-row:focus-within .vs-hover-tools {
   display: flex;
+}
+.vs-workspace-notice {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #e7e4de;
+  background: rgba(238, 235, 230, .09);
+  border-bottom: 1px solid rgba(238, 235, 230, .2);
 }
 .vs-folder-row:hover .vs-item-count {
   display: none;
@@ -6183,7 +6206,7 @@ textarea {
 .workspace-start-steps p { margin: 7px 0 0; color: #879eb7; font-size: 12px; line-height: 1.6; }
 .workspace-start-note { color: #758ba4; font-size: 11px; line-height: 1.65; }
 .vs-workspace-error { margin: 8px 10px; padding: 9px; border: 1px solid #e6a38545; border-radius: 6px; color: #eac1aa; background: #c56b4510; font-size: 11px; line-height: 1.5; }
-.vs-file-row:focus-visible { outline: 1px solid #9cbfe4; outline-offset: -2px; }
+.vs-file-row:focus-visible { outline: 1px solid #e7e4de; outline-offset: -2px; }
 @media (max-width: 900px) {
   .workspace-start { padding: 28px; align-items: flex-start; }
   .workspace-start-inner { margin: auto; }

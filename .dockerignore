@@ -8,6 +8,8 @@ data
 evidence
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 __pycache__
 *.pyc
@@ -21,5 +23,16 @@ frontend/dist/intro-video.html
 frontend/dist/*.mp4
 *.pem
 *.key
+*.pfx
+*.pkcs12
 credentials.json
 service_account*.json
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.pkcs12
+**/credentials.json
+**/service_account*.json
+**/id_rsa
+**/id_ed25519
+**/secrets

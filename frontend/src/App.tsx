@@ -918,6 +918,9 @@ export default function App() {
       { label: 'About QORE ↗', action: () => window.open('/about.html', '_blank', 'noopener,noreferrer') },
     ] },
   ];
+  const editorDisplayName = name.includes('.')
+    ? name
+    : (source.trim().startsWith('OPENQASM') || source.includes('qreg ') ? `${name}.qasm` : `${name}.py`);
 
   return (
     <div className="vscode-root">
@@ -965,7 +968,7 @@ export default function App() {
           title="Open Command Palette (Ctrl+K or Ctrl+Shift+P)"
         >
           <Icon name="search" size={13} />
-          <span className="command-center-title">{!activeFileId && !source ? 'Your workspace' : name.includes('.') ? name : `${name}.py`}</span>
+          <span className="command-center-title">{!activeFileId && !source ? 'Your workspace' : editorDisplayName}</span>
           <kbd className="command-kbd">Ctrl+K</kbd>
         </button>
 
@@ -1211,9 +1214,7 @@ export default function App() {
               <section className="editor-pane">
                 <div className="pane-titlebar spread">
                   <div className="pane-title-left">
-                    <span className="pane-name">
-                      {name.includes('.') ? name : (source.trim().startsWith('OPENQASM') || source.includes('qreg ') ? `${name}.qasm` : `${name}.py`)}
-                    </span>
+                    <span className="pane-name" title={editorDisplayName}>{editorDisplayName}</span>
                     <span className="pane-meta">
                       {source.trim().startsWith('OPENQASM') || source.includes('qreg ') ? 'OpenQASM 2.0' : 'Python · Bounded AST'}
                     </span>
