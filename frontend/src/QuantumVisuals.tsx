@@ -252,18 +252,18 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                 </div>
                 <div className="bloch-grid-svg-wrap">
                   <svg viewBox="0 0 130 130" width="130" height="130" className="bloch-grid-svg">
-                    <circle cx="65" cy="65" r="53" fill="rgba(15, 23, 42, 0.65)" stroke="rgba(56, 189, 248, 0.25)" strokeWidth="1" />
-                    <path d={eqPts} fill="none" stroke="rgba(148, 163, 184, 0.3)" strokeDasharray="2 3" />
-                    <path d={meridianPts} fill="none" stroke="rgba(129, 140, 248, 0.3)" strokeDasharray="2 3" />
-                    <line x1={nP.px} y1={nP.py} x2={sP.px} y2={sP.py} stroke="rgba(100, 116, 139, 0.3)" strokeDasharray="2 2" />
-                    <line x1={xNeg.px} y1={xNeg.py} x2={xPos.px} y2={xPos.py} stroke="rgba(100, 116, 139, 0.3)" strokeDasharray="2 2" />
-                    <line x1={yNeg.px} y1={yNeg.py} x2={yPos.px} y2={yPos.py} stroke="rgba(100, 116, 139, 0.3)" strokeDasharray="2 2" />
-                    <line x1="65" y1="65" x2={vProj.px} y2={vProj.py} stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" />
-                    <circle cx={vProj.px} cy={vProj.py} r="4" fill="#38bdf8" stroke="#ffffff" strokeWidth="1.2" />
-                    <text x={nP.px} y={nP.py - 4} fill="#38bdf8" fontSize="8.5" textAnchor="middle" fontWeight="bold">|0⟩</text>
-                    <text x={sP.px} y={sP.py + 10} fill="#94a3b8" fontSize="8.5" textAnchor="middle">|1⟩</text>
-                    <text x={xPos.px + 3} y={xPos.py + 3} fill="#a5b4fc" fontSize="7.5">X</text>
-                    <text x={yPos.px + 3} y={yPos.py + 3} fill="#a5b4fc" fontSize="7.5">Y</text>
+                    <circle cx="65" cy="65" r="53" fill="rgba(29, 29, 31, 0.8)" stroke="rgba(238, 235, 230, 0.25)" strokeWidth="1" />
+                    <path d={eqPts} fill="none" stroke="rgba(207, 204, 198, 0.35)" strokeDasharray="2 3" />
+                    <path d={meridianPts} fill="none" stroke="rgba(163, 160, 155, 0.34)" strokeDasharray="2 3" />
+                    <line x1={nP.px} y1={nP.py} x2={sP.px} y2={sP.py} stroke="rgba(190, 187, 181, 0.32)" strokeDasharray="2 2" />
+                    <line x1={xNeg.px} y1={xNeg.py} x2={xPos.px} y2={xPos.py} stroke="rgba(190, 187, 181, 0.32)" strokeDasharray="2 2" />
+                    <line x1={yNeg.px} y1={yNeg.py} x2={yPos.px} y2={yPos.py} stroke="rgba(190, 187, 181, 0.32)" strokeDasharray="2 2" />
+                    <line x1="65" y1="65" x2={vProj.px} y2={vProj.py} stroke="#f4f2ee" strokeWidth="2.4" strokeLinecap="round" />
+                    <circle cx={vProj.px} cy={vProj.py} r="4" fill="#f4f2ee" stroke="#ffffff" strokeWidth="1.2" />
+                    <text x={nP.px} y={nP.py - 4} fill="#f4f2ee" fontSize="8.5" textAnchor="middle" fontWeight="bold">|0⟩</text>
+                    <text x={sP.px} y={sP.py + 10} fill="#c9c7c3" fontSize="8.5" textAnchor="middle">|1⟩</text>
+                    <text x={xPos.px + 3} y={xPos.py + 3} fill="#bbb8b2" fontSize="7.5">X</text>
+                    <text x={yPos.px + 3} y={yPos.py + 3} fill="#bbb8b2" fontSize="7.5">Y</text>
                   </svg>
                 </div>
                 <div className="bloch-grid-card-foot mono">
@@ -294,19 +294,19 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                   </feMerge>
                 </filter>
                 <radialGradient id="sphereRadial" cx="35%" cy="30%" r="70%">
-                  <stop offset="0%" stopColor="#1e293b" stopOpacity="0.85" />
-                  <stop offset="65%" stopColor="#0b1329" stopOpacity="0.95" />
-                  <stop offset="100%" stopColor="#040714" stopOpacity="0.99" />
+                  <stop offset="0%" stopColor="#363638" stopOpacity="0.85" />
+                  <stop offset="65%" stopColor="#202022" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="#0b0b0c" stopOpacity="0.99" />
                 </radialGradient>
                 <linearGradient id="vectorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#38bdf8" />
-                  <stop offset="60%" stopColor="#818cf8" />
-                  <stop offset="100%" stopColor="#c084fc" />
+                  <stop offset="0%" stopColor="#a5a29e" />
+                  <stop offset="60%" stopColor="#e4e1dc" />
+                  <stop offset="100%" stopColor="#ffffff" />
                 </linearGradient>
               </defs>
 
               {/* Sphere Backdrop Body */}
-              <circle cx={cx} cy={cy} r={R} fill="url(#sphereRadial)" stroke="#1e293b" strokeWidth="1.5" className="bloch-sphere-bg" />
+              <circle cx={cx} cy={cy} r={R} fill="url(#sphereRadial)" stroke="#777579" strokeWidth="1.5" className="bloch-sphere-bg" />
 
               {/* 3D Coordinate Axes */}
               {/* Z-Axis (North-South) */}
@@ -315,7 +315,7 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                 y1={southProj.py}
                 x2={northProj.px}
                 y2={northProj.py}
-                stroke="#334155"
+                stroke="#777579"
                 strokeWidth="1.2"
                 strokeDasharray="2 2"
               />
@@ -325,7 +325,7 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                 y1={xNegProj.py}
                 x2={xPosProj.px}
                 y2={xPosProj.py}
-                stroke="#334155"
+                stroke="#777579"
                 strokeWidth="1"
                 strokeDasharray="2 2"
               />
@@ -335,25 +335,25 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                 y1={yNegProj.py}
                 x2={yPosProj.px}
                 y2={yPosProj.py}
-                stroke="#334155"
+                stroke="#777579"
                 strokeWidth="1"
                 strokeDasharray="2 2"
               />
 
               {/* 3D Equator Ellipse */}
-              <path d={equatorPoints} stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.35" fill="none" strokeDasharray="3 3" />
+              <path d={equatorPoints} stroke="#e4e1dc" strokeWidth="1" strokeOpacity="0.35" fill="none" strokeDasharray="3 3" />
 
               {/* 3D Prime Meridian Ellipse */}
-              <path d={meridianPoints} stroke="#818cf8" strokeWidth="1" strokeOpacity="0.3" fill="none" strokeDasharray="3 3" />
+              <path d={meridianPoints} stroke="#aaa8a4" strokeWidth="1" strokeOpacity="0.3" fill="none" strokeDasharray="3 3" />
 
               {/* Pole State Labels */}
-              <text x={northProj.px} y={northProj.py - 6} fill="#38bdf8" fontSize="10" textAnchor="middle" fontWeight="bold">
+              <text x={northProj.px} y={northProj.py - 6} fill="#f4f2ee" fontSize="10" textAnchor="middle" fontWeight="bold">
                 |0⟩
               </text>
-              <text x={southProj.px} y={southProj.py + 13} fill="#94a3b8" fontSize="10" textAnchor="middle">
+              <text x={southProj.px} y={southProj.py + 13} fill="#c9c7c3" fontSize="10" textAnchor="middle">
                 |1⟩
               </text>
-              <text x={xPosProj.px + 7} y={xPosProj.py + 3} fill="#64748b" fontSize="8.5">
+              <text x={xPosProj.px + 7} y={xPosProj.py + 3} fill="#aaa8a4" fontSize="8.5">
                 |+⟩
               </text>
 
@@ -374,7 +374,7 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                 cx={vecProj.px}
                 cy={vecProj.py}
                 r={vecProj.depth >= 0 ? 7 : 4}
-                fill="#38bdf8"
+                fill="#f4f2ee"
                 opacity={vecProj.depth >= 0 ? 0.35 : 0.15}
                 filter="url(#blochGlow)"
               />
@@ -382,7 +382,7 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
                 cx={vecProj.px}
                 cy={vecProj.py}
                 r={vecProj.depth >= 0 ? 4.5 : 3}
-                fill="#38bdf8"
+                fill="#f4f2ee"
                 stroke="#ffffff"
                 strokeWidth="1.2"
               />
@@ -442,7 +442,6 @@ export function BlochSphereViewer({ vectors }: { vectors?: BlochVector[] }) {
 export function UnitaryMatrixViewer({ matrix, unitarity }: { matrix?: UnitaryCell[][]; unitarity?: UnitarityReport | null }) {
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number; cell: UnitaryCell } | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
-  const [phaseChroma, setPhaseChroma] = useState(true);
 
   if (!matrix || matrix.length === 0) {
     return (
@@ -489,17 +488,6 @@ export function UnitaryMatrixViewer({ matrix, unitarity }: { matrix?: UnitaryCel
           </div>
         </div>
 
-        <div className="unitary-controls">
-          <button
-            type="button"
-            className={`matrix-toggle-btn ${phaseChroma ? 'active' : ''}`}
-            onClick={() => setPhaseChroma(!phaseChroma)}
-            title="Toggle complex phase color encoding"
-          >
-            <Icon name="spark" size={12} />
-            <span>Phase Chroma</span>
-          </button>
-        </div>
       </div>
 
       {selectedCell && (
@@ -515,7 +503,7 @@ export function UnitaryMatrixViewer({ matrix, unitarity }: { matrix?: UnitaryCel
       )}
 
       <div className="matrix-table-wrap">
-        <table className="unitary-matrix-table isometric-3d">
+        <table className="unitary-matrix-table">
           <thead>
             <tr>
               <th className="corner-th">|row⟩ \ |col⟩</th>
@@ -544,23 +532,9 @@ export function UnitaryMatrixViewer({ matrix, unitarity }: { matrix?: UnitaryCel
                 {row.map((cell, colIdx) => {
                   const isSelected = selectedCell?.row === rowIdx && selectedCell?.col === colIdx;
                   const isHovered = hoveredCell?.row === rowIdx && hoveredCell?.col === colIdx;
-                  const animDelay = (rowIdx * dim + colIdx) * 12;
-
-                  // Complex phase to HSL hue mapping: phase in [-pi, pi] mapped to [0, 360]
-                  const phaseDeg = Math.round(((cell.phase * 180) / Math.PI + 360) % 360);
-                  const bgAlpha = Math.min(0.85, cell.magnitude * 0.7 + (cell.magnitude > 0.001 ? 0.08 : 0));
-
-                  const bgColor =
-                    cell.magnitude <= 0.001
-                      ? 'transparent'
-                      : phaseChroma
-                      ? `hsla(${phaseDeg}, 75%, 45%, ${bgAlpha})`
-                      : `rgba(56, 189, 248, ${bgAlpha})`;
-
-                  const borderColor =
-                    cell.magnitude > 0.001 && phaseChroma
-                      ? `hsla(${phaseDeg}, 90%, 65%, 0.4)`
-                      : 'transparent';
+                  // Keep magnitude visible in graphite; exact phase stays in the cell tooltip/readout.
+                  const bgAlpha = Math.min(0.4, cell.magnitude * 0.3 + (cell.magnitude > 0.001 ? 0.04 : 0));
+                  const bgColor = cell.magnitude <= 0.001 ? 'transparent' : `rgba(238, 235, 230, ${bgAlpha})`;
 
                   return (
                     <td
@@ -568,9 +542,8 @@ export function UnitaryMatrixViewer({ matrix, unitarity }: { matrix?: UnitaryCel
                       className={`matrix-cell mono ${isSelected ? 'selected' : ''} ${isHovered ? 'hovered' : ''}`}
                       style={{
                         backgroundColor: bgColor,
-                        borderColor: borderColor,
-                        color: cell.magnitude > 0.35 ? '#ffffff' : cell.magnitude > 0.001 ? '#93c5fd' : '#475569',
-                        animationDelay: `${animDelay}ms`,
+                        borderColor: cell.magnitude > 0.001 ? 'rgba(238, 235, 230, 0.2)' : 'transparent',
+                        color: cell.magnitude > 0.35 ? '#ffffff' : cell.magnitude > 0.001 ? '#e4e1dc' : '#888681',
                       }}
                       onMouseEnter={() => setHoveredCell({ row: rowIdx, col: colIdx })}
                       onMouseLeave={() => setHoveredCell(null)}
@@ -590,7 +563,7 @@ export function UnitaryMatrixViewer({ matrix, unitarity }: { matrix?: UnitaryCel
       </div>
       <p className="help">
         Values are ⟨basis<sub>row</sub>|U|basis<sub>col</sub>⟩ in Qiskit’s little-endian computational basis.
-        Hue encodes arg(U<sub>ij</sub>); brightness encodes |U<sub>ij</sub>|.
+        Brightness encodes |U<sub>ij</sub>|; select a cell to inspect its exact complex value and phase.
         {unitarity ? ` Unitarity residual max |U†U − I| = ${unitarity.max_deviation.toExponential(3)} (tolerance ${unitarity.tolerance}).` : ''}
       </p>
     </div>
@@ -608,7 +581,6 @@ export function StatevectorAmplitudesViewer({ amplitudes }: { amplitudes?: State
       </div>
       <div className="amplitudes-list">
         {amplitudes.map((amp, idx) => {
-          const phaseDeg = Math.round(((amp.phase * 180) / Math.PI + 360) % 360);
           return (
             <div
               key={amp.state}
@@ -621,7 +593,7 @@ export function StatevectorAmplitudesViewer({ amplitudes }: { amplitudes?: State
                   className="amp-bar amp-bar-glow"
                   style={{
                     width: `${amp.probability * 100}%`,
-                    background: `linear-gradient(90deg, hsla(${phaseDeg}, 80%, 50%, 0.8), #38bdf8)`,
+                    background: 'linear-gradient(90deg, #a5a29e, #f4f2ee)',
                   }}
                 />
               </div>
