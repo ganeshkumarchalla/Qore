@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
+from http.cookiejar import CookieJar, DefaultCookiePolicy
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -17,6 +18,13 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
 from gateway.proxy import forward_api
+
+
+class RejectUpstreamCookies(DefaultCookiePolicy):
+    """Keep browser workspace cookies out of the pooled upstream client jar."""
+
+    def set_ok(self, cookie, request):
+        return False
 
 
 
@@ -71,7 +79,8 @@ def create_app(*, backend_origin: str, public_origin: str,
     @asynccontextmanager
     async def lifespan(application: Starlette):
         async with httpx.AsyncClient(transport=transport, timeout=httpx.Timeout(75.0, connect=5.0),
-                                     follow_redirects=False, trust_env=False) as client:
+                                     follow_redirects=False, trust_env=False,
+                                     cookies=CookieJar(policy=RejectUpstreamCookies())) as client:
             application.state.backend_client = client
             yield
 

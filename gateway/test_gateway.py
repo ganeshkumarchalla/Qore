@@ -162,4 +162,16 @@ def test_real_backend_cookie_and_project_survive_gateway_round_trip(static_dir, 
                     assert listed.status_code == 200
                     assert listed.json()[0]["name"] == "Live workspace"
 
+                # A separate browser must receive its own cookie and an empty record set.
+                # Both clients share the gateway's upstream HTTP connection pool.
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway), base_url=PUBLIC) as second:
+                    fresh = await second.get("/api/health")
+                    assert fresh.status_code == 200
+                    assert "qore_workspace" in second.cookies
+                    assert second.cookies.get("qore_workspace") != client.cookies.get("qore_workspace")
+                    isolated = await second.get("/api/projects")
+                    assert isolated.status_code == 200
+                    assert isolated.json() == []
+                assert len(gateway.state.backend_client.cookies) == 0
+
     asyncio.run(check())

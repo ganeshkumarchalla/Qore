@@ -1,5 +1,7 @@
 """Bounded API forwarding shared by the Render and AWS ingress gateways."""
 
+from contextlib import aclosing
+
 import httpx
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -32,8 +34,10 @@ async def forward_api(request: Request, backend_origin: str, *, gateway_token: s
     if request.url.query:
         target += "?" + request.url.query
     try:
-        async with request.app.state.backend_client.stream(request.method, target,
-                                                            headers=headers, content=body) as upstream:
+        # Build the request directly: AsyncClient.stream() merges its shared cookie jar,
+        # which can attach one visitor's workspace cookie to another visitor's request.
+        upstream_request = httpx.Request(request.method, target, headers=headers, content=body)
+        async with aclosing(await request.app.state.backend_client.send(upstream_request, stream=True)) as upstream:
             chunks, size = [], 0
             async for chunk in upstream.aiter_bytes():
                 size += len(chunk)
