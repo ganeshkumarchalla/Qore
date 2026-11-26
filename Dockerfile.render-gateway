@@ -15,5 +15,7 @@ COPY gateway/requirements.txt ./gateway/requirements.txt
 RUN pip install --no-cache-dir -r gateway/requirements.txt
 COPY gateway/ ./gateway/
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+COPY dist/desktop/QORE-Windows-Desktop.zip ./frontend/dist/downloads/QORE-Windows-Desktop.zip
+COPY dist/desktop/QORE-Setup.exe ./frontend/dist/downloads/QORE-Setup.exe
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn gateway.app:create_from_env --factory --host 0.0.0.0 --port ${PORT:-8080} --no-access-log"]

@@ -87,7 +87,31 @@ export type Project = { id: string; name: string; source: string; created_at: st
 export type Example = { id: string; name: string; description: string; source: string };
 export type ExperimentSummary = { id: string; name: string; project_id?: string; created_at: string; source_hash: string };
 export type Experiment = ExperimentSummary & { source: string; ir_version: string; ir?: IR; metrics?: Metrics; versions: Record<string, string>; simulation: Simulation | null; optimization: Optimization | null };
-export type Health = { status: string; versions: Record<string, string>; ai_available: boolean; auth_configured?: boolean; auth_required?: boolean; storage?: string; limits: Record<string, unknown> };
+export type Health = {
+  status: string;
+  versions: Record<string, string>;
+  ai_available: boolean;
+  ai_engine?: 'local' | 'hybrid';
+  ai_model?: string;
+  external_ai_available?: boolean;
+  auth_configured?: boolean;
+  auth_required?: boolean;
+  storage?: string;
+  limits: Record<string, unknown>;
+};
+export type AssistantAction = 'studio' | 'lab' | 'forge' | 'research' | 'simulate' | 'optimize' | 'terminal' | 'explorer' | 'settings' | 'new-file';
+export type AssistantProposal = { title: string; language: 'python' | 'qasm'; code: string; note: string };
+export type AssistantResponse = {
+  available: boolean;
+  answer: string;
+  engine?: string;
+  intent?: string;
+  confidence?: number;
+  evidence_used?: string[];
+  proposal?: AssistantProposal | null;
+  suggested_actions?: AssistantAction[];
+  provider_fallback?: boolean;
+};
 export type QuantumCapabilities = {
   languages: Array<{ id: string; label: string; execution: string; arbitrary_python: boolean }>;
   modules: Record<string, string>;
@@ -171,13 +195,26 @@ export function invalidateApiRequests() {
   apiRequests.abort();
   apiRequests = new AbortController();
 }
-export async function api<T>(path: string, body?: unknown, method?: string): Promise<T> {
+export async function api<T>(path: string, body?: unknown, method?: string, requestSignal?: AbortSignal): Promise<T> {
   let response: Response;
-  const signal = apiRequests.signal;
-  try { response = await fetch(`/api${path}`, { method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'same-origin', signal, headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); }
-  catch { throw new Error(signal.aborted ? 'The workspace changed. Please retry.' : 'Cannot connect to the QORE backend. Check your connection, then retry.'); }
+  const globalSignal = apiRequests.signal;
+  const controller = new AbortController();
+  const abortFromGlobal = () => controller.abort(globalSignal.reason);
+  const abortFromLocal = () => controller.abort(requestSignal?.reason);
+  if (globalSignal.aborted || requestSignal?.aborted) {
+    throw new Error(globalSignal.aborted ? 'The workspace changed. Please retry.' : 'Request cancelled.');
+  }
+  globalSignal.addEventListener('abort', abortFromGlobal, { once: true });
+  requestSignal?.addEventListener('abort', abortFromLocal, { once: true });
+  try { response = await fetch(`/api${path}`, { method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'same-origin', signal: controller.signal, headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); }
+  catch { throw new Error(globalSignal.aborted ? 'The workspace changed. Please retry.' : requestSignal?.aborted ? 'Request cancelled.' : 'Cannot connect to the QORE backend. Check your connection, then retry.'); }
+  finally {
+    globalSignal.removeEventListener('abort', abortFromGlobal);
+    requestSignal?.removeEventListener('abort', abortFromLocal);
+  }
   const data = await response.json().catch(() => null);
-  if (signal.aborted) throw new Error('The workspace changed. Please retry.');
+  if (globalSignal.aborted) throw new Error('The workspace changed. Please retry.');
+  if (requestSignal?.aborted) throw new Error('Request cancelled.');
   if (!response.ok) { const detail = data?.error?.details; throw new Error(`${data?.error?.message ?? data?.detail?.[0]?.msg ?? (typeof data?.detail === 'string' ? data.detail : `Request failed (${response.status})`)}${detail ? ` · ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`); }
   return data as T;
 }

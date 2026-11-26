@@ -4,7 +4,7 @@ import { Circuit, MetricCards } from './Circuit';
 import { Icon } from './Icons';
 import { BlochSphereViewer, QasmViewer, StatevectorAmplitudesViewer, UnitaryMatrixViewer } from './QuantumVisuals';
 import { QuantumStateWorld } from './QuantumStateWorld';
-import { api, formatDate, readable, type Experiment, type ExperimentSummary, type Health, type Optimization, type Simulation } from './types';
+import { api, formatDate, readable, type AssistantAction, type AssistantProposal, type AssistantResponse, type Experiment, type ExperimentSummary, type Health, type Optimization, type Simulation } from './types';
 
 export function Empty({ icon, title, children }: { icon: 'lab' | 'forge' | 'research'; title: string; children: React.ReactNode }) {
   return (
@@ -605,52 +605,137 @@ interface AssistantContext {
   view: 'Studio' | 'Lab' | 'Forge' | 'Research';
   workspaceSummary: string;
   diagnostics: string;
-  onAction: (action: 'studio' | 'lab' | 'forge' | 'research' | 'simulate' | 'optimize' | 'terminal' | 'explorer' | 'settings' | 'new-file') => void;
+  onAction: (action: AssistantAction) => Promise<string | void> | string | void;
+  onApplyProposal?: (code: string, title: string) => void;
 }
 
-export function Intelligence({ source, simulation, optimization, health, fileName, historical, view, workspaceSummary, diagnostics, onAction }: AssistantContext) {
+type AssistantTurn = {
+  id: number;
+  role: 'user' | 'assistant';
+  text: string;
+  available?: boolean;
+  engine?: string;
+  intent?: string;
+  evidence_used?: string[];
+  proposal?: AssistantProposal | null;
+  suggested_actions?: AssistantAction[];
+};
+
+const ACTION_LABELS: Record<AssistantAction, string> = {
+  studio: 'Open Studio',
+  lab: 'Open Lab',
+  forge: 'Open Forge',
+  research: 'Open Ledger',
+  simulate: 'Run simulation',
+  optimize: 'Optimize in Forge',
+  terminal: 'Open Terminal',
+  explorer: 'Open Explorer',
+  settings: 'Open Settings',
+  'new-file': 'Create blank file',
+};
+
+export function Intelligence({ source, simulation, optimization, health, fileName, historical, view, workspaceSummary, diagnostics, onAction, onApplyProposal }: AssistantContext) {
   const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
+  const [thread, setThread] = useState<AssistantTurn[]>([]);
+  const [streamingTurnId, setStreamingTurnId] = useState<number | null>(null);
+  const [commandStatus, setCommandStatus] = useState('');
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
-  const [available, setAvailable] = useState<boolean | null>(null);
   const generation = useRef(0);
+  const turnSeq = useRef(0);
+  const activeAbort = useRef<AbortController | null>(null);
+  const streamTimer = useRef<number | null>(null);
+  const preserveCommandStatus = useRef(false);
   const ready = Boolean(health?.ai_available);
+
+  function stopStream() {
+    if (streamTimer.current !== null) {
+      window.clearInterval(streamTimer.current);
+      streamTimer.current = null;
+    }
+    setStreamingTurnId(null);
+  }
 
   useEffect(() => {
     generation.current += 1;
-    setAnswer(''); setError(''); setAvailable(null); setPending(false);
-    return () => { generation.current += 1; };
-  }, [fileName, source, diagnostics, workspaceSummary, simulation?.id, optimization?.id, view]);
+    stopStream();
+    if (preserveCommandStatus.current) {
+      preserveCommandStatus.current = false;
+    } else {
+      setCommandStatus('');
+    }
+    setThread([]);
+    setError('');
+    setPending(false);
+    return () => {
+      generation.current += 1;
+      stopStream();
+    };
+  }, [fileName, source, diagnostics, workspaceSummary, simulation?.id, optimization?.id, view, historical]);
 
-  const commands: Record<string, Parameters<typeof onAction>[0]> = {
+  useEffect(() => () => {
+    activeAbort.current?.abort();
+    activeAbort.current = null;
+  }, []);
+
+  const commands: Record<string, AssistantAction> = {
     'open studio': 'studio', 'open lab': 'lab', 'open forge': 'forge', 'open ledger': 'research',
     'run simulation': 'simulate', 'optimize circuit': 'optimize', 'open terminal': 'terminal',
     'open explorer': 'explorer', 'open settings': 'settings', 'create blank file': 'new-file',
   };
 
+  async function runExplicitAction(action: AssistantAction, label?: string) {
+    preserveCommandStatus.current = true;
+    setCommandStatus(`Running ${label ?? ACTION_LABELS[action]}…`);
+    try {
+      const outcome = await onAction(action);
+      setCommandStatus(typeof outcome === 'string' && outcome ? outcome : `Done — ${label ?? ACTION_LABELS[action]}.`);
+    } catch (reason) {
+      setCommandStatus(reason instanceof Error ? reason.message : 'Action could not be completed.');
+    }
+  }
+
   async function ask(text = question) {
-    const normalized = text.trim().toLowerCase();
+    const trimmed = text.trim();
+    const normalized = trimmed.toLowerCase();
     if (!normalized || pending) return;
     if (commands[normalized]) {
-      onAction(commands[normalized]);
       setQuestion(text);
-      setAnswer(`Done — ${normalized}.`);
-      setAvailable(true);
+      await runExplicitAction(commands[normalized], normalized);
+      return;
+    }
+    if (!health) {
+      setQuestion(text);
+      setError('Connecting to QORE Intelligence runtime. Retry in a moment.');
       return;
     }
     if (!ready) {
       setQuestion(text);
-      setAnswer('QORE Intelligence is unavailable. Workspace commands above still work.');
-      setAvailable(false);
+      setThread(prev => [...prev, { id: ++turnSeq.current, role: 'assistant', text: 'QORE Intelligence is unavailable. Workspace commands above still work.', available: false }]);
       return;
     }
+
     const requestGeneration = generation.current;
-    setQuestion(text);
-    setPending(true); setError(''); setAnswer('');
+    activeAbort.current?.abort();
+    const controller = new AbortController();
+    activeAbort.current = controller;
+
+    const historyPayload = thread
+      .filter(item => item.role === 'user' || item.available !== false)
+      .slice(-6)
+      .map(item => ({ role: item.role, text: item.text }));
+    const userTurn: AssistantTurn = { id: ++turnSeq.current, role: 'user', text: trimmed };
+
+    setQuestion('');
+    setCommandStatus('');
+    setPending(true);
+    setError('');
+    setThread(prev => [...prev, userTurn]);
+
     try {
-      const data = await api<{ available: boolean; answer: string }>('/assistant', {
-        question: text.trim(),
+      const data = await api<AssistantResponse>('/assistant', {
+        question: trimmed,
         source,
         simulation_id: simulation?.id,
         optimization_id: optimization?.id,
@@ -658,13 +743,50 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         file_name: fileName ?? '',
         workspace_summary: workspaceSummary,
         diagnostics,
-      });
+        history: historyPayload,
+      }, 'POST', controller.signal);
       if (generation.current !== requestGeneration) return;
-      setAnswer(data.answer);
-      setAvailable(data.available);
+      const assistantId = ++turnSeq.current;
+      const tokens = data.answer.split(/(\s+)/);
+      const initialChunk = tokens.length <= 24 ? data.answer : tokens.slice(0, 12).join('');
+      setThread(prev => [
+        ...prev,
+        {
+          id: assistantId,
+          role: 'assistant',
+          text: initialChunk,
+          available: data.available,
+          engine: data.engine,
+          intent: data.intent,
+          evidence_used: data.evidence_used,
+          proposal: data.proposal,
+          suggested_actions: data.suggested_actions,
+        },
+      ]);
+      if (initialChunk.length < data.answer.length) {
+        stopStream();
+        setStreamingTurnId(assistantId);
+        let cursor = 12;
+        const step = Math.max(4, Math.ceil(tokens.length / 18));
+        streamTimer.current = window.setInterval(() => {
+          if (generation.current !== requestGeneration) {
+            stopStream();
+            return;
+          }
+          cursor = Math.min(tokens.length, cursor + step);
+          const nextText = tokens.slice(0, cursor).join('');
+          setThread(prev => prev.map(item => item.id === assistantId ? { ...item, text: nextText } : item));
+          if (cursor >= tokens.length) {
+            stopStream();
+          }
+        }, 16);
+      }
     } catch (reason) {
-      if (generation.current === requestGeneration) setError(reason instanceof Error ? reason.message : 'The assistant could not respond. Please try again.');
+      if (generation.current === requestGeneration && !controller.signal.aborted) {
+        setError(reason instanceof Error ? reason.message : 'The assistant could not respond. Please try again.');
+      }
     } finally {
+      if (activeAbort.current === controller) activeAbort.current = null;
       if (generation.current === requestGeneration) setPending(false);
     }
   }
@@ -673,17 +795,25 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
     { text: 'Guide this view', question: 'Explain this QORE view and the most useful next action', enabled: true },
     { text: 'Explain this circuit', question: 'Explain this quantum circuit', enabled: Boolean(source.trim()) },
     { text: 'Interpret the results', question: 'Interpret measurement probabilities', enabled: Boolean(simulation) },
+    { text: 'Propose Bell circuit', question: 'Write a Bell state circuit', enabled: true },
   ];
+
+  const engineLabel = health
+    ? health.ai_engine === 'hybrid'
+      ? 'QORE AI · Hybrid'
+      : ready
+      ? 'QORE AI Ready'
+      : 'Assistant unavailable'
+    : 'Checking availability';
 
   return <div className="intelligence-layout">
     <section className="panel assistant">
       <div className="qore-assistant-availability">
-        <span className={'pill ' + (health?.ai_available ? 'success' : '')}>
-          <span className="dot" />{health ? health.ai_available ? 'Assistant available' : 'Assistant unavailable' : 'Checking availability'}
+        <span className={'pill ' + (ready ? 'success' : '')}>
+          <span className="dot" />{engineLabel}
         </span>
-        <span className="qore-assistant-readonly"><Icon name="code" size={12} />Backend connected</span>
+        <span className="qore-assistant-readonly"><Icon name="code" size={12} />{health?.ai_engine === 'hybrid' ? 'Local + server hybrid' : 'Local quantum AI'}</span>
       </div>
-      <p className="help">Ask about any QORE workspace, quantum result, diagnostic, or workflow. Use the stacked controls for explicit actions.</p>
       <div className="qore-assistant-context">
         <div><Icon name={historical ? 'clock' : 'file'} size={14} /><strong>{fileName || 'No circuit open'}</strong></div>
         <span>{view} · {historical ? 'Historical snapshot' : source.trim() ? source.split('\n').length + ' editor lines' : 'No circuit required'}</span>
@@ -691,36 +821,108 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
       <form onSubmit={event => { event.preventDefault(); void ask(); }}>
         <label htmlFor="assistant-question">Ask QORE Intelligence</label>
         <textarea id="assistant-question" value={question} maxLength={4000}
-          onChange={event => setQuestion(event.target.value)} rows={4} disabled={pending}
-          placeholder={source.trim() ? 'Explain this workspace, result, or next step…' : 'Ask about QORE, or type “open lab”…'}
+          onChange={event => setQuestion(event.target.value)}
+          onKeyDown={event => {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+              event.preventDefault();
+              void ask();
+            }
+          }}
+          rows={3} disabled={pending}
+          placeholder={source.trim() ? 'Explain gates, Bloch purity, TVD, Forge diffs, or ask for a circuit…' : 'Ask about QORE, request a circuit, or type “open lab”…'}
           aria-describedby="qore-assistant-review" />
         <div className="assistant-action">
-          <span id="qore-assistant-review" className="tiny muted">Review explanations against your measured results.</span>
+          <span id="qore-assistant-review" className="tiny muted">AI proposes; simulator and Forge verify.</span>
+          {(pending || streamingTurnId !== null) && (
+            <button type="button" className="button secondary small" onClick={() => {
+              activeAbort.current?.abort();
+              setPending(false);
+              stopStream();
+            }}>
+              Stop
+            </button>
+          )}
+          {thread.length > 0 && !pending && streamingTurnId === null && (
+            <button type="button" className="button secondary small" onClick={() => { setThread([]); setError(''); }}>
+              Clear
+            </button>
+          )}
           <button className="button primary small" type="submit" disabled={pending || !question.trim()}>
             {pending ? <span className="spinner" /> : <Icon name="spark" size={14} />}
             {pending ? 'Thinking…' : 'Ask assistant'}
           </button>
         </div>
       </form>
-      {pending && <p className="help" role="status">Reading the active QORE context…</p>}
+      {pending && <p className="help" role="status">Analyzing QORE-IR and attached evidence…</p>}
       {error && <div className="error-box" role="alert">{error}</div>}
-      {answer && <div className="assistant-answer" role="status">
-        <div className="section-head"><Icon name="spark" size={15} /><h3>{available ? 'Assistant response' : 'Service notice'}</h3></div>
-        <p className="preserve-lines">{answer}</p>
-      </div>}
+      {commandStatus && <div className="assistant-answer" role="status"><p className="preserve-lines">{commandStatus}</p></div>}
+      {thread.map(turn => turn.role === 'user' ? (
+        <div key={turn.id} className="qore-assistant-user-turn">
+          <span>You</span>
+          <p>{turn.text}</p>
+        </div>
+      ) : (
+        <div key={turn.id} className="assistant-answer" role="status">
+          <div className="section-head">
+            <Icon name="spark" size={15} />
+            <h3>{turn.available !== false ? 'Assistant response' : 'Service notice'}</h3>
+            {turn.intent && <span className="mini-tag">{turn.intent.replace('_', ' ')}</span>}
+          </div>
+          <p className="preserve-lines">{turn.text}</p>
+          {turn.evidence_used && turn.evidence_used.length > 0 && (
+            <div className="qore-assistant-evidence" aria-label="Evidence used">
+              {turn.evidence_used.map(item => <span key={item} className="qore-assistant-ev-chip">{item}</span>)}
+            </div>
+          )}
+          {turn.proposal && (
+            <div className="qore-assistant-proposal">
+              <div className="qore-assistant-proposal-head">
+                <strong>{turn.proposal.title}</strong>
+                <span>{turn.proposal.language === 'qasm' ? 'OpenQASM 2.0' : 'Qiskit Python'}</span>
+              </div>
+              <pre>{turn.proposal.code}</pre>
+              <p className="tiny muted">{turn.proposal.note}</p>
+              <div className="qore-assistant-proposal-actions">
+                <button type="button" className="button secondary small" onClick={() => {
+                  navigator.clipboard?.writeText(turn.proposal!.code).catch(() => {});
+                  setCopiedId(turn.id);
+                  window.setTimeout(() => setCopiedId(prev => prev === turn.id ? null : prev), 1500);
+                }}>
+                  <Icon name="copy" size={12} />{copiedId === turn.id ? 'Copied' : 'Copy'}
+                </button>
+                {onApplyProposal && (
+                  <button type="button" className="button primary small" disabled={Boolean(historical)}
+                    onClick={() => onApplyProposal(turn.proposal!.code, turn.proposal!.title)}>
+                    <Icon name="check" size={12} />Apply to Editor
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {turn.suggested_actions && turn.suggested_actions.length > 0 && (
+            <div className="qore-assistant-suggested">
+              {turn.suggested_actions.map(action => (
+                <button key={action} type="button" onClick={() => void runExplicitAction(action)}>
+                  {ACTION_LABELS[action]}<Icon name="arrow" size={11} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
       <div className="qore-assistant-command-stack" aria-label="QORE Intelligence workspace actions">
-        <button type="button" onClick={() => onAction('studio')}>Studio</button>
-        <button type="button" onClick={() => onAction('lab')}>Lab</button>
-        <button type="button" onClick={() => onAction('forge')}>Forge</button>
-        <button type="button" onClick={() => onAction('research')}>Ledger</button>
-        <button type="button" onClick={() => onAction('terminal')}>Terminal</button>
-        <button type="button" onClick={() => onAction('new-file')}>New file</button>
+        <button type="button" onClick={() => void runExplicitAction('studio', 'open studio')}>Studio</button>
+        <button type="button" onClick={() => void runExplicitAction('lab', 'open lab')}>Lab</button>
+        <button type="button" onClick={() => void runExplicitAction('forge', 'open forge')}>Forge</button>
+        <button type="button" onClick={() => void runExplicitAction('research', 'open ledger')}>Ledger</button>
+        <button type="button" onClick={() => void runExplicitAction('terminal', 'open terminal')}>Terminal</button>
+        <button type="button" onClick={() => void runExplicitAction('new-file', 'create blank file')}>New file</button>
       </div>
       <div className="context-chips">
         <span><Icon name="lab" size={13} />{simulation ? simulation.shots.toLocaleString() + ' shots' : 'No simulation'}</span>
         <span><Icon name="forge" size={13} />{optimization ? 'Optimization attached' : 'No optimization'}</span>
       </div>
-      {health && !health.ai_available && <p className="qore-assistant-service-note" role="status">AI assistance is currently unavailable. Your circuit editor, Lab, and Forge remain available.</p>}
+      {health && !ready && <p className="qore-assistant-service-note" role="status">AI assistance is currently unavailable. Your circuit editor, Lab, and Forge remain available.</p>}
       <div className="prompt-options" aria-label="Suggested questions">
         {prompts.map(prompt => <button key={prompt.text} type="button"
           disabled={pending || !ready || !prompt.enabled} onClick={() => void ask(prompt.question)}>
@@ -728,7 +930,7 @@ export function Intelligence({ source, simulation, optimization, health, fileNam
         </button>)}
       </div>
     </section>
-    <p className="qore-assistant-footnote"><Icon name="info" size={13} />QORE Intelligence receives the active view, workspace summary, diagnostics, and attached evidence—never the server API key.</p>
+    <p className="qore-assistant-footnote"><Icon name="info" size={13} />QORE Intelligence runs grounded local QORE-IR analysis and never sends or exposes server credentials.</p>
   </div>;
 }
 

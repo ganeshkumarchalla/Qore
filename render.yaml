@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: qore
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: QORE_ENV
+        value: production
+      - key: QORE_STORAGE
+        value: sqlite
+      - key: QORE_DB_PATH
+        value: /app/data/qore.sqlite3
+      - key: QORE_PUBLIC_URL
+        value: https://qore-bmh1.onrender.com
+      - key: QDK_PYTHON_TELEMETRY
+        value: none

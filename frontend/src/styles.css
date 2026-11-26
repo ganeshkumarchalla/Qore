@@ -6590,6 +6590,19 @@ input:focus, select:focus, textarea:focus {
 .qore-assistant-sidebar .assistant-answer h3 { font-size: 12px; }
 .qore-assistant-sidebar .preserve-lines { font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 .qore-assistant-sidebar .mini-tag { display: inline-block; max-width: 100%; overflow-wrap: anywhere; margin-top: 8px; }
+.qore-assistant-user-turn { padding: 8px 10px; border: 1px solid rgba(158, 194, 225, .14); border-radius: 10px; background: rgba(255, 255, 255, .03); }
+.qore-assistant-user-turn span { display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #9fb2c9; margin-bottom: 3px; }
+.qore-assistant-user-turn p { margin: 0; font-size: 12px; line-height: 1.5; color: #eef5ff; overflow-wrap: anywhere; }
+.qore-assistant-evidence { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.qore-assistant-ev-chip { font-size: 10px; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(158, 194, 225, .2); color: #cde2f7; background: rgba(5, 13, 25, .35); }
+.qore-assistant-proposal { margin-top: 10px; padding: 10px; border: 1px solid rgba(154, 190, 224, .22); border-radius: 10px; background: rgba(4, 10, 19, .55); }
+.qore-assistant-proposal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 11px; color: #e8f2ff; }
+.qore-assistant-proposal-head span { font-size: 10px; color: #9fb2c9; }
+.qore-assistant-proposal pre { margin: 0 0 8px; padding: 8px; border-radius: 7px; background: rgba(0, 0, 0, .35); color: #dcebf9; font-size: 11px; line-height: 1.45; overflow-x: auto; max-height: 190px; }
+.qore-assistant-proposal-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.qore-assistant-suggested { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.qore-assistant-suggested button { display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: 10.5px; font-weight: 650; padding: 4px 8px; border-radius: 7px; border: 1px solid rgba(154, 190, 224, .22); color: #dbe9f8; background: rgba(255, 255, 255, .04); cursor: pointer; }
+.qore-assistant-suggested button:hover { background: rgba(104, 170, 226, .14); color: #fff; }
 .qore-assistant-service-note { font-size: 11px; line-height: 1.65; padding: 11px; border-radius: 10px; background: rgba(140, 164, 191, .07); color: #b5c4d7; }
 .qore-assistant-footnote { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 13px 0; border-top: 1px solid rgba(158, 194, 225, .13); color: #93a7bf; font-size: 10px; line-height: 1.65; }
 .qore-assistant-footnote svg { flex-shrink: 0; margin-top: 2px; }

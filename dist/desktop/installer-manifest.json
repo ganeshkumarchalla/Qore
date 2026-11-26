@@ -1,0 +1,13 @@
+{
+  "status": "built",
+  "csc": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe",
+  "desktop_exe": "C:\\Users\\ganes\\OneDrive\\QORE-ai-model\\dist\\desktop\\QORE-Desktop.exe",
+  "desktop_exe_bytes": 14336,
+  "setup_exe": "C:\\Users\\ganes\\OneDrive\\QORE-ai-model\\dist\\desktop\\QORE-Setup.exe",
+  "setup_exe_bytes": 36352,
+  "bundle_zip": "C:\\Users\\ganes\\OneDrive\\QORE-ai-model\\dist\\desktop\\QORE-Windows-Desktop.zip",
+  "bundle_zip_bytes": 34412940,
+  "bundle_zip_sha256": "5223c43dcffe3b191877ea05b73d978ec281ef62dbf764c6769f68e22d13cfae",
+  "ai_model_present": true,
+  "frontend_dist_present": true
+}

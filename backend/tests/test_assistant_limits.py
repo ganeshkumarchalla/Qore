@@ -57,7 +57,7 @@ def test_ai_budget_prevents_additional_provider_calls_without_blocking_editor(lo
         assert client.post("/api/parse", json={"source": SOURCE}).status_code == 200
 
 
-def test_provider_failure_does_not_leak_concurrency_slots(local_ai, monkeypatch):
+def test_provider_failure_falls_back_to_local_model_without_leaking_slots(local_ai, monkeypatch):
     calls = []
     async def call():
         calls.append(True)
@@ -65,8 +65,26 @@ def test_provider_failure_does_not_leak_concurrency_slots(local_ai, monkeypatch)
     provider_client(monkeypatch, call)
     with TestClient(local_ai) as client:
         for _ in range(3):
-            assert client.post("/api/assistant", json=BODY).json()["available"] is False
-        assert client.post("/api/assistant", json=BODY).json()["available"] is True
+            res = client.post("/api/assistant", json=BODY).json()
+            assert res["available"] is True
+            assert res["engine"] == "local-fallback"
+            assert res["provider_fallback"] is True
+        recovered = client.post("/api/assistant", json=BODY).json()
+        assert recovered["available"] is True
+        assert recovered["engine"] == "hybrid"
+
+
+def test_malformed_provider_json_falls_back_safely_without_500(local_ai, monkeypatch):
+    async def call():
+        return httpx.Response(200, request=httpx.Request("POST", "https://provider.example.test"), json=["unexpected-list"])
+    provider_client(monkeypatch, call)
+    with TestClient(local_ai) as client:
+        res = client.post("/api/assistant", json=BODY)
+        assert res.status_code == 200
+        payload = res.json()
+        assert payload["available"] is True
+        assert payload["engine"] == "local-fallback"
+        assert payload["provider_fallback"] is True
 
 
 def test_transient_provider_unavailability_is_retried_once(local_ai, monkeypatch):

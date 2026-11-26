@@ -1,0 +1,26 @@
+{
+  "model_id": "qore-quantum-rl-dl-v1",
+  "nlp_corpus_examples": 349,
+  "intent_classes": 13,
+  "knowledge_passages": 16,
+  "nlp_feature_dim": 5237,
+  "nlp_architecture": "Voting(DeepMLP[192,96,48] + LogisticRegression) + TruncatedSVD Retriever",
+  "nlp_train_accuracy": 1.0,
+  "nlp_cv_5fold_accuracy": 0.7794,
+  "nlp_cv_5fold_macro_f1": 0.7834,
+  "ibm_dl_samples": 168,
+  "ibm_dl_backends": [
+    "ibm_manila_falcon",
+    "ibm_belem_falcon",
+    "ibm_athens_falcon",
+    "ibm_brisbane_eagle_127q",
+    "ibm_torino_heron_133q"
+  ],
+  "ibm_dl_heldout_fidelity_r2": 0.5711,
+  "ibm_dl_heldout_fidelity_mae": 0.1852,
+  "rl_transpile_episodes": 336,
+  "rl_heldout_mean_reward": 11.5435,
+  "rl_level0_mean_reward": -0.3294,
+  "rl_oracle_mean_reward": 12.5082,
+  "rl_reward_gain_vs_level0": 11.8729
+}

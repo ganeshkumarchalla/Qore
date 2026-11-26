@@ -144,11 +144,15 @@ def test_error_recovery_and_not_found(client, bell_source):
     assert_error(client.post("/api/parse", content="{invalid json", headers={"Content-Type": "application/json"}))
 
 
-def test_assistant_unavailable_is_honest_and_core_functionality_still_works(client, bell_source):
+def test_assistant_local_model_is_available_without_external_key_and_core_works(client, bell_source):
     response = client.post("/api/assistant", json={"question": "Explain this Bell circuit", "source": bell_source})
     assert response.status_code == 200
-    assert response.json()["available"] is False
-    assert response.json()["answer"]
+    payload = response.json()
+    assert payload["available"] is True
+    assert payload["engine"] == "local"
+    assert payload["model"] == "qore-quantum-rl-dl-v1"
+    assert payload["answer"]
+    assert payload["evidence_used"]
     assert client.post("/api/parse", json={"source": bell_source}).status_code == 200
 
 
@@ -276,3 +280,24 @@ def test_api_responses_explicitly_prevent_search_indexing(client):
         response = client.get(path)
         assert "noindex" in response.headers["x-robots-tag"]
         assert "no-store" in response.headers["cache-control"]
+
+
+def test_windows_installer_info_and_download(client, monkeypatch, tmp_path):
+    missing = tmp_path / "missing-QORE-Windows-Desktop.zip"
+    monkeypatch.setenv("QORE_INSTALLER_PATH", str(missing))
+    info_missing = client.get("/api/installer-info")
+    assert info_missing.status_code == 200
+    assert info_missing.json()["available"] is False
+    assert client.get("/downloads/QORE-Windows-Desktop.zip").status_code == 404
+
+    fake_zip = tmp_path / "QORE-Windows-Desktop.zip"
+    fake_zip.write_bytes(b"PK-qore-test-bundle")
+    monkeypatch.setenv("QORE_INSTALLER_PATH", str(fake_zip))
+    info_ok = client.get("/api/installer-info")
+    assert info_ok.status_code == 200
+    assert info_ok.json()["available"] is True
+    assert info_ok.json()["size_bytes"] == len(b"PK-qore-test-bundle")
+    dl = client.get("/downloads/QORE-Windows-Desktop.zip")
+    assert dl.status_code == 200
+    assert "QORE-Windows-Desktop.zip" in dl.headers.get("content-disposition", "")
+    assert dl.content == b"PK-qore-test-bundle"

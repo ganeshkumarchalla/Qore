@@ -1539,22 +1539,39 @@ export default function App() {
         simulation={simulation}
         optimization={optimization}
         health={health}
-        fileName={activeFileId || (source ? name : '')}
+        fileName={(activeFileId ? loadWorkspaceFiles().find(file => file.id === activeFileId)?.path : undefined) ?? (source ? name : '')}
         historical={!!historical}
         view={tab}
         workspaceSummary={`${loadWorkspaceFiles().filter(file => file.type === 'file').length} files; ${projects.length} projects; ${experiments.length} ledger records`}
-        diagnostics={(parsed?.warnings ?? []).join('\n')}
-        onAction={(action) => {
-          if (action === 'studio') setTab('Studio');
-          if (action === 'lab') setTab('Lab');
-          if (action === 'forge') setTab('Forge');
-          if (action === 'research') setTab('Research');
-          if (action === 'simulate') void execute('simulate');
-          if (action === 'optimize') void execute('optimize');
-          if (action === 'terminal') setIsTerminalOpen(true);
-          if (action === 'explorer') setSidebar(true);
-          if (action === 'settings') setIsSettingsOpen(true);
-          if (action === 'new-file') void startWorkspace('blank');
+        diagnostics={[error, ...(parsed?.warnings ?? []), ...(simulation?.warnings ?? []), ...(optimization?.warnings ?? [])].filter(Boolean).join('\n')}
+        onAction={async (action) => {
+          if (action === 'studio') { setTab('Studio'); return 'Opened Studio.'; }
+          if (action === 'lab') { setTab('Lab'); return 'Opened Quantum Lab.'; }
+          if (action === 'forge') { setTab('Forge'); return 'Opened Forge.'; }
+          if (action === 'research') { setTab('Research'); return 'Opened Research Ledger.'; }
+          if (action === 'simulate') {
+            if (!source.trim()) return 'Open or enter a circuit before running simulation.';
+            await execute('simulate');
+            return 'Simulation finished. Inspect Lab results.';
+          }
+          if (action === 'optimize') {
+            if (!source.trim()) return 'Open or enter a circuit before optimizing.';
+            await execute('optimize');
+            return 'Optimization finished. Review candidate in Forge.';
+          }
+          if (action === 'terminal') { setIsTerminalOpen(true); return 'Opened Terminal.'; }
+          if (action === 'explorer') { setSidebar(true); return 'Opened Explorer.'; }
+          if (action === 'settings') { setIsSettingsOpen(true); return 'Opened Settings.'; }
+          if (action === 'new-file') {
+            await startWorkspace('blank');
+            return 'Created blank circuit file.';
+          }
+        }}
+        onApplyProposal={(code, title) => {
+          if (historical) return;
+          editSource(code);
+          setTab('Studio');
+          setNotice(`Applied proposal "${title}" to editor. Run Parse or Simulate to verify.`);
         }}
       />
     </div>

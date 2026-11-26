@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir "setuptools>=75"
 
 COPY backend ./backend
 COPY frontend/dist ./frontend/dist
+COPY dist/desktop ./dist/desktop
 RUN pip install --no-cache-dir --no-deps -e .
 
 # Optional compiler/importer and offline SDK libraries. Capabilities report
