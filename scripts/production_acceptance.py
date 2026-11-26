@@ -153,7 +153,7 @@ def main():
             def health_check():
                 health = api("/health")
                 require(health["status"] == "ok" and health["storage"] == "sqlite", "Isolated service is unavailable")
-                require(not health["ai_available"] and not health["auth_configured"], "External service configuration was inherited")
+                require(health["ai_available"] and health.get("ai_engine") == "local" and not health.get("external_ai_available") and not health["auth_configured"], "External service configuration was inherited")
                 require(api("/projects") == [] and api("/experiments") == [] and api("/runs") == [], "New workspace was not empty")
                 evidence["versions"], evidence["limits"] = health["versions"], health["limits"]
                 return {"initial_records": 0, "external_services_disabled": True}
